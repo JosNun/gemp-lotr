@@ -22,6 +22,38 @@ public class CardFeatures {
     private static LotroCardBlueprintLibrary library = null;
     public static final String PASS = "pass";
 
+    /**
+     * Which feature set this thread is computing: 1, the original, or 2 ({@link GeneralStateFeatures}). Set by the
+     * bot around each decision and by BotTrain around training, so bots on either set can share a process -- a
+     * model is only ever fed vectors of the set it was trained on.
+     */
+    private static final ThreadLocal<Integer> VERSION = ThreadLocal.withInitial(() -> 1);
+
+    public static LotroCardBlueprint blueprint(String blueprintId) throws CardNotFoundException {
+        return library.getLotroCardBlueprint(blueprintId);
+    }
+
+    public static int version() {
+        return VERSION.get();
+    }
+
+    public static void setVersion(int version) {
+        VERSION.set(version);
+    }
+
+    /** Keywords that change what a card does in a fight or a turn, as counts (damage +2 is 2) or flags. */
+    private static final List<Keyword> KEYWORDS = List.of(Keyword.DAMAGE, Keyword.FIERCE, Keyword.ARCHER,
+            Keyword.AMBUSH, Keyword.ROAMING, Keyword.ENDURING, Keyword.LURKER, Keyword.MUSTER, Keyword.TOIL,
+            Keyword.HUNTER, Keyword.RANGER, Keyword.VALIANT, Keyword.UNHASTY, Keyword.RING_BOUND, Keyword.TWILIGHT,
+            Keyword.TALE, Keyword.SPELL, Keyword.WEATHER, Keyword.SEARCH, Keyword.STEALTH, Keyword.KNIGHT,
+            Keyword.BESIEGER);
+
+    /** Length of a set-2 card vector; PASS is this many zeros. */
+    private static int v2Length() {
+        return 22 + 2 + KEYWORDS.size() + com.gempukku.lotro.common.Culture.values().length
+                + com.gempukku.lotro.common.Race.values().length;
+    }
+
     private CardFeatures() {
 
     }
@@ -31,6 +63,8 @@ public class CardFeatures {
     }
 
     public static double[] getCardFeatures(String blueprintId, int woundsPlaced) throws CardNotFoundException {
+        if (version() == 2)
+            return getCardFeaturesV2(blueprintId, woundsPlaced);
         if (library != null) {
             try {
                 LotroCardBlueprint blueprint = library.getLotroCardBlueprint(blueprintId);
@@ -73,6 +107,93 @@ public class CardFeatures {
         } else {
             throw new IllegalStateException("Blueprint library not initialized");
         }
+    }
+
+    /**
+     * Set 2: set 1's 22 numbers, then resistance, unique, the {@link #KEYWORDS}, culture and race one-hot. Set 1
+     * cannot tell a damage +1 fierce minion from a plain one of the same cost and strength, nor one culture's
+     * cards from another's, which across decks is most of what distinguishes them.
+     */
+    private static double[] getCardFeaturesV2(String blueprintId, int woundsPlaced) throws CardNotFoundException {
+        if (blueprintId.equals(PASS))
+            return new double[v2Length()];
+        LotroCardBlueprint blueprint = library.getLotroCardBlueprint(blueprintId);
+        VERSION.set(1);
+        double[] base;
+        try {
+            base = getCardFeatures(blueprintId, woundsPlaced);
+        } finally {
+            VERSION.set(2);
+        }
+        double[] f = Arrays.copyOf(base, v2Length());
+        int i = base.length;
+        f[i++] = blueprint.getResistance();
+        f[i++] = blueprint.isUnique() ? 1 : 0;
+        for (Keyword keyword : KEYWORDS)
+            f[i++] = blueprint.getKeywordCount(keyword);
+        if (blueprint.getCulture() != null)
+            f[i + blueprint.getCulture().ordinal()] = 1;
+        i += com.gempukku.lotro.common.Culture.values().length;
+        if (blueprint.getRace() != null)
+            f[i + blueprint.getRace().ordinal()] = 1;
+        return f;
+    }
+
+    /** State features each option is crossed with in set 2, and the scale that brings each to about 0..1. */
+    private static final String[] CROSS_STATE = {"iAmFp", "twilight", "inSkirmish", "mySkirmishMargin",
+            "fpCompanions", "minions", "shadowAdvantage", "rbResistanceLeft", "site", "myHand", "fpMinVitalityLeft"};
+    private static final double[] CROSS_STATE_SCALE = {1, 10, 1, 5, 5, 5, 10, 10, 9, 8, 4};
+    private static final int CROSS_CARD = 12;
+
+    /**
+     * An option's vector after the state's. In set 1, just that. In set 2, followed by every product of a few state
+     * features ({@link #CROSS_STATE}) with a summary of the option's card (type, cost, strength, vitality, damage):
+     * a logistic model adds the state's own term equally to every option, so without these the state can never
+     * change which option wins -- "play the skirmish event when losing the skirmish" is a product of the two.
+     * {@code blueprintId} is the card the option is about, or PASS.
+     */
+    public static double[] join(double[] state, double[] option, String blueprintId) {
+        int crossLength = version() == 2 ? CROSS_STATE.length * CROSS_CARD : 0;
+        double[] x = new double[state.length + option.length + crossLength];
+        System.arraycopy(state, 0, x, 0, state.length);
+        System.arraycopy(option, 0, x, state.length, option.length);
+        if (crossLength == 0)
+            return x;
+        if (state.length != GeneralStateFeatures.length())
+            throw new IllegalStateException("Set-2 join of a " + state.length + "-long state; set 2 states are "
+                    + GeneralStateFeatures.length());
+        double[] card = crossSummary(blueprintId);
+        int k = state.length + option.length;
+        for (int s = 0; s < CROSS_STATE.length; s++) {
+            double v = state[GeneralStateFeatures.index(CROSS_STATE[s])] / CROSS_STATE_SCALE[s];
+            for (double c : card)
+                x[k++] = v * c;
+        }
+        return x;
+    }
+
+    private static double[] crossSummary(String blueprintId) {
+        double[] c = new double[CROSS_CARD];
+        if (blueprintId == null || blueprintId.equals(PASS) || library == null)
+            return c;
+        try {
+            LotroCardBlueprint bp = library.getLotroCardBlueprint(blueprintId);
+            CardType type = bp.getCardType();
+            c[0] = type == CardType.COMPANION ? 1 : 0;
+            c[1] = type == CardType.ALLY ? 1 : 0;
+            c[2] = type == CardType.MINION ? 1 : 0;
+            c[3] = type == CardType.POSSESSION || type == CardType.ARTIFACT ? 1 : 0;
+            c[4] = type == CardType.CONDITION ? 1 : 0;
+            c[5] = type == CardType.EVENT && bp.hasTimeword(SKIRMISH) ? 1 : 0;
+            c[6] = type == CardType.EVENT && !bp.hasTimeword(SKIRMISH) ? 1 : 0;
+            c[7] = bp.getSide() == Side.FREE_PEOPLE ? 1 : 0;
+            c[8] = bp.getTwilightCost() / 5.0;
+            c[9] = bp.getStrength() / 10.0;
+            c[10] = bp.getVitality() / 5.0;
+            c[11] = bp.getKeywordCount(Keyword.DAMAGE) / 2.0;
+        } catch (CardNotFoundException ignored) {
+        }
+        return c;
     }
 
     public static double[] getFpAssignedCardFeatures(String blueprintId, int woundsPlaced, int numberOfMinions, int minionStrength) throws CardNotFoundException {

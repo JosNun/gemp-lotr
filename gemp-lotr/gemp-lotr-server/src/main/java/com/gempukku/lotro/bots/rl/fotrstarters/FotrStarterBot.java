@@ -77,6 +77,8 @@ public class FotrStarterBot extends RandomDecisionBot implements LearningBotPlay
     );
 
     private final RLGameStateFeatures features;
+    /** Features to store in learning steps when they differ from the ones played with; see recordWith. */
+    private RLGameStateFeatures recordFeatures;
     private final ModelRegistry modelRegistry;
     private final ReplayBuffer replayBuffer;
 
@@ -86,12 +88,31 @@ public class FotrStarterBot extends RandomDecisionBot implements LearningBotPlay
     private int answerRepeat = 0;
 
     private final List<LearningStep> episodeSteps = new ArrayList<>();
+    /** Chance of answering at random instead of by the models, so self-play sees moves the models would not make. */
+    private final double epsilon;
+    /**
+     * Off by default, which is the bot as trained on the FotR starters. On, decisions that bot answered at random get
+     * an answer: card actions in any phase from {@link AnyPhaseCardActionTrainer} (when its model is loaded), sites
+     * by shadow number, "how many X to spot" with the most.
+     */
+    private final boolean extended;
+    private final AnyPhaseCardActionTrainer anyPhaseTrainer = new AnyPhaseCardActionTrainer();
+    private final java.util.Random exploration = new java.util.Random();
 
     public FotrStarterBot(RLGameStateFeatures features, String playerId, ModelRegistry modelRegistry, ReplayBuffer replayBuffer) {
+        this(features, playerId, modelRegistry, replayBuffer, 0.0, false);
+    }
+
+    public FotrStarterBot(RLGameStateFeatures features, String playerId, ModelRegistry modelRegistry, ReplayBuffer replayBuffer,
+                          double epsilon, boolean extended) {
         super(playerId);
-        this.features = features;
+        // models trained on feature set 2 are only ever fed set 2, whatever the caller passed
+        this.features = modelRegistry != null && modelRegistry.getFeatureVersion() == GeneralStateFeatures.VERSION
+                ? new GeneralStateFeatures() : features;
         this.modelRegistry = modelRegistry;
         this.replayBuffer = replayBuffer;
+        this.epsilon = epsilon;
+        this.extended = extended;
     }
 
     @Override
@@ -99,20 +120,40 @@ public class FotrStarterBot extends RandomDecisionBot implements LearningBotPlay
         return chooseAction(gameState, decision, AssignmentLegality.UNCHECKED);
     }
 
+    /**
+     * Store learning steps with these features instead of the ones the bot plays with. Training a new feature set
+     * starts from models of the old one: they play the first generation, and what it records has to be in the set
+     * being trained.
+     */
+    public FotrStarterBot recordWith(RLGameStateFeatures recordFeatures) {
+        this.recordFeatures = recordFeatures;
+        return this;
+    }
+
     @Override
     public String chooseAction(GameState gameState, AwaitingDecision decision, AssignmentLegality legality) {
-        double[] stateVector = features.extractFeatures(gameState, decision, getName());
+        int previousVersion = CardFeatures.version();
+        try {
+            CardFeatures.setVersion(modelRegistry == null ? 1 : modelRegistry.getFeatureVersion());
+            SemanticAction action = chooseSemanticAction(gameState, decision, legality);
 
-        SemanticAction action = chooseSemanticAction(gameState, decision, legality);
+            if (replayBuffer != null) {
+                // Store temporarily — reward comes later
+                double[] stateVector = (recordFeatures != null ? recordFeatures : features)
+                        .extractFeatures(gameState, decision, getName());
+                episodeSteps.add(new LearningStep(stateVector, action, getName().equals(gameState.getCurrentPlayerId()), decision));
+            }
 
-        // Store temporarily — reward comes later
-        episodeSteps.add(new LearningStep(stateVector, action, getName().equals(gameState.getCurrentPlayerId()), decision));
-
-        return action.toDecisionString(decision, gameState);
+            return action.toDecisionString(decision, gameState);
+        } finally {
+            CardFeatures.setVersion(previousVersion);
+        }
     }
 
     private SemanticAction chooseSemanticAction(GameState gameState, AwaitingDecision decision, AssignmentLegality legality) {
-        String action =  switch (decision.getDecisionType()) {
+        String action = epsilon > 0 && exploration.nextDouble() < epsilon
+                ? super.chooseAction(gameState, decision, legality)
+                : switch (decision.getDecisionType()) {
             case INTEGER -> chooseIntegerAction(gameState, decision);
             case MULTIPLE_CHOICE -> chooseMultipleChoiceAction(gameState, decision);
             case ARBITRARY_CARDS -> chooseArbitraryCardsAction(gameState, decision);
@@ -177,6 +218,8 @@ public class FotrStarterBot extends RandomDecisionBot implements LearningBotPlay
                 chosenAnswer = trainer.getAnswer(gameState, decision, getName(), features, modelRegistry);
             }
         }
+        if (chosenAnswer == null && extended && modelRegistry.hasModel(AnyPhaseCardActionTrainer.class))
+            chosenAnswer = anyPhaseTrainer.getAnswer(gameState, decision, getName(), features, modelRegistry);
         // Loop prevention
         if (chosenAnswer != null) {
             if (decision.equals(lastDecision) && chosenAnswer.equals(lastAction)) {
@@ -238,6 +281,12 @@ public class FotrStarterBot extends RandomDecisionBot implements LearningBotPlay
             if (trainer.appliesTo(gameState, decision, getName())) {
                 return trainer.getAnswer(gameState, decision, getName(), features, modelRegistry);
             }
+        }
+
+        if (extended && decision.getText().startsWith("Choose site to play")) {
+            String site = chooseSite(gameState, cardIds, selectable, params.get("blueprintId"));
+            if (site != null)
+                return site;
         }
 
         // Fallback to random decision
@@ -306,7 +355,8 @@ public class FotrStarterBot extends RandomDecisionBot implements LearningBotPlay
                 return trainer.getAnswer(gameState, decision, getName(), features, modelRegistry);
             }
         }
-        if (decision.getText().contains("how many to spot")) {
+        if (decision.getText().contains("how many to spot")
+                || (extended && SPOT_HOW_MANY.matcher(decision.getText()).find())) {
             return decision.getDecisionParameters().get("max")[0];
         }
 
@@ -330,6 +380,40 @@ public class FotrStarterBot extends RandomDecisionBot implements LearningBotPlay
 
         System.out.println("Unknown multiple choice action: " + decision.getText() + " - " + Arrays.toString(options));
         return super.chooseAction(gameState, decision);
+    }
+
+    /** "Choose how many ROHAN man to spot", "...Ents to spot": spotting more makes the effect bigger, never smaller. */
+    private static final java.util.regex.Pattern SPOT_HOW_MANY =
+            java.util.regex.Pattern.compile("(?i)how many .* to spot");
+
+    /**
+     * From the Shadows sets on, sites carry no number and whoever plays the next one picks it from their adventure
+     * deck. A site's shadow number is the twilight added when the fellowship moves there: the Shadow player wants
+     * the most, the Free Peoples player the least. Decided by whose turn it is, so it holds whichever player the
+     * engine asks.
+     */
+    private String chooseSite(GameState gameState, String[] cardIds, String[] selectable, String[] blueprintIds) {
+        // the choices carry temporary ids ("temp0"), not card ids; the blueprints say which site each is
+        if (blueprintIds == null || blueprintIds.length != cardIds.length)
+            return null;
+        boolean shadow = !getName().equals(gameState.getCurrentPlayerId());
+        String best = null;
+        int bestTwilight = 0;
+        for (int i = 0; i < cardIds.length; i++) {
+            if (!Boolean.parseBoolean(selectable[i]))
+                continue;
+            int twilight;
+            try {
+                twilight = CardFeatures.blueprint(blueprintIds[i]).getTwilightCost();
+            } catch (com.gempukku.lotro.game.CardNotFoundException e) {
+                continue;
+            }
+            if (best == null || (shadow ? twilight > bestTwilight : twilight < bestTwilight)) {
+                best = cardIds[i];
+                bestTwilight = twilight;
+            }
+        }
+        return best;
     }
 
     @Override

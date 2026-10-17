@@ -1,0 +1,167 @@
+package com.gempukku.lotro.bots.simulation;
+
+import com.gempukku.lotro.bots.BotDecisionFallback;
+import com.gempukku.lotro.bots.BotPlayer;
+import com.gempukku.lotro.game.DefaultUserFeedback;
+import com.gempukku.lotro.game.LotroCardBlueprintLibrary;
+import com.gempukku.lotro.game.LotroFormat;
+import com.gempukku.lotro.logic.decisions.AwaitingDecision;
+import com.gempukku.lotro.logic.decisions.DecisionResultInvalidException;
+import com.gempukku.lotro.logic.timing.DefaultLotroGame;
+import com.gempukku.lotro.logic.timing.GameResultListener;
+import com.gempukku.lotro.logic.vo.LotroDeck;
+
+import java.io.PrintWriter;
+import java.io.StringWriter;
+import java.util.HashMap;
+import java.util.List;
+import java.util.Map;
+import java.util.concurrent.Executors;
+import java.util.concurrent.ScheduledExecutorService;
+import java.util.concurrent.ScheduledFuture;
+import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.stream.Collectors;
+
+/**
+ * One headless game between two bots, with each decision applied the way {@code LotroGameMediator.botAnswered}
+ * applies it on the live server: the same {@link BotDecisionFallback} for answers the engine rejects, and the same
+ * concession after too many decisions. So a result here is what a bot table would have done.
+ * <p>
+ * {@link FotrStartersSimulation} re-asks a rejected decision instead, which a deterministic model answers the same
+ * way forever once it is off the decks it was trained on.
+ */
+public final class BotGame {
+    /** The name of the bot whose answer is being chosen on this thread, for anyone listening to what it prints. */
+    public static final ThreadLocal<String> DECIDING = new ThreadLocal<>();
+
+    /**
+     * A game that has not finished in this long is stuck inside the engine, not slow: games take a fraction of a
+     * second, and the first one found spun in TurnProcedure.carryOutPendingActionsUntilDecisionNeeded for over ten
+     * minutes without asking anyone anything. That loop only stops once there is a winner, so the watchdog makes one.
+     */
+    private static final long STUCK_SECONDS = 60;
+
+    /**
+     * Exceptions bots threw while choosing, by exception and the bot frame it came from. The game goes on with the
+     * fallback's answer, as on the server, so without this a bot that throws on some decision just looks weak.
+     */
+    public static final Map<String, Integer> BOT_ERRORS = new java.util.concurrent.ConcurrentHashMap<>();
+    private static final ScheduledExecutorService WATCHDOG = Executors.newSingleThreadScheduledExecutor(r -> {
+        Thread t = new Thread(r, "bot-game-watchdog");
+        t.setDaemon(true);
+        return t;
+    });
+
+    /**
+     * {@code winner} and {@code first} are bot names; {@code rejected} counts, by bot, answers the engine refused
+     * and the fallback replaced. On a crash or stall only {@code error} and the counts are set.
+     */
+    public record Result(String winner, String first, String reason, int turns, int decisions,
+                         Map<String, Integer> rejected, String error) {
+        public boolean finished() {
+            return error == null && winner != null;
+        }
+    }
+
+    private BotGame() {
+    }
+
+    public static Result play(LotroFormat format, LotroCardBlueprintLibrary library, List<BotPlayer> bots,
+                              Map<String, LotroDeck> decks, int maxDecisions) {
+        Map<String, BotPlayer> byName = bots.stream().collect(Collectors.toMap(BotPlayer::getName, b -> b));
+        String[] reason = {null};
+        Map<String, Integer> rejected = new HashMap<>();
+        Map<String, Integer> decisions = new HashMap<>();
+        int total = 0;
+        AtomicBoolean stuck = new AtomicBoolean();
+        ScheduledFuture<?> watchdog = null;
+        try {
+            DefaultUserFeedback feedback = new DefaultUserFeedback();
+            DefaultLotroGame game = new DefaultLotroGame(format, decks, feedback, library);
+            feedback.setGame(game);
+            watchdog = WATCHDOG.schedule(() -> {
+                if (!game.isFinished()) {
+                    stuck.set(true);
+                    // not thread-safe, and need not be: this game's result is thrown away
+                    game.playerLost(bots.get(0).getName(), "stuck");
+                }
+            }, STUCK_SECONDS, TimeUnit.SECONDS);
+            game.addGameResultListener(new GameResultListener() {
+                @Override
+                public void gameFinished(String winner, String winReason, Map<String, String> losers) {
+                    // A win by surviving or by sites sets the loser's reason to "Other player won"; a loss sets the
+                    // winner's to "Last remaining player in game". The other side of each is the one that says how.
+                    reason[0] = "Last remaining player in game".equals(winReason) && !losers.isEmpty()
+                            ? String.join("; ", losers.values()) : winReason;
+                }
+
+                @Override
+                public void gameCancelled() {
+                    reason[0] = "cancelled";
+                }
+            });
+            game.startGame();
+
+            while (!game.isFinished()) {
+                BotPlayer bot = bots.stream().filter(b -> feedback.getAwaitingDecision(b.getName()) != null)
+                        .findFirst().orElse(null);
+                if (bot == null)
+                    return new Result(null, null, null, 0, total, rejected, "stalled: game unfinished and nobody to decide");
+                String name = bot.getName();
+
+                if (decisions.merge(name, 1, Integer::sum) > maxDecisions) {
+                    // the live server's rule (LotroGameMediator.botAnswered)
+                    game.playerLost(name, "Possible loop detected");
+                    break;
+                }
+                total++;
+
+                AwaitingDecision decision = feedback.getAwaitingDecision(name);
+                String answer;
+                DECIDING.set(name);
+                try {
+                    answer = byName.get(name).chooseAction(game.getGameState(), decision);
+                } catch (RuntimeException e) {
+                    answer = null; // as BotGameStateListener: the fallback picks a valid default
+                    String frame = java.util.Arrays.stream(e.getStackTrace())
+                            .filter(f -> f.getClassName().contains(".bots.")).findFirst()
+                            .map(f -> f.getClassName().replaceAll(".*\\.", "") + ":" + f.getLineNumber()).orElse("?");
+                    String key = e.getClass().getSimpleName() + " at " + frame + " (" + decision.getText() + ")";
+                    if (BOT_ERRORS.merge(key, 1, Integer::sum) == 1 && System.getenv("BOT_TRACE") != null) {
+                        System.err.println("== " + key);
+                        e.printStackTrace(System.err);
+                    }
+                } finally {
+                    DECIDING.remove();
+                }
+                feedback.participantDecided(name);
+                try {
+                    String accepted = BotDecisionFallback.decide(game, name, decision, answer);
+                    if (!accepted.equals(answer))
+                        rejected.merge(name, 1, Integer::sum);
+                } catch (DecisionResultInvalidException e) {
+                    game.playerLost(name, "Invalid decision");
+                    break;
+                }
+                game.carryOutPendingActionsUntilDecisionNeeded();
+            }
+
+            if (stuck.get())
+                return new Result(null, null, null, 0, total, rejected, "engine stuck: no decision asked for "
+                        + STUCK_SECONDS + "s, turn " + game.getGameState().getTurnNumber() + ", "
+                        + game.getGameState().getCurrentPhase());
+            var state = game.getGameState();
+            return new Result(game.getWinnerPlayerId(), state.getFirstPlayerId(), reason[0], state.getTurnNumber(),
+                    total, rejected, null);
+        } catch (RuntimeException e) {
+            StringWriter trace = new StringWriter();
+            e.printStackTrace(new PrintWriter(trace));
+            String where = trace.toString().lines().skip(1).limit(3).map(String::trim).collect(Collectors.joining(" < "));
+            return new Result(null, null, null, 0, total, rejected, e + " at " + where);
+        } finally {
+            if (watchdog != null)
+                watchdog.cancel(false);
+        }
+    }
+}

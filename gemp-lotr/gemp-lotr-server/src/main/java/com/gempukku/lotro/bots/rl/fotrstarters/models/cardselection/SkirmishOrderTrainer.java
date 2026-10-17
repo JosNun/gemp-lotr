@@ -35,8 +35,7 @@ public class SkirmishOrderTrainer extends AbstractTrainer {
             for (int i = 0; i < action.getChosenBlueprintIds().size(); i++) {
                 try {
                     double[] blueprintVector = CardFeatures.getFpAssignedCardFeatures(action.getChosenBlueprintIds().get(i), action.getWoundsOnChosen().get(i), action.getMinionsOnChosen().get(i), action.getStrengthOfMinionsOnChosen().get(i));
-                    double[] extended = Arrays.copyOf(step.state, step.state.length + blueprintVector.length);
-                    System.arraycopy(blueprintVector, 0, extended, step.state.length, blueprintVector.length);
+                    double[] extended = CardFeatures.join(step.state, blueprintVector, action.getChosenBlueprintIds().get(i));
 
                     int label = step.reward > 0 ? 1 : 0;
 
@@ -84,8 +83,7 @@ public class SkirmishOrderTrainer extends AbstractTrainer {
                             }
                         }
                         double[] cardVector = CardFeatures.getFpAssignedCardFeatures(blueprintId, wounds, assignment.getShadowCharacters().size(), assignment.getShadowCharacters().stream().mapToInt(value -> value.getBlueprint().getStrength()).sum());
-                        double[] extended = Arrays.copyOf(stateVector, stateVector.length + cardVector.length);
-                        System.arraycopy(cardVector, 0, extended, stateVector.length, cardVector.length);
+                        double[] extended = CardFeatures.join(stateVector, cardVector, blueprintId);
 
                         double[] probs = new double[2];
                         model.predict(extended, probs);

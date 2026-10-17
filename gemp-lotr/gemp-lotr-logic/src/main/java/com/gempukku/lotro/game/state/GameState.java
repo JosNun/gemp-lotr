@@ -127,6 +127,11 @@ public class GameState {
     private boolean _isInit = false;
     private Map<String, LotroDeck> _lotroDecks;
 
+    /** The game this state belongs to, for readers that need modified values (strength after modifiers etc.). */
+    public LotroGame getGame() {
+        return _lotroGame;
+    }
+
     public void setGame(LotroGame game) {
         _lotroGame = game;
     }

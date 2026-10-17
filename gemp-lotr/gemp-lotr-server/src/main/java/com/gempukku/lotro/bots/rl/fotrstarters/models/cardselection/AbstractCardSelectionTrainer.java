@@ -73,9 +73,8 @@ public abstract class AbstractCardSelectionTrainer extends AbstractTrainer {
                         wounds = gameState.getWounds(physicalCard);
                     }
                 }
-                double[] cardVector = CardFeatures.getCardFeatures(blueprintId, wounds);
-                double[] extended = Arrays.copyOf(stateVector, stateVector.length + cardVector.length);
-                System.arraycopy(cardVector, 0, extended, stateVector.length, cardVector.length);
+                double[] cardVector = getCardVector(blueprintId, wounds);
+                double[] extended = CardFeatures.join(stateVector, cardVector, blueprintId);
 
                 double[] probs = new double[2];
                 model.predict(extended, probs);
@@ -148,9 +147,7 @@ public abstract class AbstractCardSelectionTrainer extends AbstractTrainer {
         for (int i = 0; i < blueprintIds.size(); i++) {
             try {
                 double[] cardVector = getCardVector(blueprintIds.get(i), wounds.get(i));
-                double[] extended = Arrays.copyOf(state, state.length + cardVector.length);
-                System.arraycopy(cardVector, 0, extended, state.length, cardVector.length);
-                data.add(new LabeledPoint(label, extended));
+                data.add(new LabeledPoint(label, CardFeatures.join(state, cardVector, blueprintIds.get(i))));
             } catch (CardNotFoundException ignore) {
             }
         }
