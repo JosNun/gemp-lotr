@@ -110,8 +110,7 @@ public abstract class AbstractPlayUseCardTrainer extends AbstractTrainer {
                 if (cardVector == null) {
                     continue;
                 }
-                double[] extended = Arrays.copyOf(stateVector, stateVector.length + cardVector.length);
-                System.arraycopy(cardVector, 0, extended, stateVector.length, cardVector.length);
+                double[] extended = CardFeatures.join(stateVector, cardVector, blueprintId);
 
                 double[] probs = new double[2];
                 model.predict(extended, probs);
@@ -124,8 +123,7 @@ public abstract class AbstractPlayUseCardTrainer extends AbstractTrainer {
         // Add pass option
         try {
             double[] cardVector = getPassCardFeatures();
-            double[] extended = Arrays.copyOf(stateVector, stateVector.length + cardVector.length);
-            System.arraycopy(cardVector, 0, extended, stateVector.length, cardVector.length);
+            double[] extended = CardFeatures.join(stateVector, cardVector, CardFeatures.PASS);
 
             double[] probs = new double[2];
             model.predict(extended, probs);
@@ -178,10 +176,9 @@ public abstract class AbstractPlayUseCardTrainer extends AbstractTrainer {
     protected void addLabeledPoints(List<LabeledPoint> data, String blueprintId, CardActionChoiceAction action,
                                     double[] state, int label) {
         try {
-            double[] cardVector = getCardFeatures(blueprintId, action);
-            double[] extended = Arrays.copyOf(state, state.length + cardVector.length);
-            System.arraycopy(cardVector, 0, extended, state.length, cardVector.length);
-            data.add(new LabeledPoint(label, extended));
+            double[] cardVector = blueprintId.equals(CardFeatures.PASS) ? getPassCardFeatures()
+                    : getCardFeatures(blueprintId, action);
+            data.add(new LabeledPoint(label, CardFeatures.join(state, cardVector, blueprintId)));
         } catch (CardNotFoundException ignore) {
         }
 

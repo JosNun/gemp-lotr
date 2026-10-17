@@ -65,9 +65,10 @@ public class RandomDecisionBot implements BotPlayer {
             return String.valueOf(min);
         }
 
-        int range = Math.min(max - min + 1, 1);
-        int choice = random.nextInt(range) + min;
-        return String.valueOf(choice);
+        // This always answered min: the range was Math.min(max - min + 1, 1), so nextInt(1). Kept as min, because
+        // that is what every trained model's data came from; the computed range also overflowed to a negative
+        // bound when max was Integer.MAX_VALUE ("Choose how much twilight to add").
+        return String.valueOf(min);
     }
 
     private String chooseFromMultipleChoice(Map<String, String[]> params) {

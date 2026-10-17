@@ -178,8 +178,8 @@ public class FotrStartersRLGameStateFeatures implements RLGameStateFeatures {
         // My turn
         features.add(getTurnIndicator(gameState, playerId));
         // Number of fp and shadow cards in hand
-        features.add((double) gameState.getHand(playerId).stream().filter((Predicate<PhysicalCard>) physicalCard -> physicalCard.getBlueprint().getSide().equals(Side.FREE_PEOPLE)).count());
-        features.add((double) gameState.getHand(playerId).stream().filter((Predicate<PhysicalCard>) physicalCard -> physicalCard.getBlueprint().getSide().equals(Side.SHADOW)).count());
+        features.add((double) gameState.getHand(playerId).stream().filter((Predicate<PhysicalCard>) physicalCard -> physicalCard.getBlueprint().getSide() == Side.FREE_PEOPLE).count());
+        features.add((double) gameState.getHand(playerId).stream().filter((Predicate<PhysicalCard>) physicalCard -> physicalCard.getBlueprint().getSide() == Side.SHADOW).count());
         // Opponent mulligan
         features.add((double) gameState.getHand(opponent).size());
 
@@ -220,15 +220,15 @@ public class FotrStartersRLGameStateFeatures implements RLGameStateFeatures {
         // Number of attached cards on minions
         features.add((double) gameState.getInPlay().stream().filter((Predicate<PhysicalCard>) physicalCard -> physicalCard.getOwner().equals(opponent) && physicalCard.getAttachedTo() != null && physicalCard.getBlueprint().getCardType().equals(CardType.MINION)).count());
         // Hand situation
-        features.add((double) gameState.getHand(playerId).stream().filter((Predicate<PhysicalCard>) physicalCard -> physicalCard.getBlueprint().getSide().equals(Side.FREE_PEOPLE)).count());
-        features.add((double) gameState.getHand(playerId).stream().filter((Predicate<PhysicalCard>) physicalCard -> physicalCard.getBlueprint().getSide().equals(Side.FREE_PEOPLE) && physicalCard.getBlueprint().getCardType().equals(CardType.EVENT) && physicalCard.getBlueprint().hasTimeword(Timeword.SKIRMISH)).count());
-        features.add((double) gameState.getHand(playerId).stream().filter((Predicate<PhysicalCard>) physicalCard -> physicalCard.getBlueprint().getSide().equals(Side.SHADOW)).count());
+        features.add((double) gameState.getHand(playerId).stream().filter((Predicate<PhysicalCard>) physicalCard -> physicalCard.getBlueprint().getSide() == Side.FREE_PEOPLE).count());
+        features.add((double) gameState.getHand(playerId).stream().filter((Predicate<PhysicalCard>) physicalCard -> physicalCard.getBlueprint().getSide() == Side.FREE_PEOPLE && physicalCard.getBlueprint().getCardType().equals(CardType.EVENT) && physicalCard.getBlueprint().hasTimeword(Timeword.SKIRMISH)).count());
+        features.add((double) gameState.getHand(playerId).stream().filter((Predicate<PhysicalCard>) physicalCard -> physicalCard.getBlueprint().getSide() == Side.SHADOW).count());
         features.add((double) gameState.getHand(opponent).size());
         // Cards in discard -> cards remaining in deck
         features.add((double) gameState.getDiscard(playerId).size());
         features.add((double) gameState.getDiscard(opponent).size());
         // Side of top card in opponents discard
-        features.add(gameState.getDiscard(opponent).isEmpty() ? 0.0 : gameState.getDiscard(opponent).getLast().getBlueprint().getSide().equals(Side.SHADOW) ? 1.0 : 2.0);
+        features.add(gameState.getDiscard(opponent).isEmpty() ? 0.0 : gameState.getDiscard(opponent).getLast().getBlueprint().getSide() == Side.SHADOW ? 1.0 : 2.0);
         // Burden count
         features.add((double) gameState.getPlayerBurdens(playerId));
         features.add((double) gameState.getPlayerBurdens(opponent));

@@ -54,8 +54,7 @@ public abstract class AbstractArbitraryCardsTrainer extends AbstractTrainer {
             try {
                 String blueprintId = selectableBlueprints.get(i);
                 double[] cardVector = getCardVector(blueprintId);
-                double[] extended = Arrays.copyOf(stateVector, stateVector.length + cardVector.length);
-                System.arraycopy(cardVector, 0, extended, stateVector.length, cardVector.length);
+                double[] extended = CardFeatures.join(stateVector, cardVector, blueprintId);
 
                 double[] probs = new double[2];
                 model.predict(extended, probs);
@@ -116,9 +115,7 @@ public abstract class AbstractArbitraryCardsTrainer extends AbstractTrainer {
         for (String blueprintId : blueprintIds) {
             try {
                 double[] cardVector = getCardVector(blueprintId);
-                double[] extended = Arrays.copyOf(state, state.length + cardVector.length);
-                System.arraycopy(cardVector, 0, extended, state.length, cardVector.length);
-                data.add(new LabeledPoint(label, extended));
+                data.add(new LabeledPoint(label, CardFeatures.join(state, cardVector, blueprintId)));
             } catch (CardNotFoundException ignore) {
                 System.out.println(ignore.getMessage());
             }

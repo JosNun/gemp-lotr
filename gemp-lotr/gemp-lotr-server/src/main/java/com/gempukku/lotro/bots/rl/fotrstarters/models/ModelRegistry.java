@@ -9,6 +9,16 @@ import java.util.Set;
 
 public class ModelRegistry {
     private final Map<Class<? extends Trainer>, SoftClassifier<double[]>> modelMap = new HashMap<>();
+    /** The feature set (CardFeatures.version()) these models were trained on: 1 unless a model dir says 2. */
+    private int featureVersion = 1;
+
+    public int getFeatureVersion() {
+        return featureVersion;
+    }
+
+    public void setFeatureVersion(int featureVersion) {
+        this.featureVersion = featureVersion;
+    }
 
     public <T extends Trainer> void registerModel(Class<T> trainerClass, SoftClassifier<double[]> model) {
         modelMap.put(trainerClass, model);
