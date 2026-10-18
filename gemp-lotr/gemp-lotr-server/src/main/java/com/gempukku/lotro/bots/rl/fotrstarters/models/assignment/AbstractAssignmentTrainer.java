@@ -60,12 +60,29 @@ public abstract class AbstractAssignmentTrainer extends AbstractTrainer {
      */
     public String getAnswer(GameState gameState, AwaitingDecision decision, String playerName, RLGameStateFeatures features,
                             ModelRegistry modelRegistry, AssignmentLegality legality) {
+        List<String> ranked = ranked(gameState, decision, playerName, features, modelRegistry, legality, 1, true);
+        return ranked.isEmpty() ? "" : ranked.get(0);
+    }
+
+    /**
+     * The {@code k} legal candidate assignments the model scores highest, best first, as answers -- what a search
+     * branches on instead of trusting the top one. Empty if there is nothing to assign.
+     */
+    public List<String> candidates(GameState gameState, AwaitingDecision decision, String playerName,
+                                   RLGameStateFeatures features, ModelRegistry modelRegistry,
+                                   AssignmentLegality legality, int k) {
+        return ranked(gameState, decision, playerName, features, modelRegistry, legality, k, false);
+    }
+
+    private List<String> ranked(GameState gameState, AwaitingDecision decision, String playerName,
+                                RLGameStateFeatures features, ModelRegistry modelRegistry,
+                                AssignmentLegality legality, int k, boolean trimIllegal) {
         Map<String, String[]> params = decision.getDecisionParameters();
         String[] freeCharIds = params.get("freeCharacters");
         String[] minionIds = params.get("minions");
 
         if (freeCharIds == null || minionIds == null || freeCharIds.length == 0 || minionIds.length == 0)
-            return "";
+            return List.of();
 
 
         Map<String, String> freeChars = Stream.of(freeCharIds)
@@ -101,8 +118,7 @@ public abstract class AbstractAssignmentTrainer extends AbstractTrainer {
         SoftClassifier<double[]> model = modelRegistry.getModel(getClass());
 
         Side side = isForFp() ? Side.FREE_PEOPLE : Side.SHADOW;
-        double bestScore = Double.NEGATIVE_INFINITY;
-        Map<String, List<String>> bestAssignment = null;
+        List<Map.Entry<Double, Map<String, List<String>>>> legal = new ArrayList<>();
         double bestIllegalScore = Double.NEGATIVE_INFINITY;
         Map<String, List<String>> bestIllegalAssignment = null;
 
@@ -120,21 +136,32 @@ public abstract class AbstractAssignmentTrainer extends AbstractTrainer {
                         bestIllegalScore = probs[1];
                         bestIllegalAssignment = assignment.physicalAssignment();
                     }
-                } else if (probs[1] > bestScore) {
-                    bestScore = probs[1];
-                    bestAssignment = assignment.physicalAssignment();
-                }
+                } else
+                    legal.add(Map.entry(probs[1], assignment.physicalAssignment()));
             } catch (CardNotFoundException ignore) {
             }
         }
+        // stable: among equal scores the first generated wins, as before
+        legal.sort(Map.Entry.<Double, Map<String, List<String>>>comparingByKey().reversed());
+        List<String> answers = new ArrayList<>();
+        for (var entry : legal) {
+            String answer = format(entry.getValue());
+            // the best may be to assign nothing ("" -- getAnswer's answer then, as it always was); a search adds
+            // that option itself, so candidates leave it out
+            if (!answers.contains(answer) && (trimIllegal || !answer.isEmpty()))
+                answers.add(answer);
+            if (answers.size() >= k)
+                break;
+        }
+        if (legal.isEmpty() && trimIllegal && bestIllegalAssignment != null)
+            answers.add(format(legality.keepLegal(side, freeCharIds, minionIds, bestIllegalAssignment)));
+        return answers;
+    }
 
-        if (bestAssignment == null && bestIllegalAssignment != null)
-            bestAssignment = legality.keepLegal(side, freeCharIds, minionIds, bestIllegalAssignment);
-
-        if (bestAssignment == null || bestAssignment.isEmpty())
+    private static String format(Map<String, List<String>> assignment) {
+        if (assignment == null || assignment.isEmpty())
             return "";
-
-        return bestAssignment.entrySet().stream()
+        return assignment.entrySet().stream()
                 .map(entry -> entry.getKey() + " " + String.join(" ", entry.getValue()))
                 .collect(Collectors.joining(","));
     }

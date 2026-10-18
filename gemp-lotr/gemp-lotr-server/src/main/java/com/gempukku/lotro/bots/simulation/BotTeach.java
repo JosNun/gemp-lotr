@@ -48,12 +48,12 @@ import java.util.concurrent.atomic.AtomicInteger;
 public class BotTeach {
     record Options(String suite, Path base, Path out, int games, int rollouts, double teachRate, int maxCandidates,
                    double margin, int jobs, boolean trainOnly, boolean play, int minSteps, double lambda, Path steps,
-                   int depth, boolean both, Path value, boolean peek, boolean fromCopies, boolean choices) {
+                   int depth, boolean both, Path value, boolean peek, boolean fromCopies, boolean choices, boolean assign) {
     }
 
     private static final AtomicInteger taught = new AtomicInteger(), labelled = new AtomicInteger(),
             rolloutsRun = new AtomicInteger(), diverged = new AtomicInteger(), cutOff = new AtomicInteger(),
-            choicesSearched = new AtomicInteger();
+            choicesSearched = new AtomicInteger(), assignmentsSearched = new AtomicInteger();
     /** Scores a rollout's position when --depth stops it early: P(win) for the player whose state it is. */
     static volatile SoftClassifier<double[]> valueModel;
     /** 3 if the value model reads feature set 2 with KnowledgeFeatures appended (value-features.txt). */
@@ -238,6 +238,8 @@ public class BotTeach {
                                 e.getKey());
                     });
         }
+        if (assignmentsSearched.get() > 0)
+            out.printf("  %d assignment decisions searched%n", assignmentsSearched.get());
         if (choicesSearched.get() > 0)
             out.printf("  %d multiple-choice decisions searched%n", choicesSearched.get());
         if (opts.fromCopies() && CloneRollout.copies.get() > 0)
@@ -408,6 +410,42 @@ public class BotTeach {
                     return best;
                 }
             }
+            if (search && opts.assign() && decision.getDecisionType() == AwaitingDecisionType.ASSIGN_MINIONS
+                    && inner instanceof com.gempukku.lotro.bots.rl.fotrstarters.FotrStarterBot bot) {
+                // Who skirmishes whom decides most games here: 94% end with a Ring-bearer killed, usually in a
+                // skirmish it was left to fight alone. The model's best few assignments, and (for the Free Peoples)
+                // assigning nothing and leaving it to the Shadow player.
+                List<String> options = new ArrayList<>(bot.assignmentCandidates(gameState, decision,
+                        Math.max(1, opts.maxCandidates() - 1)));
+                if (getName().equals(gameState.getCurrentPlayerId()) && !options.contains(""))
+                    options.add("");
+                if (options.size() > 1) {
+                    assignmentsSearched.incrementAndGet();
+                    String best = pick(gameState, options);
+                    if (best != null) {
+                        inner.chooseAction(gameState, decision);
+                        return best;
+                    }
+                }
+            }
+            if (search && opts.choices() && decision.getDecisionType() == AwaitingDecisionType.INTEGER) {
+                // The burden bid above all, which the models answer with a uniform 0-4 -- and which can corrupt a
+                // low-resistance Ring-bearer before the game starts. Up to five values from the minimum.
+                String[] min = decision.getDecisionParameters().get("min"), max = decision.getDecisionParameters().get("max");
+                int lo = min != null ? Integer.parseInt(min[0]) : 0;
+                int hi = Math.min(max != null ? Integer.parseInt(max[0]) : Integer.MAX_VALUE, lo + 4);
+                if (hi > lo) {
+                    List<String> options = new ArrayList<>();
+                    for (int v = lo; v <= hi; v++)
+                        options.add(String.valueOf(v));
+                    choicesSearched.incrementAndGet();
+                    String best = pick(gameState, options);
+                    if (best != null) {
+                        inner.chooseAction(gameState, decision);
+                        return best;
+                    }
+                }
+            }
             String[] results = decision.getDecisionParameters().get("results");
             if (search && opts.choices() && decision.getDecisionType() == AwaitingDecisionType.MULTIPLE_CHOICE
                     && results != null && results.length > 1) {
@@ -420,6 +458,23 @@ public class BotTeach {
                 }
             }
             return inner.chooseAction(gameState, decision);
+        }
+
+        /** The option that won most over the rollouts; null if they all scored the same. */
+        private String pick(GameState gameState, List<String> options) {
+            List<BotGame.Step> prefix = List.copyOf(branch.steps());
+            long[] worlds = new SplittableRandom().longs(opts.rollouts()).toArray();
+            String bestOption = null;
+            double best = -1, worst = 2;
+            for (String option : options) {
+                double v = branch.value(prefix, getName(), option, worlds, gameState);
+                if (v > best) {
+                    best = v;
+                    bestOption = option;
+                }
+                worst = Math.min(worst, v);
+            }
+            return best > worst ? bestOption : null;
         }
 
         /** The answer (an index into the results) that won most over the rollouts; null on a tie. */
@@ -498,7 +553,7 @@ public class BotTeach {
         int games = 100, rollouts = 16, maxCandidates = 5;
         double teachRate = 0.1, margin = 0.125;
         int jobs = Math.max(1, Runtime.getRuntime().availableProcessors() - 2);
-        boolean trainOnly = false, play = false, both = false, peek = false, clone = false, choices = false;
+        boolean trainOnly = false, play = false, both = false, peek = false, clone = false, choices = false, assign = false;
         int minSteps = 50, depth = 0;
         double lambda = 0;
         Path steps = null, value = null;
@@ -509,6 +564,7 @@ public class BotTeach {
                 case "--peek" -> peek = true;
                 case "--clone" -> clone = true;
                 case "--choices" -> choices = true;
+                case "--assign" -> assign = true;
                 case "--model" -> com.gempukku.lotro.bots.rl.fotrstarters.models.AbstractTrainer.useTrees =
                         args[++i].equals("trees");
                 case "--min-steps" -> minSteps = Integer.parseInt(args[++i]);
@@ -532,7 +588,7 @@ public class BotTeach {
         if (out == null)
             BotVsBot.die(usage());
         return new Options(suite, base, out, games, rollouts, teachRate, maxCandidates, margin, jobs, trainOnly, play,
-                minSteps, lambda, steps, depth, both, value == null ? base : value, peek, clone, choices);
+                minSteps, lambda, steps, depth, both, value == null ? base : value, peek, clone, choices, assign);
     }
 
     private static String usage() {
@@ -560,6 +616,8 @@ public class BotTeach {
                   --both                    with --play, B searches too: for ranking decks (rr: suites)
                   --clone                   rollouts copy the live game (GameCopier) instead of replaying it
                   --choices                 with --play, also search multiple-choice decisions (move again,
-                                            optional costs), not only card actions""";
+                                            optional costs) and small number choices (the burden bid)
+                  --assign                  with --play, also search skirmish assignments: the model's best
+                                            few, and assigning nothing""";
     }
 }
