@@ -12,11 +12,13 @@ import java.util.HashSet;
 public class CancelKeywordBonusTargetModifier extends AbstractModifier implements KeywordAffectingModifier {
     private final Keyword _keyword;
     private final Filter _sourceFilter;
+    private final HashSet<Keyword> _keywords; // built once, as in AddKeywordModifier
 
     public CancelKeywordBonusTargetModifier(PhysicalCard source, Keyword keyword, Condition condition, Filterable affectFilter, Filterable sourceFilter) {
         super(source, keyword == null ? "Cancel all keywords" : "Cancel " + keyword.getHumanReadable() + " keyword", affectFilter, condition, ModifierEffect.CANCEL_KEYWORD_BONUS_TARGET_MODIFIER);
         _keyword = keyword;
         _sourceFilter = Filters.changeToFilter(sourceFilter);
+        _keywords = keyword == null ? null : new HashSet<>(java.util.Set.of(keyword));
     }
 
     @Override
@@ -29,9 +31,6 @@ public class CancelKeywordBonusTargetModifier extends AbstractModifier implement
 
     @Override
     public HashSet<Keyword> getKeywords() {
-        if(_keyword == null)
-            return null;
-
-        return new HashSet<>(){{ add(_keyword); }};
+        return _keywords;
     }
 }

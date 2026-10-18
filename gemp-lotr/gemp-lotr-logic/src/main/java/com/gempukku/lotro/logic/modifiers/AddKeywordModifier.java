@@ -8,10 +8,14 @@ import com.gempukku.lotro.logic.modifiers.evaluator.ConstantEvaluator;
 import com.gempukku.lotro.logic.modifiers.evaluator.Evaluator;
 
 import java.util.HashSet;
+import java.util.Set;
 
 public class AddKeywordModifier extends AbstractModifier implements KeywordAffectingModifier {
     private final Keyword _keyword;
     private final Evaluator _evaluator;
+    // built once: ModifiersLogic asks for it for every keyword modifier on every keyword check, and a new set each
+    // time was 28% of a bot game's CPU
+    private final HashSet<Keyword> _keywords;
 
     public AddKeywordModifier(PhysicalCard physicalCard, Filterable affectFilter, Condition condition, Keyword keyword) {
         this(physicalCard, affectFilter, condition, keyword, 1);
@@ -25,11 +29,12 @@ public class AddKeywordModifier extends AbstractModifier implements KeywordAffec
         super(physicalCard, null, affectFilter, condition, ModifierEffect.GIVE_KEYWORD_MODIFIER);
         _keyword = keyword;
         _evaluator = evaluator;
+        _keywords = new HashSet<>(Set.of(keyword));
     }
 
     @Override
     public HashSet<Keyword> getKeywords() {
-        return new HashSet<>(){{ add(_keyword); }};
+        return _keywords;
     }
 
     @Override

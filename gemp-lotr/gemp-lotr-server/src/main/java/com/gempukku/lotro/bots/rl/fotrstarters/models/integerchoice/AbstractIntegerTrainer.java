@@ -36,7 +36,7 @@ public abstract class AbstractIntegerTrainer extends AbstractTrainer {
     }
 
     private int sampleFromDistribution(double[] probabilities) {
-        double r = Math.random();
+        double r = com.gempukku.lotro.bots.BotRandom.current().nextDouble();
         double cumulative = 0.0;
         for (int i = 0; i < probabilities.length; i++) {
             cumulative += probabilities[i];

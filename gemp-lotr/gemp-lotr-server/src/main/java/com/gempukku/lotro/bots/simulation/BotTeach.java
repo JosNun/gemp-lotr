@@ -295,6 +295,7 @@ public class BotTeach {
                     shared.diverged = true;
                 // from here the future is one of many: new draws, and decks in an order nobody has seen
                 gameState.setRandomSeed(shared.world);
+                com.gempukku.lotro.bots.BotRandom.current().setSeed(shared.world ^ 0x5DEECE66DL);
                 for (String p : gameState.getPlayerNames())
                     gameState.shuffleDeck(p);
                 shared.startTurn = gameState.getTurnNumber();

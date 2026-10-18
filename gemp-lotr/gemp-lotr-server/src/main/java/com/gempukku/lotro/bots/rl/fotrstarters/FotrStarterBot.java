@@ -97,7 +97,6 @@ public class FotrStarterBot extends RandomDecisionBot implements LearningBotPlay
      */
     private final boolean extended;
     private final AnyPhaseCardActionTrainer anyPhaseTrainer = new AnyPhaseCardActionTrainer();
-    private final java.util.Random exploration = new java.util.Random();
 
     public FotrStarterBot(RLGameStateFeatures features, String playerId, ModelRegistry modelRegistry, ReplayBuffer replayBuffer) {
         this(features, playerId, modelRegistry, replayBuffer, 0.0, false);
@@ -151,7 +150,7 @@ public class FotrStarterBot extends RandomDecisionBot implements LearningBotPlay
     }
 
     private SemanticAction chooseSemanticAction(GameState gameState, AwaitingDecision decision, AssignmentLegality legality) {
-        String action = epsilon > 0 && exploration.nextDouble() < epsilon
+        String action = epsilon > 0 && com.gempukku.lotro.bots.BotRandom.current().nextDouble() < epsilon
                 ? super.chooseAction(gameState, decision, legality)
                 : switch (decision.getDecisionType()) {
             case INTEGER -> chooseIntegerAction(gameState, decision);

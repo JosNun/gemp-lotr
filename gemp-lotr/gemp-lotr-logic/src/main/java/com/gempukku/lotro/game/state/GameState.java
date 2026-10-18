@@ -345,6 +345,10 @@ public class GameState {
         }
     }
 
+    public boolean hasGameStateListeners() {
+        return !_gameStateListeners.isEmpty();
+    }
+
     public void removeGameStateListener(GameStateListener gameStateListener) {
         _gameStateListeners.remove(gameStateListener);
     }
