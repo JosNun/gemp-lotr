@@ -261,6 +261,18 @@ Ring-bearer; between two such searchers on the user's decks, 14% now end at site
 38% overall (10.7% -> 30.3% against Hunt the Ring-bearer) and passed Rangers (33% -> 27%) --
 the earlier search had been misplaying The Long Night's assignments.
 
+User's four decks against the 29 Shadows-site starters (Expanded, 40 games a matchup,
+both sides searching), before and after searching assignments and choices:
+
+| Deck | Before | After | Site-9 wins before -> after |
+|---|---|---|---|
+| Hunt the Ring-bearer | 76.7% | 74.3% +- 2.5 | 13 -> 89 |
+| Khazad Rush | 64.1% | 67.4% +- 2.7 | 2 -> 23 |
+| The Long Night | 37.6% | 46.7% +- 2.9 | 24 -> 75 |
+| Rangers of the North Watch | 42.8% | 46.2% +- 2.9 | 27 -> 70 |
+
+5.7 CPU-seconds a game, 4,640 games.
+
 ### Refitting the value model on search games (no)
 
 `BotTeach --record-values <file>` writes the deciding player's set-2 state at every
