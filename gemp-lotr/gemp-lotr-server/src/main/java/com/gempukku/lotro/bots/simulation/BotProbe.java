@@ -28,7 +28,10 @@ import java.util.concurrent.*;
  * </pre>
  */
 public class BotProbe {
-    record Row(double[] v1, double[] v2, String decider) {
+    record Row(double[] v1, double[] v2, double[] v3, String decider) {
+        double[] set(int n) {
+            return n == 1 ? v1 : n == 2 ? v2 : v3;
+        }
     }
 
     record Game(List<Row> rows, String winner) {
@@ -37,6 +40,9 @@ public class BotProbe {
     public static void main(String[] args) throws Exception {
         String suite = "starters:test", kind = "general@bot-models-exp/v1";
         Path saveValue = null;
+        int valueSet = 2;
+        String trainSuite = null;
+        boolean valueTrees = false;
         int games = 20;
         int jobs = Math.max(1, Runtime.getRuntime().availableProcessors() - 2);
         for (int i = 0; i < args.length; i++) {
@@ -46,18 +52,68 @@ public class BotProbe {
                 case "--bot" -> kind = args[++i];
                 case "--jobs" -> jobs = Integer.parseInt(args[++i]);
                 case "--save-value" -> saveValue = Path.of(args[++i]);
+                case "--value-features" -> valueSet = Integer.parseInt(args[++i]);
+                case "--train-suite" -> trainSuite = args[++i];
+                case "--value-model" -> valueTrees = args[++i].equals("trees");
                 default -> BotVsBot.die("usage: BotProbe [--suite starters:test] [--games 20] [--bot general@dir] "
-                        + "[--save-value <model dir>]");
+                        + "[--train-suite <suite>] [--save-value <model dir>] [--value-features 2|3] [--value-model logistic|trees]");
             }
         }
         PrintStream out = System.out;
         System.setOut(new PrintStream(OutputStream.nullOutputStream()));
 
         BotVsBot.Context ctx = BotVsBot.context(Path.of("gemp-lotr-cards/src/main/resources"), Path.of("bot-models"));
-        List<BotVsBot.Matchup> matchups = BotVsBot.loadSuite(suite, ctx);
         ExecutorService pool = Executors.newFixedThreadPool(jobs);
+        List<Game> all = play(suite, games, kind, ctx, pool);
+        // decks the value model never saw: what scoring a new deck's games needs. Split by game instead, the
+        // features that describe a deck's remaining cards let a model learn each deck's win rate and look better
+        // than it is.
+        List<Game> other = trainSuite == null ? null : play(trainSuite, games, kind, ctx, pool);
+        pool.shutdown();
+        if (System.getenv("PROBE_DUMP") != null) {
+            // a few skirmish decisions from the first game, as the bot saw them
+            all.get(0).rows().stream().filter(r -> r.v2()[GeneralStateFeatures.index("inSkirmish")] == 1).limit(3)
+                    .forEach(r -> out.println(r.decider() + ": " + GeneralStateFeatures.describe(r.v2())));
+        }
+        Collections.shuffle(all, new Random(1));
+        int split = all.size() * 4 / 5;
+        List<Game> train = other != null ? other : all.subList(0, split), test = other != null ? all : all.subList(split, all.size());
+        out.printf("%d games, %d decisions; fit on %d games%s, scored on %d%n", train.size() + test.size(),
+                train.stream().mapToInt(g -> g.rows().size()).sum() + test.stream().mapToInt(g -> g.rows().size()).sum(),
+                train.size(), other != null ? " of " + trainSuite : "", test.size());
+        out.printf("  feature set 1, logistic: held-out AUC of P(win | state) = %.3f%n", auc(train, test, 1, false));
+        out.printf("  feature set 2, logistic: held-out AUC of P(win | state) = %.3f%n", auc(train, test, 2, true));
+        out.printf("  feature set 2, trees:    held-out AUC of P(win | state) = %.3f%n", aucTrees(train, test, 2));
+        out.printf("  feature set 3, logistic: held-out AUC of P(win | state) = %.3f%n", auc(train, test, 3, true));
+        out.printf("  feature set 3, trees:    held-out AUC of P(win | state) = %.3f%n", aucTrees(train, test, 3));
+
+        if (saveValue != null) {
+            // the value model a depth-limited search scores its cut-off positions with, fit on every game of the
+            // training suite (or of --suite, without one)
+            List<double[]> x = new ArrayList<>();
+            List<Integer> y = new ArrayList<>();
+            for (Game g : other != null ? other : all)
+                for (Row r : g.rows()) {
+                    x.add(r.set(valueSet));
+                    y.add(r.decider().equals(g.winner()) ? 1 : 0);
+                }
+            double[][] xs = x.toArray(double[][]::new);
+            int[] ys = y.stream().mapToInt(Integer::intValue).toArray();
+            Object model = valueTrees ? com.gempukku.lotro.bots.rl.fotrstarters.models.TreeModel.fit(xs, ys)
+                    : com.gempukku.lotro.bots.rl.fotrstarters.models.ScaledModel.logistic(xs, ys, 0.1);
+            java.nio.file.Files.createDirectories(saveValue);
+            try (var o = new java.io.ObjectOutputStream(new java.io.FileOutputStream(saveValue.resolve("value.model").toFile()))) {
+                o.writeObject(model);
+            }
+            java.nio.file.Files.writeString(saveValue.resolve("value-features.txt"), valueSet + "\n");
+            out.println("value model (set " + valueSet + (valueTrees ? ", trees, " : ", logistic, ") + x.size() + " positions) in " + saveValue.resolve("value.model"));
+        }
+    }
+
+    private static List<Game> play(String suite, int games, String botKind, BotVsBot.Context ctx,
+                                   ExecutorService pool) throws Exception {
+        List<BotVsBot.Matchup> matchups = BotVsBot.loadSuite(suite, ctx);
         List<Future<Game>> futures = new ArrayList<>();
-        String botKind = kind;
         for (BotVsBot.Matchup m : matchups) {
             LotroDeck d1 = BotVsBot.loadDeck(m.deck1(), m.format(), ctx), d2 = BotVsBot.loadDeck(m.deck2(), m.format(), ctx);
             for (int g = 0; g < games; g++) {
@@ -75,48 +131,17 @@ public class BotProbe {
         }
         List<Game> all = new ArrayList<>();
         for (Future<Game> f : futures)
-            if (f.get() != null)
+            if (f.get(15, TimeUnit.MINUTES) != null)
                 all.add(f.get());
-        pool.shutdown();
-        if (System.getenv("PROBE_DUMP") != null) {
-            // a few skirmish decisions from the first game, as the bot saw them
-            all.get(0).rows().stream().filter(r -> r.v2()[GeneralStateFeatures.index("inSkirmish")] == 1).limit(3)
-                    .forEach(r -> out.println(r.decider() + ": " + GeneralStateFeatures.describe(r.v2())));
-        }
-        Collections.shuffle(all, new Random(1));
-        int split = all.size() * 4 / 5;
-        out.printf("%d games, %d decisions; fit on %d games, scored on %d%n", all.size(),
-                all.stream().mapToInt(g -> g.rows().size()).sum(), split, all.size() - split);
-        List<Game> train = all.subList(0, split), test = all.subList(split, all.size());
-        out.printf("  feature set 1, logistic: held-out AUC of P(win | state) = %.3f%n", auc(train, test, 1, false));
-        out.printf("  feature set 2, logistic: held-out AUC of P(win | state) = %.3f%n", auc(train, test, 2, false));
-        out.printf("  feature set 2, trees:    held-out AUC of P(win | state) = %.3f%n", aucTrees(train, test));
-
-        if (saveValue != null) {
-            // the value model a depth-limited search scores its cut-off positions with: set 2, trees, every game
-            List<double[]> x = new ArrayList<>();
-            List<Integer> y = new ArrayList<>();
-            for (Game g : all)
-                for (Row r : g.rows()) {
-                    x.add(r.v2());
-                    y.add(r.decider().equals(g.winner()) ? 1 : 0);
-                }
-            var model = com.gempukku.lotro.bots.rl.fotrstarters.models.TreeModel.fit(x.toArray(double[][]::new),
-                    y.stream().mapToInt(Integer::intValue).toArray());
-            java.nio.file.Files.createDirectories(saveValue);
-            try (var o = new java.io.ObjectOutputStream(new java.io.FileOutputStream(saveValue.resolve("value.model").toFile()))) {
-                o.writeObject(model);
-            }
-            out.println("value model (set 2, trees, " + x.size() + " positions) in " + saveValue.resolve("value.model"));
-        }
+        return all;
     }
 
-    private static double aucTrees(List<Game> train, List<Game> test) {
+    private static double aucTrees(List<Game> train, List<Game> test, int set) {
         List<double[]> x = new ArrayList<>();
         List<Integer> y = new ArrayList<>();
         for (Game g : train)
             for (Row r : g.rows()) {
-                x.add(r.v2());
+                x.add(r.set(set));
                 y.add(r.decider().equals(g.winner()) ? 1 : 0);
             }
         var model = com.gempukku.lotro.bots.rl.fotrstarters.models.TreeModel.fit(x.toArray(double[][]::new),
@@ -125,7 +150,7 @@ public class BotProbe {
         for (Game g : test)
             for (Row r : g.rows()) {
                 double[] p = new double[2];
-                model.predict(r.v2(), p);
+                model.predict(r.set(set), p);
                 scored.add(new double[]{p[1], r.decider().equals(g.winner()) ? 1 : 0});
             }
         return rankAuc(scored);
@@ -149,7 +174,7 @@ public class BotProbe {
         List<Integer> y = new ArrayList<>();
         for (Game g : train)
             for (Row r : g.rows()) {
-                x.add(set == 1 ? r.v1() : r.v2());
+                x.add(r.set(set));
                 y.add(r.decider().equals(g.winner()) ? 1 : 0);
             }
         double[][] xs = x.toArray(double[][]::new);
@@ -179,7 +204,7 @@ public class BotProbe {
         for (Game g : test)
             for (Row r : g.rows()) {
                 double[] p = new double[2];
-                model.predict(z.apply(set == 1 ? r.v1() : r.v2()), p);
+                model.predict(z.apply(r.set(set)), p);
                 scored.add(new double[]{p[1], r.decider().equals(g.winner()) ? 1 : 0});
             }
         // AUC as the chance a random winning row outscores a random losing one (rank-sum)
@@ -206,7 +231,9 @@ public class BotProbe {
                 try {
                     // set 1 is 26 numbers, or 30 in skirmishes and responses; pad to one length
                     double[] v1 = Arrays.copyOf(V1.extractFeatures(gameState, decision, getName()), 30);
-                    rows.add(new Row(v1, V2.extractFeatures(gameState, decision, getName()), getName()));
+                    double[] v2 = V2.extractFeatures(gameState, decision, getName());
+                    rows.add(new Row(v1, v2, com.gempukku.lotro.bots.rl.fotrstarters.KnowledgeFeatures.withKnowledge(v2,
+                            gameState, getName()), getName()));
                 } catch (RuntimeException ignored) {
                 }
             }

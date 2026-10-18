@@ -209,6 +209,37 @@ best/worst label per option throws away how much better.
  (4 rollouts costing more than 8 is
 per-game variance; the decks and game lengths differ run to run.)
 
+## Engine speed (2026-10-18)
+
+A JFR profile of v2 self-play put most of a game's CPU in two places that do no game
+work, both fixed (commit "Speed the engine up 2.5x"):
+
+- `AddKeywordModifier.getKeywords()` built a new `HashSet` on every call, and
+  `ModifiersLogic` calls it for every keyword modifier on every keyword check: 28% of
+  samples. Now built once (and in `CancelKeywordBonusTargetModifier`).
+- `TurnProcedure` refreshed `GameStats` after every effect, for the UI: 16%, and the
+  frame the hour-long strength evaluations were found in. A game with no
+  `GameStateListener` (bot against bot) now refreshes once when it stops for a decision,
+  which is when bots read it; live games are unchanged.
+
+`BotTrace` plays a fixed set of seeded games and hashes every question and answer, for
+diffing two builds. Before and after: all 200 games identical, **34.1 -> 13.4
+CPU-seconds**. The search player (2 rollouts, depth 1) went **18.2 -> 4.1 CPU-seconds a
+game** in a quiet machine. Server tests: 6,699 run, only `PatchNotesLibraryTest` fails, as
+on upstream master. Worth upstreaming: both are behaviour-preserving and the second also
+narrows the hour-long-evaluation hang to decision points.
+
+For that diff to mean anything the bots had to be repeatable too: they drew the burden
+bid, exploration and fallbacks from unseeded `Random`s. They now draw from `BotRandom`, a
+per-thread Random that `BotGame` seeds from the game seed and restores afterwards (a
+rollout is a game inside a game); rollouts reseed it at the branch with the world.
+
+What is left (after the fix, v2 self-play): `CharacterDeathRule.checkCharactersZeroVitality`
+~20% (vitality of every character on every loop step), keyword-modifier scans ~30%
+(`getKeywordModifiersAffectingCard` walks every modifier of a type for each card), the
+bots' own features ~26%. In a search game 93% of CPU is engine work inside rollouts and
+most of that is the prefix replay -- hence cloning (below).
+
 ## Feature set 2 (`--features 2`)
 
 A model directory's `features.txt` says which set its models were trained on (none =
