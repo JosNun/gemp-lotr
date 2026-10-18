@@ -48,13 +48,15 @@ import java.util.concurrent.atomic.AtomicInteger;
 public class BotTeach {
     record Options(String suite, Path base, Path out, int games, int rollouts, double teachRate, int maxCandidates,
                    double margin, int jobs, boolean trainOnly, boolean play, int minSteps, double lambda, Path steps,
-                   int depth, boolean both) {
+                   int depth, boolean both, boolean fromCopies) {
     }
 
     private static final AtomicInteger taught = new AtomicInteger(), labelled = new AtomicInteger(),
             rolloutsRun = new AtomicInteger(), diverged = new AtomicInteger(), cutOff = new AtomicInteger();
     /** Scores a rollout's position when --depth stops it early: P(win) for the player whose state it is. */
-    private static volatile SoftClassifier<double[]> valueModel;
+    static volatile SoftClassifier<double[]> valueModel;
+    /** With --clone, rollouts play on a copy of the live game made by this, instead of replaying it from its seed. */
+    private static volatile GameCopier copier;
 
     private static final long STALL_MINUTES = 15;
 
@@ -106,6 +108,12 @@ public class BotTeach {
                     opts.depth() == 1 ? "" : "s", file);
         }
 
+        if (opts.fromCopies()) {
+            long c0 = System.nanoTime();
+            copier = new GameCopier(ctx.library(), ctx.formats(), decks);
+            out.printf("Rollouts play on copies of the game (%,d shared objects, %.1fs)%n", copier.sharedCount(),
+                    (System.nanoTime() - c0) / 1e9);
+        }
         out.printf("Teaching on %d matchups from %s: %d games, %.0f%% of card-action decisions branched, %d rollouts "
                         + "per option, on %d threads; steps to %s%n", matchups.size(), opts.suite(), opts.games(),
                 100 * opts.teachRate(), opts.rollouts(), opts.jobs(), stepsFile);
@@ -201,6 +209,9 @@ public class BotTeach {
                                 e.getKey());
                     });
         }
+        if (opts.fromCopies() && CloneRollout.copies.get() > 0)
+            out.printf("  %d rollouts from copies, %.0f us a copy%n", CloneRollout.copies.get(),
+                    CloneRollout.copyNanos.get() / 1e3 / CloneRollout.copies.get());
         if (opts.play() && finished.get() > 0) {
             double p = aWins.get() / (double) finished.get();
             out.printf("search player won %d of %d: %.1f%% +- %.1f; %.1f CPU-seconds a game%n",
@@ -239,14 +250,22 @@ public class BotTeach {
     record Branch(LotroFormat format, BotVsBot.Context ctx, Map<String, LotroDeck> decks, long seed,
                   List<BotGame.Step> steps, String policy, Options opts) {
         /** Wins for {@code player} out of the rollouts, with {@code answer} given at the decision after the steps. */
-        double value(List<BotGame.Step> prefix, String player, String answer, long[] worlds) {
+        double value(List<BotGame.Step> prefix, String player, String answer, long[] worlds, GameState live) {
             double wins = 0;
             for (long world : worlds) {
-                Shared shared = new Shared(prefix, player, answer, world, opts.depth());
-                BotGame.Result r = BotGame.play(format, ctx.library(),
-                        List.of(new Branching("~a", shared, BotVsBot.bot(policy, "~a", ctx)),
-                                new Branching("~b", shared, BotVsBot.bot(policy, "~b", ctx))),
-                        decks, 1000, seed);
+                Shared shared;
+                BotGame.Result r;
+                if (opts.fromCopies()) { // the same rollout from a copy of the live game; BotCloneCheck checks it is
+                    shared = new Shared(List.of(), player, answer, world, opts.depth());
+                    r = CloneRollout.play(copier, (com.gempukku.lotro.logic.timing.DefaultLotroGame) live.getGame(),
+                            prefix, shared, BotVsBot.bot(policy, "~a", ctx), BotVsBot.bot(policy, "~b", ctx));
+                } else {
+                    shared = new Shared(prefix, player, answer, world, opts.depth());
+                    r = BotGame.play(format, ctx.library(),
+                            List.of(new Branching("~a", shared, BotVsBot.bot(policy, "~a", ctx)),
+                                    new Branching("~b", shared, BotVsBot.bot(policy, "~b", ctx))),
+                            decks, 1000, seed);
+                }
                 rolloutsRun.incrementAndGet();
                 if (shared.diverged)
                     diverged.incrementAndGet();
@@ -345,7 +364,7 @@ public class BotTeach {
             double[] value = new double[options.size()];
             double best = 0;
             for (int i = 0; i < options.size(); i++) {
-                value[i] = branch.value(prefix, getName(), options.get(i), worlds);
+                value[i] = branch.value(prefix, getName(), options.get(i), worlds, gameState);
                 best = Math.max(best, value[i]);
             }
             if (Arrays.stream(value).allMatch(v -> v == value[0]))
@@ -392,7 +411,7 @@ public class BotTeach {
         int games = 100, rollouts = 16, maxCandidates = 5;
         double teachRate = 0.1, margin = 0.125;
         int jobs = Math.max(1, Runtime.getRuntime().availableProcessors() - 2);
-        boolean trainOnly = false, play = false, both = false;
+        boolean trainOnly = false, play = false, both = false, clone = false;
         int minSteps = 50, depth = 0;
         double lambda = 0;
         Path steps = null;
@@ -400,6 +419,7 @@ public class BotTeach {
             switch (args[i]) {
                 case "--play" -> play = true;
                 case "--both" -> both = true;
+                case "--clone" -> clone = true;
                 case "--model" -> com.gempukku.lotro.bots.rl.fotrstarters.models.AbstractTrainer.useTrees =
                         args[++i].equals("trees");
                 case "--min-steps" -> minSteps = Integer.parseInt(args[++i]);
@@ -422,7 +442,7 @@ public class BotTeach {
         if (out == null)
             BotVsBot.die(usage());
         return new Options(suite, base, out, games, rollouts, teachRate, maxCandidates, margin, jobs, trainOnly, play,
-                minSteps, lambda, steps, depth, both);
+                minSteps, lambda, steps, depth, both, clone);
     }
 
     private static String usage() {
@@ -444,6 +464,7 @@ public class BotTeach {
                   --model logistic          or trees, for the refit
                   --play                    instead: a bot that searches every card-action decision (A)
                                             against the plain bot (B); reports A's win rate
-                  --both                    with --play, B searches too: for ranking decks (rr: suites)""";
+                  --both                    with --play, B searches too: for ranking decks (rr: suites)
+                  --clone                   rollouts copy the live game (GameCopier) instead of replaying it""";
     }
 }
