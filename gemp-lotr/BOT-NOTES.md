@@ -357,6 +357,15 @@ What is left (after the fix, v2 self-play): `CharacterDeathRule.checkCharactersZ
 bots' own features ~26%. In a search game 93% of CPU is engine work inside rollouts and
 most of that is the prefix replay -- hence cloning (above).
 
+Retried 2026-10-18 with the cheap search: 4 rollouts, depth 1, every option, every
+card-action decision of 1,060 `starters:train` games (~104,000 labels, 25 minutes with
+copies), card-action models refit (min 500 labels): **47.3% +- 3.1** against v2 on
+`starters:test`. More and better labels did not help, which points at the student, not the
+labels: a logistic per-option model cannot let the state change its choice (see "The
+linear-model ceiling"), so it cannot hold what the search knows. Distilling needs a model
+that scores state and option together -- trees on `CardFeatures.join`'s crosses lost
+before; a small neural net or per-option Q-regression on rollout values is the next try.
+
 ## Feature set 2 (`--features 2`)
 
 A model directory's `features.txt` says which set its models were trained on (none =
