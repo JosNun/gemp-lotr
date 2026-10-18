@@ -36,6 +36,7 @@ public class BotProbe {
 
     public static void main(String[] args) throws Exception {
         String suite = "starters:test", kind = "general@bot-models-exp/v1";
+        Path saveValue = null;
         int games = 20;
         int jobs = Math.max(1, Runtime.getRuntime().availableProcessors() - 2);
         for (int i = 0; i < args.length; i++) {
@@ -44,7 +45,9 @@ public class BotProbe {
                 case "--games" -> games = Integer.parseInt(args[++i]);
                 case "--bot" -> kind = args[++i];
                 case "--jobs" -> jobs = Integer.parseInt(args[++i]);
-                default -> BotVsBot.die("usage: BotProbe [--suite starters:test] [--games 20] [--bot general@dir]");
+                case "--save-value" -> saveValue = Path.of(args[++i]);
+                default -> BotVsBot.die("usage: BotProbe [--suite starters:test] [--games 20] [--bot general@dir] "
+                        + "[--save-value <model dir>]");
             }
         }
         PrintStream out = System.out;
@@ -84,10 +87,61 @@ public class BotProbe {
         int split = all.size() * 4 / 5;
         out.printf("%d games, %d decisions; fit on %d games, scored on %d%n", all.size(),
                 all.stream().mapToInt(g -> g.rows().size()).sum(), split, all.size() - split);
-        for (int set = 1; set <= 2; set++)
-            for (boolean scaled : new boolean[]{false, true})
-                out.printf("  feature set %d%s: held-out AUC of P(win | state) = %.3f%n", set,
-                        scaled ? ", standardised" : "", auc(all.subList(0, split), all.subList(split, all.size()), set, scaled));
+        List<Game> train = all.subList(0, split), test = all.subList(split, all.size());
+        out.printf("  feature set 1, logistic: held-out AUC of P(win | state) = %.3f%n", auc(train, test, 1, false));
+        out.printf("  feature set 2, logistic: held-out AUC of P(win | state) = %.3f%n", auc(train, test, 2, false));
+        out.printf("  feature set 2, trees:    held-out AUC of P(win | state) = %.3f%n", aucTrees(train, test));
+
+        if (saveValue != null) {
+            // the value model a depth-limited search scores its cut-off positions with: set 2, trees, every game
+            List<double[]> x = new ArrayList<>();
+            List<Integer> y = new ArrayList<>();
+            for (Game g : all)
+                for (Row r : g.rows()) {
+                    x.add(r.v2());
+                    y.add(r.decider().equals(g.winner()) ? 1 : 0);
+                }
+            var model = com.gempukku.lotro.bots.rl.fotrstarters.models.TreeModel.fit(x.toArray(double[][]::new),
+                    y.stream().mapToInt(Integer::intValue).toArray());
+            java.nio.file.Files.createDirectories(saveValue);
+            try (var o = new java.io.ObjectOutputStream(new java.io.FileOutputStream(saveValue.resolve("value.model").toFile()))) {
+                o.writeObject(model);
+            }
+            out.println("value model (set 2, trees, " + x.size() + " positions) in " + saveValue.resolve("value.model"));
+        }
+    }
+
+    private static double aucTrees(List<Game> train, List<Game> test) {
+        List<double[]> x = new ArrayList<>();
+        List<Integer> y = new ArrayList<>();
+        for (Game g : train)
+            for (Row r : g.rows()) {
+                x.add(r.v2());
+                y.add(r.decider().equals(g.winner()) ? 1 : 0);
+            }
+        var model = com.gempukku.lotro.bots.rl.fotrstarters.models.TreeModel.fit(x.toArray(double[][]::new),
+                y.stream().mapToInt(Integer::intValue).toArray());
+        List<double[]> scored = new ArrayList<>();
+        for (Game g : test)
+            for (Row r : g.rows()) {
+                double[] p = new double[2];
+                model.predict(r.v2(), p);
+                scored.add(new double[]{p[1], r.decider().equals(g.winner()) ? 1 : 0});
+            }
+        return rankAuc(scored);
+    }
+
+    private static double rankAuc(List<double[]> scored) {
+        scored.sort(Comparator.comparingDouble(s -> s[0]));
+        double rankSum = 0;
+        long pos = 0;
+        for (int i = 0; i < scored.size(); i++)
+            if (scored.get(i)[1] == 1) {
+                rankSum += i + 1;
+                pos++;
+            }
+        long neg = scored.size() - pos;
+        return (rankSum - pos * (pos + 1) / 2.0) / ((double) pos * neg);
     }
 
     private static double auc(List<Game> train, List<Game> test, int set, boolean scaled) {

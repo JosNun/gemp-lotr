@@ -35,7 +35,7 @@ public class PutRandomCardFromHandOnBottomOfDeckEffect extends AbstractEffect {
     protected FullEffectResult playEffectReturningResult(LotroGame game) {
         if (isPlayableInFull(game)) {
             GameState gameState = game.getGameState();
-            final List<PhysicalCard> randomCards = GameUtils.getRandomCards(gameState.getHand(_playerId), 1);
+            final List<PhysicalCard> randomCards = GameUtils.getRandomCards(game.getGameState().getRandom(), gameState.getHand(_playerId), 1);
             for (PhysicalCard randomCard : randomCards) {
                 gameState.sendMessage(randomCard.getOwner() + " puts a card at random from hand on bottom of their deck");
                 gameState.removeCardsFromZone(randomCard.getOwner(), Collections.singleton(randomCard));

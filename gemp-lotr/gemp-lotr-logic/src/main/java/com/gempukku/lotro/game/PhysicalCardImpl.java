@@ -34,11 +34,30 @@ public class PhysicalCardImpl implements PhysicalCard {
     // Optional display name override (e.g., meta-site modifiers display the visual card's name)
     private String _displayName;
 
+    /**
+     * The id the card was created with. Card ids change mid-game (GameState.assignNewCardId hides a card's history),
+     * so they cannot be a hash; this cannot change. Hashing on it rather than on identity makes every HashSet and
+     * HashMap of cards iterate in the same order whenever a game is replayed -- ChooseArbitraryCardsEffect's choices,
+     * for one, came out in a different order every run. Equality stays identity.
+     */
+    private final int _createdAs;
+
     public PhysicalCardImpl(int cardId, String blueprintId, String owner, LotroCardBlueprint blueprint) {
         _cardId = cardId;
+        _createdAs = cardId;
         _blueprintId = blueprintId;
         _owner = owner;
         _blueprint = blueprint;
+    }
+
+    @Override
+    public int hashCode() {
+        return _createdAs;
+    }
+
+    @Override
+    public boolean equals(Object o) {
+        return this == o;
     }
 
     @Override

@@ -1,0 +1,9 @@
+# Eight King-block starters, for checking that a cheap bot ranks decks like a strong one
+starter:RotK - Aragorn Starter
+starter:RotK - Eomer Starter
+starter:SoG - Merry Starter
+starter:SoG - Pippin Starter
+starter:MD - Frodo Starter
+starter:MD - Sam Starter
+starter:Big Baddies - Gothmog's Conquering Starter
+starter:SHELBI - Gandalf Starter

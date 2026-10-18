@@ -13,7 +13,6 @@ import org.apache.logging.log4j.Logger;
 
 import java.security.InvalidParameterException;
 import java.util.*;
-import java.util.concurrent.ThreadLocalRandom;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
@@ -89,6 +88,21 @@ public class GameState {
     private GameStats _mostRecentGameStats = null;
     private boolean _isInit = false;
     private Map<String, LotroDeck> _lotroDecks;
+
+    /**
+     * Every random draw the engine makes -- shuffles, random cards from a hand or adventure deck, random discards,
+     * the seating tie-break -- comes from here, so a game seeded with {@link #setRandomSeed} and fed the same
+     * answers plays out the same way again. Unseeded it is as random as the ThreadLocalRandom it replaces.
+     */
+    private Random _random = new Random();
+
+    public Random getRandom() {
+        return _random;
+    }
+
+    public void setRandomSeed(long seed) {
+        _random = new Random(seed);
+    }
 
     /** The game this state belongs to, for readers that need modified values (strength after modifiers etc.). */
     public LotroGame getGame() {
@@ -1658,7 +1672,7 @@ public class GameState {
 
     public void shuffleDeck(String player) {
         List<PhysicalCardImpl> deck = _decks.get(player);
-        Collections.shuffle(deck, ThreadLocalRandom.current());
+        Collections.shuffle(deck, _random);
     }
 
     public void sendGameStats(GameStats gameStats) {

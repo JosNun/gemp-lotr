@@ -25,7 +25,9 @@ public class DefaultActionsEnvironment implements ActionsEnvironment {
     private final Map<Phase, List<ActionProxy>> _untilEndOfPhaseActionProxies = new HashMap<>();
     private final List<ActionProxy> _untilEndOfTurnActionProxies = new LinkedList<>();
 
-    private Set<EffectResult> _effectResults = new HashSet<>();
+    // Insertion-ordered, as are the gathered triggers below: these hold objects hashed by identity, so a hash
+    // set's order -- the order triggers are offered and resolve in -- differed every time a game was replayed.
+    private Set<EffectResult> _effectResults = new LinkedHashSet<>();
 
     private final List<EffectResult> turnEffectResults = new LinkedList<>();
     private final List<EffectResult> phaseEffectResults = new LinkedList<>();
@@ -48,7 +50,7 @@ public class DefaultActionsEnvironment implements ActionsEnvironment {
 
     public Set<EffectResult> consumeEffectResults() {
         Set<EffectResult> result = _effectResults;
-        _effectResults = new HashSet<>();
+        _effectResults = new LinkedHashSet<>();
         return result;
     }
 
@@ -186,7 +188,7 @@ public class DefaultActionsEnvironment implements ActionsEnvironment {
 
     @Override
     public Map<OptionalTriggerAction, EffectResult> getOptionalAfterTriggers(String playerId, Collection<? extends EffectResult> effectResults) {
-        final Map<OptionalTriggerAction, EffectResult> gatheredActions = new HashMap<>();
+        final Map<OptionalTriggerAction, EffectResult> gatheredActions = new LinkedHashMap<>();
 
         if (effectResults != null) {
             for (ActionProxy actionProxy : _actionProxies) {

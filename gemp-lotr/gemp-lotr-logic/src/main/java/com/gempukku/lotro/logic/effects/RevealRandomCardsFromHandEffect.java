@@ -38,7 +38,7 @@ public abstract class RevealRandomCardsFromHandEffect extends AbstractEffect {
     @Override
     protected FullEffectResult playEffectReturningResult(LotroGame game) {
         if (_actingPlayer.equals(_playerHand) || game.getModifiersQuerying().canLookOrRevealCardsInHand(game, _playerHand, _actingPlayer)) {
-            List<PhysicalCard> randomCards = GameUtils.getRandomCards(game.getGameState().getHand(_playerHand), _count);
+            List<PhysicalCard> randomCards = GameUtils.getRandomCards(game.getGameState().getRandom(), game.getGameState().getHand(_playerHand), _count);
 
             if (randomCards.size() > 0) {
                 final PlayOrder playerOrder = game.getGameState().getPlayerOrder().getCounterClockwisePlayOrder(_source.getOwner(), false);

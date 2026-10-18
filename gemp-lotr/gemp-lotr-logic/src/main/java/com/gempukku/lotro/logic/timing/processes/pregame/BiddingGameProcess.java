@@ -20,8 +20,11 @@ public class BiddingGameProcess implements GameProcess {
         _playerOrderFeedback = playerOrderFeedback;
     }
 
+    private java.util.Random _random;
+
     @Override
     public void process(LotroGame game) {
+        _random = game.getGameState().getRandom();
         for (String player : _players) {
             final String decidingPlayer = player;
             int minimumBid = game.getModifiersQuerying().getMinimumBid(game, decidingPlayer);
@@ -45,6 +48,6 @@ public class BiddingGameProcess implements GameProcess {
 
     @Override
     public GameProcess getNextProcess() {
-        return new ChooseSeatingOrderGameProcess(_bids, _playerOrderFeedback);
+        return new ChooseSeatingOrderGameProcess(_bids, _playerOrderFeedback, _random);
     }
 }

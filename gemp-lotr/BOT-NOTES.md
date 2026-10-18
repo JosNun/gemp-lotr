@@ -22,6 +22,11 @@ bot with its extensions on, see `FotrStarterBot.extended`), `random`, and
 `fotr@<dir>` / `general@<dir>` for either on another model directory. A and B swap
 decks every game, so a strong deck cannot pass for a strong bot.
 
+Round robin, for ranking decks: `--suite rr:<format>:<deck list file>` plays every pair of
+the decks in the file (one deck spec per line) and prints standings -- each deck's wins
+over all its games. `decks/king8.txt` is an example. `BotTeach --play --both` does the
+same with the search bot on both sides.
+
 Suites: `starters` pairs every starter with the next one of the same site block,
 under that block's format (`fotr_block`, `ttt_block`, `king_block`, `expanded`).
 `starters:train` / `starters:test` are alternate halves of each block. **Train on
@@ -65,6 +70,20 @@ as stronger -- see below.
 - **The extensions halved random answers (4.2 -> 2.0 a game) and won nothing.**
   Neither did three more generations. That points at the model, not the coverage:
 
+## Generalised without losing capability? (the answer for prod)
+
+| Models | Held-out decks vs shipped | FotR starters vs shipped |
+|---|---|---|
+| diverse retrain, set 1, before the bug fixes (`bot-models-exp/diverse`) | 65.5% +- 2.9 | 51.0% +- 4.9 |
+| set 1 retrained after the fixes (`bot-models-exp/v1`) | 69.6% +- 2.9 | **38.3% +- 4.8** |
+| **set 2** (`bot-models-exp/v2`) | 65.3% +- 3.0 | **52.8% +- 4.9** |
+
+Feature set 2 is the one that plays any deck without giving up the decks the shipped bot
+was trained on: two-thirds of games against it on unseen starters in every format, level
+on its own matchup. Set 1, trained further, gained a little elsewhere and lost FotR.
+Recipe: `bot-train.sh --bot general --features 2 --init <set-1 models> --suite
+starters:train --generations 3 --games 4000`, from a set-1 diverse retrain.
+
 ## The linear-model ceiling
 
 Every card-action model scores each option as `sigmoid(w.state + v.card + b)`, and the
@@ -80,18 +99,115 @@ free to use the state mostly learns which *states* win, and the option's own eff
 lost in that noise. The logistic model is forced to put everything in the card term.
 Either way, better decisions need a signal about the decision, not about the game.
 
-## Lookahead is within reach
+## Lookahead
 
-All of the engine's randomness is four `ThreadLocalRandom` calls (`GameState` deck
-shuffle, `GameUtils`, `ChooseSeatingOrderGameProcess`, `DiscardCardAtRandomFromHandEffect`).
-Routed through a seeded per-game `Random`, a game becomes replayable from its seed and
-decision log, and so can be branched at any decision: play each option out a few times
-with the current bot and keep the one that wins most. That is slow per decision but
-exactly the signal the models lack, and it can teach them (label each decision with
-what the rollouts preferred) so the fast bot learns it. Unverified: whether iteration
-over identity-hashed sets (effect results, triggers) keeps a replay on the same path --
-test replay determinism before building on it. Rollouts with the real seed see the
-shuffled deck, so as a *teacher* that is fine; as a player it would cheat.
+### Replays are exact (`BotReplay`)
+
+A game seeded with `GameState.setRandomSeed` and fed the same answers plays out the same
+way: **1,030 of 1,030 games replayed identically, all 224,933 decisions** -- type, text
+and every parameter, card ids included -- and ended the same way; a different seed
+changed 1,021 (the rest end in pregame, corrupted by the bid). Three engine changes:
+
+- All randomness goes through `GameState.getRandom()`: deck shuffle, `GameUtils.getRandomCards`
+  (now takes the `Random`), random discard, the seating tie-break. Unseeded, it is as
+  random as the `ThreadLocalRandom` it replaced.
+- `PhysicalCardImpl` hashes by the id it was *created* with. Card ids change mid-game
+  (`assignNewCardId` hides a card's history) and cards are map keys, so the live id
+  cannot be the hash; identity hashes made every `HashSet` of cards iterate differently
+  each run (first seen: "Choose site to play" listing the same sites in a new order).
+- `DefaultActionsEnvironment`'s pending effect results and gathered triggers are
+  insertion-ordered: trigger order was the last thing that differed.
+
+Use well-mixed seeds (`SplittableRandom`): `java.util.Random`'s first draws from adjacent
+seeds are correlated, and seed + 1 left 5 of 412 shuffles unchanged. The full server
+suite passes (6,698 of 6,699; the one failure, `PatchNotesLibraryTest` on a 2026-09-30
+note's "Sealed" tag, fails the same on upstream master).
+
+### The teacher (`BotTeach`)
+
+Branches a share of card-action decisions in self-play: each option is taken in
+`--rollouts` replays of the game, reseeded and with both decks reshuffled at the branch
+(so the deck order is not known; the opponent's hand still is), played out by the bot on
+both sides, every option on the same set of reshuffles. Best option(s) are labelled
+good, ones that won `--margin` less bad, the rest skipped; the main game continues with
+the bot's own choice. Labels go to `<out>/teacher-steps.jsonl`; the card-action models of
+`--base` are then refit on them alone. About 5 rollouts a second per core: a rollout is a
+replay plus a playout, a few hundred engine decisions, and samples put the time in the
+engine (modifier lookups, filters), not the bot. Cutting rollouts off after a few turns
+and scoring the position with a value model is the obvious speed-up.
+
+**Does lookahead find better moves?** `--play` pits a bot that branches *every*
+card-action decision (8 rollouts per option) against plain v2 on `starters:test`:
+**search won 74 of 102, 72.5% +- 8.7** -- the first change in this whole effort to beat
+its baseline by more than noise, from card actions alone. That is the ceiling the student
+is reaching for. (Its 5,504 labels, in `bot-models-exp/search-play/`, came from the
+*test* decks; do not train on them and then score on `starters:test`.)
+
+**The student did not learn it.** Refitting v2's card-action models on 1,242 taught
+decisions (3,283 labels, 300 games) lost to v2, 39.1% +- 3.0; L2 (lambda 1, 10) changed
+nothing, and refitting only the three models with 500+ labels came back to 47.9%. The
+labels are not one-sided (pass judged better 45% of the times it was tried, playing 61%);
+a few hundred to 3,000 labels per model replacing fits on ~300k self-play rows is the
+likely problem. Worth retrying with far more labels, or mixed with the self-play data.
+
+### Cost against strength (for using the bot to rank decks)
+
+Ranking decks needs ~1,000 games per comparison for +-3 points, so cost per game matters
+as much as strength. `BotTeach --play` and `bot-vs-bot.sh` both report CPU-seconds a game.
+
+- Plain v2 models: **0.18 CPU-seconds a game**.
+- Value model for cut-off rollouts: `BotProbe --save-value <dir>` fits P(win | state) on
+  set 2 with trees: held-out AUC **0.785** against 0.733 for logistic on the same
+  features -- a value model has a direct label, which is where trees pay. `--depth N`
+  stops each rollout N turns after the branch and scores it with `<base>/value.model`.
+  Every rollout still replays the game to the branch, so depth saves only the playout:
+  depth 1 ran ~2.4x the rollouts a second of full playouts.
+
+Search player against plain v2 on `starters:test`, 102 games each (+-9 points):
+
+| Search | Won | CPU-seconds a game |
+|---|---|---|
+| none (plain v2 models) | 50% | 0.18 |
+| 2 rollouts, depth 1 | 67.3% | **18.2** |
+| 4 rollouts, depth 1 | 67.3% | 54.2 |
+| 8 rollouts, depth 1 | 67.6% | 47.4 |
+| 8 rollouts, played out | 72.5% | ~145 (estimated) |
+
+At this sample size more rollouts buy nothing, and depth 1 with 2 rollouts is the cheap
+end of the search bots -- still ~100x the plain bot.
+
+### Does the cheap bot rank decks like the strong one? (No.)
+
+`decks/king8.txt`, round robin. Plain v2 at 100 games a pair (2,800 games, 66s) and twice
+at 20; search (2 rollouts, depth 1, both sides) at 20 a pair (558 games, ~12 CPU-hours):
+
+| Deck | v2, 100/pair | search, 20/pair |
+|---|---|---|
+| MD - Frodo | 73.9% | 65.2% |
+| SoG - Merry | 63.3% | **46.4%** |
+| Big Baddies - Gothmog's Conquering | 59.3% | 54.0% |
+| RotK - Eomer | 53.7% | 52.5% |
+| RotK - Aragorn | 41.9% | 48.6% |
+| SoG - Pippin | 39.0% | 34.3% |
+| MD - Sam | 37.7% | 50.7% |
+| SHELBI - Gandalf | 31.3% | **48.6%** |
+
+Rank correlation (Spearman) of the two: **0.48**, against 0.83-0.93 between v2's own runs
+at the same sample sizes. The largest moves (Gandalf, Merry, ~17 points) are beyond both
+intervals. Search compresses the spread and revalues particular decks: which deck looks
+best depends on how well the bot plays it, so the cheap bot is fine for screening and
+not for the final word. (Search against itself: 51.6%, as it should be.)
+
+### Distilling the search into a cheap bot (not yet)
+
+The search runs left 130,008 labels. Trained on the 126,725 from `starters:test` and
+King-8 decks, scored on `starters:train` (decks it never saw labels for): logistic
+**53.0% +- 3.0** against v2 (52.6% leaving out the King block, which King-8 overlaps);
+trees 49.3%. A sliver of the search's +17-22 points, at the plain bot's cost (0.25
+CPU-seconds a game). Most labels came from 2-rollout searches, which are noisy, and a
+best/worst label per option throws away how much better.
+ (4 rollouts costing more than 8 is
+per-game variance; the decks and game lengths differ run to run.)
 
 ## Feature set 2 (`--features 2`)
 
@@ -150,6 +266,14 @@ would have loaded and been fed differently scaled inputs. **Dump a few vectors b
   decision or a winner; about 2 games in 1,000 between starters spin there (seen in
   Regroup and Archery). On the live server that table would hang. `BotGame` ends such
   a game after 60s and reports it as `engine stuck`.
+- **One engine call can run for hours.** Seen in a search rollout (Big Baddies / Shadows-era
+  boards): `GameStats.updateGameStats` -> `getStrength` -> keyword modifiers whose
+  condition is `CanSpotSameCulture` -> `Filters.countSpottable` over the active cards ->
+  `isCardType` -> modifiers again. Not a loop, a nesting that blows up with enough
+  conditional modifiers in play, and it never returns to where a winner would stop it.
+  A live table would hang the same way. `BotVsBot` gives up on a game after 15 minutes,
+  `BotTeach` once no game has finished for 15 minutes, and both exit the JVM at the end,
+  since nothing else stops such a thread.
 - `FotrStartersRLGameStateFeatures` counts minions owned by the *opponent*, so when the
   bot is the Shadow player its own minions are invisible to it. Strengths are printed,
   not modified. "Deck index" is 1 for Aragorn's starter, 2 for Gandalf's, 0 for
@@ -174,8 +298,7 @@ would have loaded and been fed differently scaled inputs. **Dump a few vectors b
 
 ## Next steps, roughly in order
 
-1. Make replays deterministic (seeded `Random`), verify by replaying recorded games, then
-   use rollouts as a teacher.
+1. (Done: replays are exact; the teacher is built -- see Lookahead.)
 2. (Done as feature set 2. It ties set 1 -- logistic or trees, in play and in BotProbe.)
 3. A bigger, more varied training pool than ~45 starters: the Deck Library, or decks
    generated per format.

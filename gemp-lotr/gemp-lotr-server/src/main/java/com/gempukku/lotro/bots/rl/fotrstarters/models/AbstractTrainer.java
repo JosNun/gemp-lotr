@@ -14,6 +14,12 @@ public abstract class AbstractTrainer implements Trainer, DecisionAnswerer {
      */
     public static volatile boolean useTrees = false;
 
+    /**
+     * L2 penalty for the logistic fits; 0, Smile's default, is what every model so far was fit with. Hundreds of
+     * thousands of self-play rows did not need it; a few hundred teacher labels against ~300 inputs do.
+     */
+    public static volatile double lambda = 0;
+
     abstract protected List<LabeledPoint> extractTrainingData(List<LearningStep> steps);
 
     /**
@@ -32,7 +38,8 @@ public abstract class AbstractTrainer implements Trainer, DecisionAnswerer {
             return new ConstantModel(points.isEmpty() ? 0 : points.get(0).y());
         double[][] x = points.stream().map(LabeledPoint::x).toArray(double[][]::new);
         int[] y = points.stream().mapToInt(LabeledPoint::y).toArray();
-        return useTrees ? TreeModel.fit(x, y) : LogisticRegression.fit(x, y);
+        return useTrees ? TreeModel.fit(x, y) : lambda > 0 ? LogisticRegression.fit(x, y, lambda, 1e-5, 500)
+                : LogisticRegression.fit(x, y);
     }
 
     @Override
