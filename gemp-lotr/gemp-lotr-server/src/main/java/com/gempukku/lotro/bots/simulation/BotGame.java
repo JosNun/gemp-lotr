@@ -107,6 +107,9 @@ public final class BotGame {
         int total = 0;
         AtomicBoolean stuck = new AtomicBoolean();
         ScheduledFuture<?> watchdog = null;
+        // the bots' own draws, seeded apart from the engine's; put back after, as a rollout is a game inside a game
+        java.util.Random botRandom = com.gempukku.lotro.bots.BotRandom.use(seed == null ? new java.util.Random()
+                : new java.util.Random(new java.util.SplittableRandom(seed).nextLong()));
         try {
             DefaultUserFeedback feedback = new DefaultUserFeedback();
             DefaultLotroGame game = new DefaultLotroGame(format, decks, feedback, library);
@@ -197,6 +200,7 @@ public final class BotGame {
         } finally {
             if (watchdog != null)
                 watchdog.cancel(false);
+            com.gempukku.lotro.bots.BotRandom.use(botRandom);
         }
     }
 }

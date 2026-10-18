@@ -11,7 +11,6 @@ import java.util.*;
 
 public class RandomDecisionBot implements BotPlayer {
     private final String botName;
-    private final Random random = new Random();
 
     public RandomDecisionBot(String botName) {
         this.botName = botName;
@@ -77,7 +76,7 @@ public class RandomDecisionBot implements BotPlayer {
             throw new IllegalArgumentException("No options provided for multiple choice");
         }
 
-        int choiceIndex = random.nextInt(options.length);
+        int choiceIndex = com.gempukku.lotro.bots.BotRandom.current().nextInt(options.length);
         return String.valueOf(choiceIndex);
     }
 
@@ -103,10 +102,10 @@ public class RandomDecisionBot implements BotPlayer {
             return "";
 
         // Pick how many to select (between min and max)
-        int toPick = min + random.nextInt(Math.max(1, Math.min(max, selectableIndices.size()) - min + 1));
+        int toPick = min + com.gempukku.lotro.bots.BotRandom.current().nextInt(Math.max(1, Math.min(max, selectableIndices.size()) - min + 1));
 
         // Randomly pick `toPick` cards from selectableIndices
-        Collections.shuffle(selectableIndices, random);
+        Collections.shuffle(selectableIndices, com.gempukku.lotro.bots.BotRandom.current());
         List<String> picked = new ArrayList<>();
         for (int i = 0; i < toPick; i++) {
             // This temp prefix matches parsing in ArbitraryCardsSelectionDecision class
@@ -125,7 +124,7 @@ public class RandomDecisionBot implements BotPlayer {
 
         // Randomly pick an action or choose to pass
         int totalOptions = actionIds.length + 1; // include "pass"
-        int choice = random.nextInt(totalOptions);
+        int choice = com.gempukku.lotro.bots.BotRandom.current().nextInt(totalOptions);
         if (choice == actionIds.length) {
             return ""; // pass
         } else {
@@ -140,7 +139,7 @@ public class RandomDecisionBot implements BotPlayer {
         }
 
         // Randomly pick one of the mandatory actions
-        int choice = random.nextInt(actionIds.length);
+        int choice = com.gempukku.lotro.bots.BotRandom.current().nextInt(actionIds.length);
         return String.valueOf(choice);
     }
 
@@ -152,9 +151,9 @@ public class RandomDecisionBot implements BotPlayer {
         int min = parseIntOrDefault(params.get("min"), 0);
         int max = parseIntOrDefault(params.get("max"), cardIds.length);
 
-        int count = min + random.nextInt(max - min + 1); // inclusive
+        int count = min + com.gempukku.lotro.bots.BotRandom.current().nextInt(max - min + 1); // inclusive
         List<String> selectionPool = new ArrayList<>(Arrays.asList(cardIds));
-        Collections.shuffle(selectionPool, random);
+        Collections.shuffle(selectionPool, com.gempukku.lotro.bots.BotRandom.current());
 
         return String.join(",", selectionPool.subList(0, count));
     }
@@ -178,8 +177,8 @@ public class RandomDecisionBot implements BotPlayer {
         List<String> freeChars = new ArrayList<>(List.of(freeCharIds));
         List<String> minions = new ArrayList<>(List.of(minionIds));
 
-        Collections.shuffle(freeChars, random);
-        Collections.shuffle(minions, random);
+        Collections.shuffle(freeChars, com.gempukku.lotro.bots.BotRandom.current());
+        Collections.shuffle(minions, com.gempukku.lotro.bots.BotRandom.current());
 
         Map<String, List<String>> assignments = new LinkedHashMap<>();
 
@@ -194,7 +193,7 @@ public class RandomDecisionBot implements BotPlayer {
         } else {
             // Shadow assigns remaining unassigned minions however they want
             for (String minion : minions) {
-                String target = freeChars.get(random.nextInt(freeChars.size()));
+                String target = freeChars.get(com.gempukku.lotro.bots.BotRandom.current().nextInt(freeChars.size()));
                 assignments.computeIfAbsent(target, k -> new ArrayList<>()).add(minion);
             }
         }

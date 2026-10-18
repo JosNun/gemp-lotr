@@ -53,6 +53,8 @@ public class TurnProcedure {
     }
 
     public void carryOutPendingActionsUntilDecisionNeeded() {
+        // Live games always have someone watching, and their stats go out as they change, effect by effect.
+        boolean watched = _game.getGameState().hasGameStateListeners();
         while (!_userFeedback.hasPendingDecisions() && _game.getWinnerPlayerId() == null) {
             // First check for any "state-based" effects
             _initiativeChangeRule.checkInitiativeChange(_game);
@@ -68,7 +70,7 @@ public class TurnProcedure {
                         _playedGameProcess = false;
                     } else {
                         _gameProcess.process(_game);
-                        if (_gameStats.updateGameStats(_game))
+                        if (watched && _gameStats.updateGameStats(_game))
                             _game.getGameState().sendGameStats(_gameStats);
                         _playedGameProcess = true;
                     }
@@ -87,11 +89,15 @@ public class TurnProcedure {
                 }
             }
 
-            if (_gameStats.updateGameStats(_game))
+            if (watched && _gameStats.updateGameStats(_game))
                 _game.getGameState().sendGameStats(_gameStats);
 
             _game.checkRingBearerCorruption();
         }
+        // Unwatched (a bot-only game), the stats are only read by the bots, at a decision: refresh them once here
+        // rather than after every effect, which was 16% of a bot game's CPU.
+        if (!watched && _gameStats.updateGameStats(_game))
+            _game.getGameState().sendGameStats(_gameStats);
     }
 
     private class PlayOutEffect extends SystemQueueAction {
