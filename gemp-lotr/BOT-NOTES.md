@@ -261,6 +261,21 @@ Ring-bearer; between two such searchers on the user's decks, 14% now end at site
 38% overall (10.7% -> 30.3% against Hunt the Ring-bearer) and passed Rangers (33% -> 27%) --
 the earlier search had been misplaying The Long Night's assignments.
 
+### Refitting the value model on search games (no)
+
+`BotTeach --record-values <file>` writes the deciding player's set-2 state at every
+card-action decision of the main games, labelled with whether that player won;
+`BotProbe --fit <file> --save-value <dir>` fits a value model on it. One round: 1,060
+search-vs-search games on `starters:train` (assignments and choices searched, 6.0 CPU-s a
+game), 205,123 positions, logistic fit. Search with it against plain v2 on
+`starters:test`: **52.3% +- 3.4**, against 73.4% with the value model fit on plain v2
+games. Not a bug: on positions from search-vs-search games the old model's AUC is only
+0.574 (0.75 on v2 games) and the new one 0.643, with half the spread (sd 0.12 vs 0.22).
+Games between two searchers are closer and noisier per position, so the fit comes out
+timid, and the positions it judges -- one turn of v2 playout past the branch -- look like v2
+games, which the old model knows. A value model for longer plans needs a different
+target or model, not just stronger games.
+
 ### Does the cheap bot rank decks like the strong one? (No.)
 
 `decks/king8.txt`, round robin. Plain v2 at 100 games a pair (2,800 games, 66s) and twice
