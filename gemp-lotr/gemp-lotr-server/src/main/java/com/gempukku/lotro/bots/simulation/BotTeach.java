@@ -131,6 +131,7 @@ public class BotTeach {
         // overstates it whenever stragglers leave threads idle
         java.util.concurrent.atomic.AtomicLong cpuNanos = new java.util.concurrent.atomic.AtomicLong();
         Map<String, int[]> record = new ConcurrentHashMap<>(); // deck -> {wins, games}
+        Map<String, int[]> pairs = new ConcurrentHashMap<>(); // "deck1 vs deck2" -> {deck1 wins, games}
         var threads = java.lang.management.ManagementFactory.getThreadMXBean();
         try (Writer sink = Files.newBufferedWriter(stepsFile, StandardCharsets.UTF_8,
                 java.nio.file.StandardOpenOption.CREATE, java.nio.file.StandardOpenOption.APPEND)) {
@@ -161,6 +162,13 @@ public class BotTeach {
                         if (r.winner().equals("~a"))
                             aWins.incrementAndGet();
                         String winnerDeck = r.winner().equals("~a") ? deckA : deckB;
+                        pairs.compute(m.deck1() + " vs " + m.deck2(), (k, v) -> {
+                            int[] w = v == null ? new int[2] : v;
+                            w[1]++;
+                            if (winnerDeck.equals(m.deck1()))
+                                w[0]++;
+                            return w;
+                        });
                         for (String deck : List.of(deckA, deckB))
                             record.compute(deck, (k, v) -> {
                                 int[] w = v == null ? new int[2] : v;
@@ -202,6 +210,14 @@ public class BotTeach {
             for (Future<?> f : futures)
                 if (f.isDone())
                     f.get(); // surface any exception
+        }
+        if (matchups.size() > 1 && !pairs.isEmpty()) {
+            out.println("  head to head (first deck's wins / games, 95% interval):");
+            new TreeMap<>(pairs).forEach((k, w) -> {
+                double p = (double) w[0] / w[1];
+                out.printf("    %5.1f%% +- %4.1f  %4d / %-4d  %s%n", 100 * p, 196 * Math.sqrt(p * (1 - p) / w[1]), w[0],
+                        w[1], k);
+            });
         }
         if (matchups.size() > 1 && !record.isEmpty()) {
             out.println("  standings (wins / games, 95% interval):");
