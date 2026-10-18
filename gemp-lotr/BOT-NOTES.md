@@ -234,6 +234,33 @@ beyond one turn and full playouts do not help: the playouts are by the v2 policy
 longer one adds its mistakes faster than it adds information. More rollouts buy ~3 points
 per 5x. `--max-candidates 10` (all options, in practice) costs nothing extra.
 
+### How Ring-bearers die, and searching assignments (2026-10-18)
+
+`BotDeaths` plays games with the log recorded and reports how Ring-bearers die. Plain v2
+against the 29 Shadows-site starters, with the user's four decks: 434 of 464 games ended
+with a dead Ring-bearer, all but one in a skirmish -- 192 with no companion left in play,
+133 with one. Fellowships were not starved (3-4 companions in play at most Shadow phases);
+they were worn down, and 80 of 173 "move again" choices were made with one or two left.
+
+The search player only branched card actions. `--assign` adds skirmish assignments (the
+assignment model's best few legal candidates, plus assigning nothing for the Free
+Peoples); `--choices` adds multiple-choice decisions (move again, optional costs) and small
+number choices (the burden bid, a uniform 0-4 in the models). Against plain v2 on
+`starters:test`, 816 games each:
+
+| Search | Won | CPU-s a game |
+|---|---|---|
+| card actions | 63.6% +- 3.3 | 1.0 |
+| + choices | 66.2% +- 3.2 | 1.3 |
+| + assignments | 71.9% +- 3.1 | 1.5 |
+| + both | **73.4% +- 3.0** | 1.7 |
+
+`rank-decks.sh` now uses both. Games against plain v2 still end 92% by a killed
+Ring-bearer; between two such searchers on the user's decks, 14% now end at site 9
+(against under 5% before). It re-ranked the user's decks: The Long Night went from 20% to
+38% overall (10.7% -> 30.3% against Hunt the Ring-bearer) and passed Rangers (33% -> 27%) --
+the earlier search had been misplaying The Long Night's assignments.
+
 ### Does the cheap bot rank decks like the strong one? (No.)
 
 `decks/king8.txt`, round robin. Plain v2 at 100 games a pair (2,800 games, 66s) and twice
