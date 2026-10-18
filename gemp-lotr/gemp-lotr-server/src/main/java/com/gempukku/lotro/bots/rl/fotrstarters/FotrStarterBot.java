@@ -149,6 +149,24 @@ public class FotrStarterBot extends RandomDecisionBot implements LearningBotPlay
         }
     }
 
+    /**
+     * The assignments the models rank highest for this decision, best first and legal under the rules, for a search
+     * to try rather than taking the top one. Empty if no assignment model applies.
+     */
+    public List<String> assignmentCandidates(GameState gameState, AwaitingDecision decision, int k) {
+        int previousVersion = CardFeatures.version();
+        try {
+            CardFeatures.setVersion(modelRegistry == null ? 1 : modelRegistry.getFeatureVersion());
+            for (AbstractAssignmentTrainer trainer : assignmentTrainers)
+                if (trainer.appliesTo(gameState, decision, getName()))
+                    return trainer.candidates(gameState, decision, getName(), features, modelRegistry,
+                            new AssignmentLegality(gameState.getGame()), k);
+            return List.of();
+        } finally {
+            CardFeatures.setVersion(previousVersion);
+        }
+    }
+
     private SemanticAction chooseSemanticAction(GameState gameState, AwaitingDecision decision, AssignmentLegality legality) {
         String action = epsilon > 0 && com.gempukku.lotro.bots.BotRandom.current().nextDouble() < epsilon
                 ? super.chooseAction(gameState, decision, legality)

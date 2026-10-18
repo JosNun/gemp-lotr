@@ -35,6 +35,9 @@ public final class BotGame {
     /** The name of the bot whose answer is being chosen on this thread, for anyone listening to what it prints. */
     public static final ThreadLocal<String> DECIDING = new ThreadLocal<>();
 
+    /** Called with each game this thread starts, once it is dealt: where a diagnostic attaches a listener. */
+    public static final ThreadLocal<java.util.function.Consumer<DefaultLotroGame>> ON_START = new ThreadLocal<>();
+
     /**
      * A game that has not finished in this long is stuck inside the engine, not slow: games take a fraction of a
      * second, and the first one found spun in TurnProcedure.carryOutPendingActionsUntilDecisionNeeded for over ten
@@ -167,8 +170,11 @@ public final class BotGame {
                     reason[0] = "cancelled";
                 }
             });
-            if (start)
+            if (start) {
                 game.startGame();
+                if (ON_START.get() != null)
+                    ON_START.get().accept(game);
+            }
 
             while (!game.isFinished()) {
                 BotPlayer bot = bots.stream().filter(b -> feedback.getAwaitingDecision(b.getName()) != null)

@@ -9,8 +9,9 @@
 # its games, with a 95% interval.
 #
 # By default both sides play with the search bot (BotTeach --play --both): 2 rollouts per
-# option, cut off one turn after the branch and scored by a value model, from copies of the
-# game -- about 2 CPU-seconds a game, and a ranking that differs from the plain bot's (see
+# option -- card plays, skirmish assignments, yes/no questions and the burden bid -- cut off one
+# turn after the branch and scored by a value model, from copies of the
+# game -- about 4 CPU-seconds a game with both sides searching, and a ranking that differs from the plain bot's (see
 # BOT-NOTES.md, "Does the cheap bot rank decks like the strong one?"). --quick uses the plain
 # v2 models instead: ~0.1 CPU-seconds a game, good for screening many decks before a search
 # run on the finalists.
@@ -36,5 +37,5 @@ if [ -n "$quick" ]; then
         --games "$per"
 fi
 BOT_MAIN=com.gempukku.lotro.bots.simulation.BotTeach exec ./bot-vs-bot.sh --play --both --clone \
-    --value bot-models-exp/value-s2-logistic --rollouts 2 --depth 1 --max-candidates 10 \
+    --value bot-models-exp/value-s2-logistic --rollouts 2 --depth 1 --max-candidates 10 --assign --choices \
     --suite "rr:$format:$list" --games $(( pairs * per )) --out "/tmp/rank-decks-$$"
