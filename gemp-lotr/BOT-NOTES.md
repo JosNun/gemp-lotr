@@ -209,6 +209,37 @@ best/worst label per option throws away how much better.
  (4 rollouts costing more than 8 is
 per-game variance; the decks and game lengths differ run to run.)
 
+### Rollouts from a copy of the game (`BotTeach --clone`)
+
+A replay rollout spends most of its time getting back to the branch. `GameCopier` copies
+the live game at the decision instead -- game, feedback with its pending decision,
+state, modifiers, actions, stack, the engine's Random -- and `BotGame.resume` plays on
+from the copy; the `Branching` bots then see the branch as their first question and
+reseed and reshuffle exactly as at the end of a replay. Shared, not copied: everything
+reachable from the card library, the formats, the decks and the engine's static fields
+(~140,500 objects, walked once at start-up, by identity, because a game's actions point
+straight into blueprints). HashMaps and HashSets are rebuilt with the original's table
+size so they iterate the same way; lambdas and records go through their constructors;
+any other JDK class is refused rather than guessed at. No engine change.
+
+`BotCloneCheck` (1,612 games on `starters:test` and `starters:train`, a random decision
+each): a copy continued with the recorded answers asks every recorded question and ends
+the same, 1,612 of 1,612; the original, replayed on after a copy of it was played out by
+random bots on a reseeded engine, 1,612 of 1,612; a rollout from a copy against the
+replay rollout on the same world, step for step and result, 3,224 of 3,224 (800 of them
+cut off at depth 1, value-model scores equal). Per rollout, thread CPU: copy **~170 us**,
+replay to the branch **~10.8 ms** (decision ~105 on average).
+
+Search player, 2 rollouts, depth 1, 48 games on `starters:test`, two runs each (different
+games, so per rollout is the fair figure): replay 43.5 and 22.3 ms of CPU a rollout
+(14.5 and 4.1 CPU-seconds a game), copies 5.2 and 6.3 ms (1.1 and 2.7 CPU-seconds a
+game); won 72.9% / 64.6% replaying, 66.7% / 68.8% copying, all +-13. What is left is the
+playout.
+
+Fragile: it reads JDK fields through `sun.misc.Unsafe` (fine on 21, warns from 23). A new
+JDK collection type in game state fails loudly with its path (`CLONE_TRACE=1`); add it to
+`GameCopier.RAW_JDK` if it holds no hashes. Run `BotCloneCheck` after engine changes.
+
 ## Engine speed (2026-10-18)
 
 A JFR profile of v2 self-play put most of a game's CPU in two places that do no game
@@ -238,7 +269,7 @@ What is left (after the fix, v2 self-play): `CharacterDeathRule.checkCharactersZ
 ~20% (vitality of every character on every loop step), keyword-modifier scans ~30%
 (`getKeywordModifiersAffectingCard` walks every modifier of a type for each card), the
 bots' own features ~26%. In a search game 93% of CPU is engine work inside rollouts and
-most of that is the prefix replay -- hence cloning (below).
+most of that is the prefix replay -- hence cloning (above).
 
 ## Feature set 2 (`--features 2`)
 
