@@ -48,11 +48,12 @@ import java.util.concurrent.atomic.AtomicInteger;
 public class BotTeach {
     record Options(String suite, Path base, Path out, int games, int rollouts, double teachRate, int maxCandidates,
                    double margin, int jobs, boolean trainOnly, boolean play, int minSteps, double lambda, Path steps,
-                   int depth, boolean both, Path value, boolean peek, boolean fromCopies) {
+                   int depth, boolean both, Path value, boolean peek, boolean fromCopies, boolean choices) {
     }
 
     private static final AtomicInteger taught = new AtomicInteger(), labelled = new AtomicInteger(),
-            rolloutsRun = new AtomicInteger(), diverged = new AtomicInteger(), cutOff = new AtomicInteger();
+            rolloutsRun = new AtomicInteger(), diverged = new AtomicInteger(), cutOff = new AtomicInteger(),
+            choicesSearched = new AtomicInteger();
     /** Scores a rollout's position when --depth stops it early: P(win) for the player whose state it is. */
     static volatile SoftClassifier<double[]> valueModel;
     /** 3 if the value model reads feature set 2 with KnowledgeFeatures appended (value-features.txt). */
@@ -132,6 +133,7 @@ public class BotTeach {
         java.util.concurrent.atomic.AtomicLong cpuNanos = new java.util.concurrent.atomic.AtomicLong();
         Map<String, int[]> record = new ConcurrentHashMap<>(); // deck -> {wins, games}
         Map<String, int[]> pairs = new ConcurrentHashMap<>(); // "deck1 vs deck2" -> {deck1 wins, games}
+        Map<String, Map<String, Integer>> endings = new ConcurrentHashMap<>(); // deck -> "won: reason" -> games
         var threads = java.lang.management.ManagementFactory.getThreadMXBean();
         try (Writer sink = Files.newBufferedWriter(stepsFile, StandardCharsets.UTF_8,
                 java.nio.file.StandardOpenOption.CREATE, java.nio.file.StandardOpenOption.APPEND)) {
@@ -162,6 +164,12 @@ public class BotTeach {
                         if (r.winner().equals("~a"))
                             aWins.incrementAndGet();
                         String winnerDeck = r.winner().equals("~a") ? deckA : deckB;
+                        // the reason names the loser's fate ("The Ring-Bearer is dead") or the winner's feat
+                        // ("Surviving to Regroup phase on site 9"), so file it from both sides
+                        String why = String.valueOf(r.reason()).replaceAll("\\d+", "N");
+                        for (String deck : List.of(deckA, deckB))
+                            endings.computeIfAbsent(deck, k -> new ConcurrentHashMap<>())
+                                    .merge((deck.equals(winnerDeck) ? "won: " : "lost: ") + why, 1, Integer::sum);
                         pairs.compute(m.deck1() + " vs " + m.deck2(), (k, v) -> {
                             int[] w = v == null ? new int[2] : v;
                             w[1]++;
@@ -230,9 +238,19 @@ public class BotTeach {
                                 e.getKey());
                     });
         }
+        if (choicesSearched.get() > 0)
+            out.printf("  %d multiple-choice decisions searched%n", choicesSearched.get());
         if (opts.fromCopies() && CloneRollout.copies.get() > 0)
             out.printf("  %d rollouts from copies, %.0f us a copy%n", CloneRollout.copies.get(),
                     CloneRollout.copyNanos.get() / 1e3 / CloneRollout.copies.get());
+        if (matchups.size() > 1 && !endings.isEmpty()) {
+            out.println("  how each deck's games ended:");
+            new TreeMap<>(endings).forEach((deck, e) -> {
+                out.println("    " + deck);
+                e.entrySet().stream().sorted(Map.Entry.comparingByKey(Comparator.reverseOrder()))
+                        .forEach(x -> out.printf("      %5d  %s%n", x.getValue(), x.getKey()));
+            });
+        }
         if (opts.play() && finished.get() > 0) {
             double p = aWins.get() / (double) finished.get();
             out.printf("search player won %d of %d: %.1f%% +- %.1f; %.1f CPU-seconds a game%n",
@@ -390,7 +408,36 @@ public class BotTeach {
                     return best;
                 }
             }
+            String[] results = decision.getDecisionParameters().get("results");
+            if (search && opts.choices() && decision.getDecisionType() == AwaitingDecisionType.MULTIPLE_CHOICE
+                    && results != null && results.length > 1) {
+                // Yes/no and pick-one questions -- move again or stop, pay a cost to assign, keep or discard --
+                // which the models answer from a fixed state ranking or not at all. Searched, not labelled.
+                String best = choose(gameState, results.length);
+                if (best != null) {
+                    inner.chooseAction(gameState, decision);
+                    return best;
+                }
+            }
             return inner.chooseAction(gameState, decision);
+        }
+
+        /** The answer (an index into the results) that won most over the rollouts; null on a tie. */
+        private String choose(GameState gameState, int n) {
+            List<BotGame.Step> prefix = List.copyOf(branch.steps());
+            long[] worlds = new SplittableRandom().longs(opts.rollouts()).toArray();
+            String bestOption = null;
+            double best = -1, worst = 2;
+            for (int i = 0; i < n; i++) {
+                double v = branch.value(prefix, getName(), String.valueOf(i), worlds, gameState);
+                if (v > best) {
+                    best = v;
+                    bestOption = String.valueOf(i);
+                }
+                worst = Math.min(worst, v);
+            }
+            choicesSearched.incrementAndGet();
+            return best > worst ? bestOption : null;
         }
 
         /** Branches the decision and writes its labels; returns the option that won most, or null on a tie. */
@@ -451,7 +498,7 @@ public class BotTeach {
         int games = 100, rollouts = 16, maxCandidates = 5;
         double teachRate = 0.1, margin = 0.125;
         int jobs = Math.max(1, Runtime.getRuntime().availableProcessors() - 2);
-        boolean trainOnly = false, play = false, both = false, peek = false, clone = false;
+        boolean trainOnly = false, play = false, both = false, peek = false, clone = false, choices = false;
         int minSteps = 50, depth = 0;
         double lambda = 0;
         Path steps = null, value = null;
@@ -461,6 +508,7 @@ public class BotTeach {
                 case "--both" -> both = true;
                 case "--peek" -> peek = true;
                 case "--clone" -> clone = true;
+                case "--choices" -> choices = true;
                 case "--model" -> com.gempukku.lotro.bots.rl.fotrstarters.models.AbstractTrainer.useTrees =
                         args[++i].equals("trees");
                 case "--min-steps" -> minSteps = Integer.parseInt(args[++i]);
@@ -484,7 +532,7 @@ public class BotTeach {
         if (out == null)
             BotVsBot.die(usage());
         return new Options(suite, base, out, games, rollouts, teachRate, maxCandidates, margin, jobs, trainOnly, play,
-                minSteps, lambda, steps, depth, both, value == null ? base : value, peek, clone);
+                minSteps, lambda, steps, depth, both, value == null ? base : value, peek, clone, choices);
     }
 
     private static String usage() {
@@ -510,6 +558,8 @@ public class BotTeach {
                   --play                    instead: a bot that searches every card-action decision (A)
                                             against the plain bot (B); reports A's win rate
                   --both                    with --play, B searches too: for ranking decks (rr: suites)
-                  --clone                   rollouts copy the live game (GameCopier) instead of replaying it""";
+                  --clone                   rollouts copy the live game (GameCopier) instead of replaying it
+                  --choices                 with --play, also search multiple-choice decisions (move again,
+                                            optional costs), not only card actions""";
     }
 }
