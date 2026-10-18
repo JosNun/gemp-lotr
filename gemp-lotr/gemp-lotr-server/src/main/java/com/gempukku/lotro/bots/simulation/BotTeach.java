@@ -48,13 +48,15 @@ import java.util.concurrent.atomic.AtomicInteger;
 public class BotTeach {
     record Options(String suite, Path base, Path out, int games, int rollouts, double teachRate, int maxCandidates,
                    double margin, int jobs, boolean trainOnly, boolean play, int minSteps, double lambda, Path steps,
-                   int depth, boolean both) {
+                   int depth, boolean both, Path value, boolean peek) {
     }
 
     private static final AtomicInteger taught = new AtomicInteger(), labelled = new AtomicInteger(),
             rolloutsRun = new AtomicInteger(), diverged = new AtomicInteger(), cutOff = new AtomicInteger();
     /** Scores a rollout's position when --depth stops it early: P(win) for the player whose state it is. */
     private static volatile SoftClassifier<double[]> valueModel;
+    /** 3 if the value model reads feature set 2 with KnowledgeFeatures appended (value-features.txt). */
+    private static volatile int valueFeatures = 2;
 
     private static final long STALL_MINUTES = 15;
 
@@ -94,16 +96,19 @@ public class BotTeach {
                 ? new GeneralStateFeatures() : new FotrStartersRLGameStateFeatures();
         String policy = "general@" + opts.base();
         if (opts.depth() > 0) {
-            Path file = opts.base().resolve("value.model");
+            Path file = opts.value().resolve("value.model");
             if (!Files.exists(file))
-                BotVsBot.die("--depth needs " + file + " (BotProbe --save-value " + opts.base() + ")");
+                BotVsBot.die("--depth needs " + file + " (BotProbe --save-value " + opts.value() + ")");
             try (ObjectInputStream in = new ObjectInputStream(new FileInputStream(file.toFile()))) {
                 @SuppressWarnings("unchecked")
                 SoftClassifier<double[]> model = (SoftClassifier<double[]>) in.readObject();
                 valueModel = model;
             }
-            out.printf("Rollouts stop %d turn%s after the branch and are scored by %s%n", opts.depth(),
-                    opts.depth() == 1 ? "" : "s", file);
+            Path vf = opts.value().resolve("value-features.txt");
+            if (Files.exists(vf))
+                valueFeatures = Integer.parseInt(Files.readString(vf).trim());
+            out.printf("Rollouts stop %d turn%s after the branch and are scored by %s (feature set %d)%n", opts.depth(),
+                    opts.depth() == 1 ? "" : "s", file, valueFeatures);
         }
 
         out.printf("Teaching on %d matchups from %s: %d games, %.0f%% of card-action decisions branched, %d rollouts "
@@ -242,7 +247,7 @@ public class BotTeach {
         double value(List<BotGame.Step> prefix, String player, String answer, long[] worlds) {
             double wins = 0;
             for (long world : worlds) {
-                Shared shared = new Shared(prefix, player, answer, world, opts.depth());
+                Shared shared = new Shared(prefix, player, answer, world, opts.depth(), opts.peek());
                 BotGame.Result r = BotGame.play(format, ctx.library(),
                         List.of(new Branching("~a", shared, BotVsBot.bot(policy, "~a", ctx)),
                                 new Branching("~b", shared, BotVsBot.bot(policy, "~b", ctx))),
@@ -265,17 +270,19 @@ public class BotTeach {
         final String player, answer;
         final long world;
         final int depth;
+        final boolean peek;
         int next, startTurn;
         boolean branched, diverged;
         /** P(win) for player from the value model, if the rollout was cut off; -1 if it was played out. */
         double value = -1;
 
-        Shared(List<BotGame.Step> prefix, String player, String answer, long world, int depth) {
+        Shared(List<BotGame.Step> prefix, String player, String answer, long world, int depth, boolean peek) {
             this.prefix = prefix;
             this.player = player;
             this.answer = answer;
             this.world = world;
             this.depth = depth;
+            this.peek = peek;
         }
     }
 
@@ -295,6 +302,20 @@ public class BotTeach {
                     shared.diverged = true;
                 // from here the future is one of many: new draws, and decks in an order nobody has seen
                 gameState.setRandomSeed(shared.world);
+                if (!shared.peek) {
+                    // The searching player cannot see the opponent's hand: deal it again from the cards they have
+                    // not seen, hand and deck together. Without this every rollout knew it, and a search that
+                    // knows what tricks are coming plays a game nobody at a table can.
+                    for (String p : gameState.getPlayerNames()) {
+                        if (p.equals(shared.player))
+                            continue;
+                        List<com.gempukku.lotro.game.PhysicalCard> hand = new ArrayList<>(gameState.getHand(p));
+                        gameState.removeCardsFromZone(null, hand);
+                        gameState.shuffleCardsIntoDeck(hand, p);
+                        for (int i = 0; i < hand.size(); i++)
+                            gameState.playerDrawsCard(p);
+                    }
+                }
                 com.gempukku.lotro.bots.BotRandom.current().setSeed(shared.world ^ 0x5DEECE66DL);
                 for (String p : gameState.getPlayerNames())
                     gameState.shuffleDeck(p);
@@ -304,7 +325,10 @@ public class BotTeach {
             if (shared.depth > 0 && shared.value < 0 && gameState.getTurnNumber() >= shared.startTurn + shared.depth) {
                 // far enough: score the position for the player who branched, and end this throwaway game
                 double[] p = new double[2];
-                valueModel.predict(new GeneralStateFeatures().extractFeatures(gameState, decision, shared.player), p);
+                double[] v = new GeneralStateFeatures().extractFeatures(gameState, decision, shared.player);
+                if (valueFeatures == 3)
+                    v = com.gempukku.lotro.bots.rl.fotrstarters.KnowledgeFeatures.withKnowledge(v, gameState, shared.player);
+                valueModel.predict(v, p);
                 shared.value = p[1];
                 gameState.getGame().playerLost(name, "rollout cut off");
             }
@@ -392,20 +416,22 @@ public class BotTeach {
         int games = 100, rollouts = 16, maxCandidates = 5;
         double teachRate = 0.1, margin = 0.125;
         int jobs = Math.max(1, Runtime.getRuntime().availableProcessors() - 2);
-        boolean trainOnly = false, play = false, both = false;
+        boolean trainOnly = false, play = false, both = false, peek = false;
         int minSteps = 50, depth = 0;
         double lambda = 0;
-        Path steps = null;
+        Path steps = null, value = null;
         for (int i = 0; i < args.length; i++) {
             switch (args[i]) {
                 case "--play" -> play = true;
                 case "--both" -> both = true;
+                case "--peek" -> peek = true;
                 case "--model" -> com.gempukku.lotro.bots.rl.fotrstarters.models.AbstractTrainer.useTrees =
                         args[++i].equals("trees");
                 case "--min-steps" -> minSteps = Integer.parseInt(args[++i]);
                 case "--depth" -> depth = Integer.parseInt(args[++i]);
                 case "--lambda" -> lambda = Double.parseDouble(args[++i]);
                 case "--steps" -> steps = Path.of(args[++i]);
+                case "--value" -> value = Path.of(args[++i]);
                 case "--suite" -> suite = args[++i];
                 case "--base" -> base = Path.of(args[++i]);
                 case "--out" -> out = Path.of(args[++i]);
@@ -422,7 +448,7 @@ public class BotTeach {
         if (out == null)
             BotVsBot.die(usage());
         return new Options(suite, base, out, games, rollouts, teachRate, maxCandidates, margin, jobs, trainOnly, play,
-                minSteps, lambda, steps, depth, both);
+                minSteps, lambda, steps, depth, both, value == null ? base : value, peek);
     }
 
     private static String usage() {
@@ -437,6 +463,9 @@ public class BotTeach {
                   --margin 0.125            how much less an option must win to be labelled bad
                   --depth 0                 stop rollouts this many turns after the branch and score the
                                             position with <base>/value.model (BotProbe --save-value); 0 plays out
+                  --value <dir>             take value.model (and value-features.txt) from here instead
+                  --peek                    rollouts keep the opponent's real hand (by default it is redealt
+                                            from their unseen cards)
                   --train-only              refit from <out>/teacher-steps.jsonl without playing
                   --steps <file>            labels to refit from, instead of <out>/teacher-steps.jsonl
                   --min-steps 50            only refit models with at least this many labels
