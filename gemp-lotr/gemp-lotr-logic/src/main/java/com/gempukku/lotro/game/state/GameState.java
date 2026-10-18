@@ -2269,6 +2269,57 @@ public class GameState {
         _random = random;
     }
 
+    /**
+     * Seeds every random outcome of this game (shuffles, cards picked at random, the seating tie-break), so a game
+     * given the same seed and the same answers plays out the same way again. The bot harness plays, replays and
+     * copies games on this. It installs a {@link GameRandom} of its own; setRandom after it takes that away.
+     */
+    public void setRandomSeed(long seed) {
+        _seeded = new Random(seed);
+        _random = new SeededRandom();
+    }
+
+    private Random _seeded;
+
+    /**
+     * Decides a deck's order when it is shuffled, in place of the seeded Random. Null (the default) everywhere except
+     * when re-creating a recorded game, where the shuffles have to come out the way the recorded game's did.
+     */
+    public interface DeckShuffler {
+        void shuffle(String player, List<? extends PhysicalCard> deck, Random random);
+    }
+
+    private DeckShuffler _deckShuffler;
+
+    public void setDeckShuffler(DeckShuffler deckShuffler) {
+        _deckShuffler = deckShuffler;
+        if (deckShuffler != null && _seeded == null)
+            setRandomSeed(new Random().nextLong());
+    }
+
+    /** The game's outcomes drawn from the seeded Random, deck shuffles from the DeckShuffler if there is one. */
+    private final class SeededRandom implements GameRandom {
+        @Override
+        public void shuffleDeck(String playerId, List<? extends PhysicalCard> deck) {
+            if (_deckShuffler != null)
+                _deckShuffler.shuffle(playerId, deck, _seeded);
+            else
+                Collections.shuffle(deck, _seeded);
+        }
+
+        @Override
+        public List<PhysicalCard> pickCards(String playerId, Zone zone, Collection<? extends PhysicalCard> cards, int count) {
+            List<PhysicalCard> randomizedCards = new ArrayList<>(cards);
+            Collections.shuffle(randomizedCards, _seeded);
+            return new LinkedList<>(randomizedCards.subList(0, Math.min(count, randomizedCards.size())));
+        }
+
+        @Override
+        public void shufflePlayers(List<String> players) {
+            Collections.shuffle(players, _seeded);
+        }
+    }
+
     public void sendGameStats(GameStats gameStats) {
         if (_heldBackEvents != null) {
             _heldBackGameStats = gameStats;

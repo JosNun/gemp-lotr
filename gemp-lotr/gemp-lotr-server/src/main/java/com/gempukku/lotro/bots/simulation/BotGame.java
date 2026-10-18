@@ -58,10 +58,25 @@ public final class BotGame {
      * and the fallback replaced. On a crash or stall only {@code error} and the counts are set.
      */
     public record Result(String winner, String first, String reason, int turns, int decisions,
-                         Map<String, Integer> rejected, String error) {
+                         Map<String, Integer> rejected, String error, List<Step> steps) {
         public boolean finished() {
             return error == null && winner != null;
         }
+    }
+
+    /**
+     * One decision as the engine put it and as it was answered: who was asked, a fingerprint of the question (type,
+     * text and every parameter, card ids included), and the answer the engine accepted. A seeded game replayed with
+     * the same answers should ask the same questions in the same order; {@link BotReplay} checks that it does.
+     */
+    public record Step(String player, String question, String answer) {
+    }
+
+    static String fingerprint(AwaitingDecision decision) {
+        StringBuilder sb = new StringBuilder(decision.getDecisionType() + "|" + decision.getText());
+        new java.util.TreeMap<>(decision.getDecisionParameters())
+                .forEach((k, v) -> sb.append('|').append(k).append('=').append(java.util.Arrays.toString(v)));
+        return sb.toString();
     }
 
     private BotGame() {
@@ -69,6 +84,22 @@ public final class BotGame {
 
     public static Result play(LotroFormat format, LotroCardBlueprintLibrary library, List<BotPlayer> bots,
                               Map<String, LotroDeck> decks, int maxDecisions) {
+        return play(format, library, bots, decks, maxDecisions, null);
+    }
+
+    /** As above; with a seed, every random draw the engine makes is fixed, so the game can be replayed. */
+    public static Result play(LotroFormat format, LotroCardBlueprintLibrary library, List<BotPlayer> bots,
+                              Map<String, LotroDeck> decks, int maxDecisions, Long seed) {
+        return play(format, library, bots, decks, maxDecisions, seed, new java.util.ArrayList<>(), STUCK_SECONDS);
+    }
+
+    /**
+     * As above, recording into {@code steps} as the game goes -- a bot that branches the game (BotTeach) reads it to
+     * replay to where it is -- and with its own stuck limit, since a game whose bot runs rollouts is slow, not stuck.
+     */
+    public static Result play(LotroFormat format, LotroCardBlueprintLibrary library, List<BotPlayer> bots,
+                              Map<String, LotroDeck> decks, int maxDecisions, Long seed, List<Step> steps,
+                              long stuckSeconds) {
         Map<String, BotPlayer> byName = bots.stream().collect(Collectors.toMap(BotPlayer::getName, b -> b));
         String[] reason = {null};
         Map<String, Integer> rejected = new HashMap<>();
@@ -79,6 +110,8 @@ public final class BotGame {
         try {
             DefaultUserFeedback feedback = new DefaultUserFeedback();
             DefaultLotroGame game = new DefaultLotroGame(format, decks, feedback, library);
+            if (seed != null)
+                game.getGameState().setRandomSeed(seed);
             feedback.setGame(game);
             watchdog = WATCHDOG.schedule(() -> {
                 if (!game.isFinished()) {
@@ -86,7 +119,7 @@ public final class BotGame {
                     // not thread-safe, and need not be: this game's result is thrown away
                     game.playerLost(bots.get(0).getName(), "stuck");
                 }
-            }, STUCK_SECONDS, TimeUnit.SECONDS);
+            }, stuckSeconds, TimeUnit.SECONDS);
             game.addGameResultListener(new GameResultListener() {
                 @Override
                 public void gameFinished(String winner, String winReason, Map<String, String> losers) {
@@ -107,7 +140,7 @@ public final class BotGame {
                 BotPlayer bot = bots.stream().filter(b -> feedback.getAwaitingDecision(b.getName()) != null)
                         .findFirst().orElse(null);
                 if (bot == null)
-                    return new Result(null, null, null, 0, total, rejected, "stalled: game unfinished and nobody to decide");
+                    return new Result(null, null, null, 0, total, rejected, "stalled: game unfinished and nobody to decide", steps);
                 String name = bot.getName();
 
                 if (decisions.merge(name, 1, Integer::sum) > maxDecisions) {
@@ -118,6 +151,7 @@ public final class BotGame {
                 total++;
 
                 AwaitingDecision decision = feedback.getAwaitingDecision(name);
+                String question = fingerprint(decision);
                 String answer;
                 DECIDING.set(name);
                 try {
@@ -140,6 +174,7 @@ public final class BotGame {
                     String accepted = BotDecisionFallback.decide(game, name, decision, answer);
                     if (!accepted.equals(answer))
                         rejected.merge(name, 1, Integer::sum);
+                    steps.add(new Step(name, question, accepted));
                 } catch (DecisionResultInvalidException e) {
                     game.playerLost(name, "Invalid decision");
                     break;
@@ -149,16 +184,16 @@ public final class BotGame {
 
             if (stuck.get())
                 return new Result(null, null, null, 0, total, rejected, "engine stuck: no decision asked for "
-                        + STUCK_SECONDS + "s, turn " + game.getGameState().getTurnNumber() + ", "
-                        + game.getGameState().getCurrentPhase());
+                        + stuckSeconds + "s, turn " + game.getGameState().getTurnNumber() + ", "
+                        + game.getGameState().getCurrentPhase(), steps);
             var state = game.getGameState();
             return new Result(game.getWinnerPlayerId(), state.getFirstPlayerId(), reason[0], state.getTurnNumber(),
-                    total, rejected, null);
+                    total, rejected, null, steps);
         } catch (RuntimeException e) {
             StringWriter trace = new StringWriter();
             e.printStackTrace(new PrintWriter(trace));
             String where = trace.toString().lines().skip(1).limit(3).map(String::trim).collect(Collectors.joining(" < "));
-            return new Result(null, null, null, 0, total, rejected, e + " at " + where);
+            return new Result(null, null, null, 0, total, rejected, e + " at " + where, steps);
         } finally {
             if (watchdog != null)
                 watchdog.cancel(false);

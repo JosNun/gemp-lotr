@@ -97,7 +97,7 @@ public class BotVsBot {
      * {@code random} counts answers each bot could only guess, [A, B].
      */
     record Outcome(int matchup, int game, int aSeat, String winner, String first, String reason, int turns,
-                   int[] random, int decisions, String error) {
+                   int[] random, int decisions, String error, long cpuNanos) {
         boolean finished() {
             return error == null && winner != null;
         }
@@ -238,8 +238,16 @@ public class BotVsBot {
         boolean single = matchups.size() == 1;
         for (int mi = 0; mi < matchups.size(); mi++) {
             List<Outcome> outcomes = new ArrayList<>();
-            for (Future<Outcome> f : futures.get(mi)) {
-                Outcome o = f.get();
+            List<Future<Outcome>> games = futures.get(mi);
+            for (int g = 0; g < games.size(); g++) {
+                Outcome o;
+                try {
+                    // see BotTeach.generate: a game can spin in one engine call where nothing reaches it
+                    o = games.get(g).get(15, TimeUnit.MINUTES);
+                } catch (TimeoutException e) {
+                    o = new Outcome(mi, g, g % 2 == 0 ? 1 : 2, null, null, null, 0, new int[2], 0,
+                            "abandoned: still running after 15 minutes", 0);
+                }
                 outcomes.add(o);
                 if (single || o.error() != null)
                     out.println(describe(o, matchups.get(mi)));
@@ -252,6 +260,8 @@ public class BotVsBot {
         System.setOut(out);
 
         summarise(all, matchups, opts, unknown, (System.nanoTime() - t0) / 1e9);
+        standings(all, matchups);
+        System.exit(0); // ends any game thread still spinning in the engine
     }
 
     private static Outcome play(int matchup, int game, LotroFormat format, LotroDeck deck1, LotroDeck deck2,
@@ -267,11 +277,14 @@ public class BotVsBot {
 
         int[] random = randomAnswers.get();
         Arrays.fill(random, 0);
+        var threads = java.lang.management.ManagementFactory.getThreadMXBean();
+        long cpu0 = threads.getCurrentThreadCpuTime();
         BotGame.Result r = BotGame.play(format, ctx.library(), List.of(a, b), decks, opts.maxDecisions());
+        long cpu = threads.getCurrentThreadCpuTime() - cpu0;
         random[0] += r.rejected().getOrDefault(BOT_A, 0);
         random[1] += r.rejected().getOrDefault(BOT_B, 0);
         return new Outcome(matchup, game, aSeat, seat(r.winner()), seat(r.first()), r.reason(), r.turns(),
-                random.clone(), r.decisions(), r.error());
+                random.clone(), r.decisions(), r.error(), cpu);
     }
 
     private static String seat(String player) {
@@ -304,7 +317,8 @@ public class BotVsBot {
         long errors = outcomes.size() - done.size();
 
         System.out.println();
-        System.out.printf("%d games in %.0fs, %d finished%n", outcomes.size(), seconds, done.size());
+        System.out.printf("%d games in %.0fs, %d finished; %.2f CPU-seconds a game%n", outcomes.size(), seconds,
+                done.size(), outcomes.stream().mapToLong(Outcome::cpuNanos).sum() / 1e9 / outcomes.size());
         if (!done.isEmpty()) {
             long aWins = done.stream().filter(o -> o.winner().equals("a")).count();
             double p = (double) aWins / done.size();
@@ -350,11 +364,58 @@ public class BotVsBot {
         }
     }
 
+    /**
+     * Each deck's record over every game it played, best first, when a suite has more than one matchup: for a
+     * round robin ("rr:" suites) this is the ranking of the decks.
+     */
+    static void standings(List<Outcome> outcomes, List<Matchup> matchups) {
+        if (matchups.size() < 2)
+            return;
+        Map<String, int[]> record = new TreeMap<>(); // deck -> {wins, games}
+        for (Outcome o : outcomes) {
+            if (!o.finished())
+                continue;
+            Matchup m = matchups.get(o.matchup());
+            String winner = o.winningSeat() == 1 ? m.deck1() : m.deck2();
+            for (String deck : List.of(m.deck1(), m.deck2())) {
+                int[] r = record.computeIfAbsent(deck, k -> new int[2]);
+                r[1]++;
+                if (deck.equals(winner))
+                    r[0]++;
+            }
+        }
+        System.out.println("  standings (wins / games, 95% interval):");
+        record.entrySet().stream()
+                .sorted(Comparator.comparingDouble(e -> -(double) e.getValue()[0] / e.getValue()[1]))
+                .forEach(e -> {
+                    double p = (double) e.getValue()[0] / e.getValue()[1];
+                    System.out.printf("    %5.1f%% +- %4.1f  %4d / %-4d  %s%n", 100 * p,
+                            196 * Math.sqrt(p * (1 - p) / e.getValue()[1]), e.getValue()[0], e.getValue()[1],
+                            e.getKey());
+                });
+    }
+
     // ---- decks and suites ----
 
+    /**
+     * "starters[:train|test|all]", "rr:&lt;format&gt;:&lt;file&gt;" -- every pair of the decks listed in the file, one
+     * deck spec per line (# comments), all under one format -- or a suite file of "format | deck1 | deck2" lines.
+     */
     static List<Matchup> loadSuite(String spec, Context ctx) throws IOException {
         if (spec.equals("starters") || spec.startsWith("starters:"))
             return starterSuite(ctx, spec.contains(":") ? spec.substring(spec.indexOf(':') + 1) : "all");
+        if (spec.startsWith("rr:")) {
+            String[] parts = spec.split(":", 3);
+            if (parts.length != 3)
+                die("Round robin suite is rr:<format>:<deck list file>");
+            List<String> decks = Files.readAllLines(Path.of(parts[2])).stream().map(String::trim)
+                    .filter(l -> !l.isEmpty() && !l.startsWith("#")).toList();
+            List<Matchup> matchups = new ArrayList<>();
+            for (int i = 0; i < decks.size(); i++)
+                for (int j = i + 1; j < decks.size(); j++)
+                    matchups.add(new Matchup(parts[1], decks.get(i), decks.get(j)));
+            return matchups;
+        }
         List<Matchup> matchups = new ArrayList<>();
         for (String line : Files.readAllLines(Path.of(spec))) {
             if (line.isBlank() || line.trim().startsWith("#"))
@@ -597,7 +658,8 @@ public class BotVsBot {
                        BotVsBot --list-starters
                   deck: aragorn | gandalf | starter:<name> | path to a file holding ringbearer|ring|sites|cards
                   suite file: one "format | deck1 | deck2" per line; "starters" pairs every starter in its block,
-                              "starters:train" / "starters:test" alternate halves of them
+                              "starters:train" / "starters:test" alternate halves of them;
+                              "rr:<format>:<file>" plays every pair of the decks listed in the file
                 options:
                   --a fotr --b fotr     the two bots: fotr, general, random, fotr@<dir>, general@<dir>;
                                         they swap decks every game

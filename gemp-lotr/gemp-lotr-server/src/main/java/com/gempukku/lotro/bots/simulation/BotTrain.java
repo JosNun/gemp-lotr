@@ -202,7 +202,7 @@ public class BotTrain {
         }
     }
 
-    private static void save(Path dir, Trainer trainer, SoftClassifier<double[]> model) throws IOException {
+    static void save(Path dir, Trainer trainer, SoftClassifier<double[]> model) throws IOException {
         if (model == null)
             return;
         Path file = dir.resolve(trainer.getClass().getSimpleName() + ".model");
