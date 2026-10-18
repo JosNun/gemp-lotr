@@ -22,6 +22,11 @@ bot with its extensions on, see `FotrStarterBot.extended`), `random`, and
 `fotr@<dir>` / `general@<dir>` for either on another model directory. A and B swap
 decks every game, so a strong deck cannot pass for a strong bot.
 
+**Ranking decks: `./rank-decks.sh <format> <deck list> [games per pair] [--quick]`.** Every
+pair plays with the search bot on both sides (~1-3 CPU-seconds a game), or the plain v2 bot
+with `--quick` (~0.1). Screen many decks with `--quick`, confirm the finalists with search,
+and read "Games needed" below before trusting a few points' difference.
+
 Round robin, for ranking decks: `--suite rr:<format>:<deck list file>` plays every pair of
 the decks in the file (one deck spec per line) and prints standings -- each deck's wins
 over all its games. `decks/king8.txt` is an example. `BotTeach --play --both` does the
@@ -176,6 +181,59 @@ Search player against plain v2 on `starters:test`, 102 games each (+-9 points):
 At this sample size more rollouts buy nothing, and depth 1 with 2 rollouts is the cheap
 end of the search bots -- still ~100x the plain bot.
 
+### Judging cut-off positions: the value model (2026-10-18)
+
+The value model behind the depth-1 numbers above was fit on games of the **test decks
+themselves** (`BotProbe --save-value` used to fit on its own suite). `--train-suite` now
+fits on one suite and scores on another. Search player vs plain v2, `starters:test`,
+2 rollouts, depth 1, 204 games each (+-6.5):
+
+| Value model (fit on) | Opponent's hand | Won |
+|---|---|---|
+| set 2, trees (test decks -- leaky) | seen | 68.6% |
+| set 2, trees (train decks) | seen | 60.8% |
+| set 2, trees (train decks) | redealt | 60.3% |
+| **set 2, logistic (train decks)** | redealt | **66.7%** |
+| set 3, logistic (train decks) | redealt | 55.4% |
+| set 3, trees (train decks) | redealt | 57.4% |
+
+- Trees looked better split by game (AUC 0.785 vs 0.733) because they learn each deck's
+  win rate. On decks never seen, logistic generalises better, and in search it is worth
+  ~6 points. **Fit the value model on decks other than the ones being ranked**, or it
+  carries their old results into the new ranking.
+- Rollouts used to keep the opponent's real hand. It is now shuffled back into their
+  unseen cards and redealt at the branch (`--peek` for the old way). Cost: nothing
+  measurable. It stays on: a search that knows the tricks coming plays a game nobody can.
+- **Set 3** (`KnowledgeFeatures`, appended to set 2): what is left in my deck, what the
+  opponent has shown by culture and type, a summary of their unseen cards, and hand clog
+  (wrong side for the turn, unaffordable, unique characters already in play or dead).
+  Split by game it lifts the AUC 0.85 -> 0.91, almost all of it deck identity; deck-
+  disjoint it averages no better than set 2 over four runs (0.756 vs 0.762), and in the
+  search it loses ~10 points. Kept in the code, not used. The information is real but a
+  value model fit on ~45 starters learns the decks from it rather than the game; it may
+  pay with a much larger deck pool.
+
+### Strength against cost, after copies and the engine fix (2026-10-18)
+
+Search player vs plain v2 on `starters:test`, all with `--clone`, the logistic set-2 value
+model fit on `starters:train`, the opponent's hand redealt. CPU-seconds a game include the
+plain bot's side.
+
+| Search | Games | Won | CPU-s a game |
+|---|---|---|---|
+| none (plain v2) | -- | 50% | 0.07 |
+| 2 rollouts, depth 1 | 204 | 62.7% +- 6.6 | 1.0 |
+| **2 rollouts, depth 1, up to 10 options** | 816 | **63.6% +- 3.3** | **1.0** |
+| 4 rollouts, depth 1 | 204 | 63.2% +- 6.6 | 3.5 |
+| 4 rollouts, depth 2 | 204 | 59.8% +- 6.7 | 4.0 |
+| 4 rollouts, played out | 204 | 58.8% +- 6.8 | 9.9 |
+| 8 rollouts, depth 1, up to 10 options | 816 | 66.7% +- 3.2 | 5.6 |
+
+The same search cost 18.2 CPU-seconds a game this morning (replays, stats refresh). Depth
+beyond one turn and full playouts do not help: the playouts are by the v2 policy, and a
+longer one adds its mistakes faster than it adds information. More rollouts buy ~3 points
+per 5x. `--max-candidates 10` (all options, in practice) costs nothing extra.
+
 ### Does the cheap bot rank decks like the strong one? (No.)
 
 `decks/king8.txt`, round robin. Plain v2 at 100 games a pair (2,800 games, 66s) and twice
@@ -197,6 +255,34 @@ at the same sample sizes. The largest moves (Gandalf, Merry, ~17 points) are bey
 intervals. Search compresses the spread and revalues particular decks: which deck looks
 best depends on how well the bot plays it, so the cheap bot is fine for screening and
 not for the final word. (Search against itself: 51.6%, as it should be.)
+
+Rerun with the cheaper search (`rank-decks.sh`: copies, logistic value model, 2 rollouts,
+depth 1, all options; 3.0 CPU-seconds a game with both sides searching, King decks), 40
+games a pair, twice:
+
+| Deck | v2, 100/pair | old search, 20/pair | new search, 2 x 40/pair pooled |
+|---|---|---|---|
+| MD - Frodo | 73.9% | 65.2% | 57.0% +- 4.1 |
+| SoG - Merry | 63.3% | 46.4% | 56.1% +- 4.1 |
+| MD - Sam | 37.7% | 50.7% | 53.9% +- 4.1 |
+| Big Baddies - Gothmog's Conquering | 59.3% | 54.0% | 49.1% +- 4.1 |
+| SHELBI - Gandalf | 31.3% | 48.6% | 48.6% +- 4.1 |
+| RotK - Eomer | 53.7% | 52.5% | 47.9% +- 4.1 |
+| RotK - Aragorn | 41.9% | 48.6% | 47.5% +- 4.1 |
+| SoG - Pippin | 39.0% | 34.3% | 40.0% +- 4.1 |
+
+The two new-search runs agree with each other at only Spearman 0.57: **under good play
+these decks are close** (six of eight within 47-57%), and 280 games a deck (+-5.8) cannot
+order the middle. So the old "0.48" was partly noise, not only bot quality. What survives
+pooling: v2 spreads the decks twice as wide as search does, and misranks MD Sam (38% ->
+54%) and SHELBI Gandalf (31% -> 49%) by more than both intervals -- decks the plain bot
+plays badly. Frodo and Merry on top and Pippin last hold in every search run.
+
+**Games needed.** A deck's win rate over n games has a 95% interval of about +-100/sqrt(n)
+points. Separating decks 4 points apart wants +-2 each: ~2,500 games a deck. In a round
+robin each game counts for two decks, so 8 decks at 2,500 = 10,000 games, ~8 CPU-hours
+(about 1.5 hours on 6 cores) with the search bot. An 8-rollout reference run was stopped:
+at ~16 CPU-seconds a game it would have taken an hour for +-6.8 a deck, too coarse here.
 
 ### Distilling the search into a cheap bot (not yet)
 
@@ -359,6 +445,12 @@ would have loaded and been fed differently scaled inputs. **Dump a few vectors b
   dropped from training (no trainer reads them).
 
 ## Next steps, roughly in order
+
+0. (2026-10-18) Search is now cheap enough that games, not CPU, limit deck ranking. Next
+   wins, in order: more and more varied training decks for the value model (it learns
+   decks, not the game, from ~45 starters); distil the search with how much better each
+   option scored (rollout values) rather than best/worst labels; the remaining engine
+   hotspots (`checkCharactersZeroVitality`, keyword-modifier scans).
 
 1. (Done: replays are exact; the teacher is built -- see Lookahead.)
 2. (Done as feature set 2. It ties set 1 -- logistic or trees, in play and in BotProbe.)
