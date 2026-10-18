@@ -100,22 +100,52 @@ public final class BotGame {
     public static Result play(LotroFormat format, LotroCardBlueprintLibrary library, List<BotPlayer> bots,
                               Map<String, LotroDeck> decks, int maxDecisions, Long seed, List<Step> steps,
                               long stuckSeconds) {
-        Map<String, BotPlayer> byName = bots.stream().collect(Collectors.toMap(BotPlayer::getName, b -> b));
-        String[] reason = {null};
-        Map<String, Integer> rejected = new HashMap<>();
-        Map<String, Integer> decisions = new HashMap<>();
-        int total = 0;
-        AtomicBoolean stuck = new AtomicBoolean();
-        ScheduledFuture<?> watchdog = null;
         // the bots' own draws, seeded apart from the engine's; put back after, as a rollout is a game inside a game
-        java.util.Random botRandom = com.gempukku.lotro.bots.BotRandom.use(seed == null ? new java.util.Random()
-                : new java.util.Random(new java.util.SplittableRandom(seed).nextLong()));
-        try {
+        java.util.Random botRandom = seed == null ? new java.util.Random()
+                : new java.util.Random(new java.util.SplittableRandom(seed).nextLong());
+        return run(() -> {
             DefaultUserFeedback feedback = new DefaultUserFeedback();
             DefaultLotroGame game = new DefaultLotroGame(format, decks, feedback, library);
             if (seed != null)
                 game.getGameState().setRandomSeed(seed);
             feedback.setGame(game);
+            return game;
+        }, true, bots, maxDecisions, steps, stuckSeconds, new HashMap<>(), 0, botRandom);
+    }
+
+    /**
+     * Plays on a game that is already waiting on a decision -- a copy made by {@link GameCopier} -- exactly as
+     * {@link #play} would have from that point. {@code decisionsSoFar} and {@code totalSoFar} carry the counts the
+     * game had reached (the loop guard counts from the start of the game, so a copy must too), and the steps go on
+     * {@code steps}. The bots get their own Random for the length of the game, like a played game's, and the
+     * thread's is put back after.
+     */
+    public static Result resume(DefaultLotroGame game, List<BotPlayer> bots, int maxDecisions, List<Step> steps,
+                                long stuckSeconds, Map<String, Integer> decisionsSoFar, int totalSoFar,
+                                java.util.Random botRandom) {
+        return run(() -> game, false, bots, maxDecisions, steps, stuckSeconds, new HashMap<>(decisionsSoFar),
+                totalSoFar, botRandom);
+    }
+
+    /** As {@link #resume}, with the stuck limit of a played game. */
+    public static Result resume(DefaultLotroGame game, List<BotPlayer> bots, int maxDecisions, List<Step> steps,
+                                Map<String, Integer> decisionsSoFar, int totalSoFar, java.util.Random botRandom) {
+        return resume(game, bots, maxDecisions, steps, STUCK_SECONDS, decisionsSoFar, totalSoFar, botRandom);
+    }
+
+    private static Result run(java.util.function.Supplier<DefaultLotroGame> setup, boolean start, List<BotPlayer> bots,
+                              int maxDecisions, List<Step> steps, long stuckSeconds, Map<String, Integer> decisions,
+                              int totalSoFar, java.util.Random gameBotRandom) {
+        Map<String, BotPlayer> byName = bots.stream().collect(Collectors.toMap(BotPlayer::getName, b -> b));
+        String[] reason = {null};
+        Map<String, Integer> rejected = new HashMap<>();
+        int total = totalSoFar;
+        AtomicBoolean stuck = new AtomicBoolean();
+        ScheduledFuture<?> watchdog = null;
+        java.util.Random botRandom = com.gempukku.lotro.bots.BotRandom.use(gameBotRandom);
+        try {
+            DefaultLotroGame game = setup.get();
+            DefaultUserFeedback feedback = (DefaultUserFeedback) game.getUserFeedback();
             watchdog = WATCHDOG.schedule(() -> {
                 if (!game.isFinished()) {
                     stuck.set(true);
@@ -137,7 +167,8 @@ public final class BotGame {
                     reason[0] = "cancelled";
                 }
             });
-            game.startGame();
+            if (start)
+                game.startGame();
 
             while (!game.isFinished()) {
                 BotPlayer bot = bots.stream().filter(b -> feedback.getAwaitingDecision(b.getName()) != null)
