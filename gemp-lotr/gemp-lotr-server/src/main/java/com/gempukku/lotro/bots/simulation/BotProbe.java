@@ -43,6 +43,7 @@ public class BotProbe {
         int valueSet = 2;
         String trainSuite = null;
         boolean valueTrees = false;
+        Path fit = null;
         int games = 20;
         int jobs = Math.max(1, Runtime.getRuntime().availableProcessors() - 2);
         for (int i = 0; i < args.length; i++) {
@@ -55,6 +56,7 @@ public class BotProbe {
                 case "--value-features" -> valueSet = Integer.parseInt(args[++i]);
                 case "--train-suite" -> trainSuite = args[++i];
                 case "--value-model" -> valueTrees = args[++i].equals("trees");
+                case "--fit" -> fit = Path.of(args[++i]);
                 default -> BotVsBot.die("usage: BotProbe [--suite starters:test] [--games 20] [--bot general@dir] "
                         + "[--train-suite <suite>] [--save-value <model dir>] [--value-features 2|3] [--value-model logistic|trees]");
             }
@@ -62,6 +64,35 @@ public class BotProbe {
         PrintStream out = System.out;
         System.setOut(new PrintStream(OutputStream.nullOutputStream()));
 
+        if (fit != null) {
+            // positions recorded from other games (BotTeach --record-values): label, then the set-2 vector
+            if (saveValue == null)
+                BotVsBot.die("--fit needs --save-value <dir>");
+            List<double[]> x = new ArrayList<>();
+            List<Integer> y = new ArrayList<>();
+            for (String line : java.nio.file.Files.readAllLines(fit)) {
+                if (line.isBlank())
+                    continue;
+                String[] parts = line.split(",");
+                double[] v = new double[parts.length - 1];
+                for (int i = 1; i < parts.length; i++)
+                    v[i - 1] = Double.parseDouble(parts[i]);
+                x.add(v);
+                y.add(Integer.parseInt(parts[0]));
+            }
+            double[][] xs = x.toArray(double[][]::new);
+            int[] ys = y.stream().mapToInt(Integer::intValue).toArray();
+            Object model = valueTrees ? com.gempukku.lotro.bots.rl.fotrstarters.models.TreeModel.fit(xs, ys)
+                    : com.gempukku.lotro.bots.rl.fotrstarters.models.ScaledModel.logistic(xs, ys, 0.1);
+            java.nio.file.Files.createDirectories(saveValue);
+            try (var o = new java.io.ObjectOutputStream(new java.io.FileOutputStream(saveValue.resolve("value.model").toFile()))) {
+                o.writeObject(model);
+            }
+            java.nio.file.Files.writeString(saveValue.resolve("value-features.txt"), "2\n");
+            out.println("value model (set 2, " + (valueTrees ? "trees" : "logistic") + ", " + xs.length
+                    + " positions from " + fit + ") in " + saveValue.resolve("value.model"));
+            System.exit(0);
+        }
         BotVsBot.Context ctx = BotVsBot.context(Path.of("gemp-lotr-cards/src/main/resources"), Path.of("bot-models"));
         ExecutorService pool = Executors.newFixedThreadPool(jobs);
         List<Game> all = play(suite, games, kind, ctx, pool);

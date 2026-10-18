@@ -48,7 +48,7 @@ import java.util.concurrent.atomic.AtomicInteger;
 public class BotTeach {
     record Options(String suite, Path base, Path out, int games, int rollouts, double teachRate, int maxCandidates,
                    double margin, int jobs, boolean trainOnly, boolean play, int minSteps, double lambda, Path steps,
-                   int depth, boolean both, Path value, boolean peek, boolean fromCopies, boolean choices, boolean assign) {
+                   int depth, boolean both, Path value, boolean peek, boolean fromCopies, boolean choices, boolean assign, Path recordValues) {
     }
 
     private static final AtomicInteger taught = new AtomicInteger(), labelled = new AtomicInteger(),
@@ -60,6 +60,9 @@ public class BotTeach {
     private static volatile int valueFeatures = 2;
     /** With --clone, rollouts play on a copy of the live game made by this, instead of replaying it from its seed. */
     private static volatile GameCopier copier;
+
+    /** The main game's positions so far on this thread, for --record-values: {decider, set-2 vector}. */
+    private static final ThreadLocal<List<Object[]>> POSITIONS = ThreadLocal.withInitial(ArrayList::new);
 
     private static final long STALL_MINUTES = 15;
 
@@ -158,7 +161,25 @@ public class BotTeach {
                             opts.play() && !opts.both() ? BotVsBot.bot(policy, "~b", ctx)
                                     : new Teaching(BotVsBot.bot(policy, "~b", ctx), branch, features, sink, opts, opts.play()));
                     // its rollouts make this game slow, not stuck
+                    POSITIONS.get().clear();
                     BotGame.Result r = BotGame.play(format, ctx.library(), bots, seats, 1000, seed, steps, 24 * 3600);
+                    if (r.finished() && opts.recordValues() != null) {
+                        StringBuilder rows = new StringBuilder();
+                        for (Object[] row : POSITIONS.get()) {
+                            rows.append(row[0].equals(r.winner()) ? 1 : 0);
+                            for (double x : (double[]) row[1])
+                                rows.append(',').append(x == Math.rint(x) ? String.valueOf((long) x) : String.valueOf(x));
+                            rows.append('\n');
+                        }
+                        synchronized (BotTeach.class) {
+                            try {
+                                Files.writeString(opts.recordValues(), rows, StandardCharsets.UTF_8,
+                                        java.nio.file.StandardOpenOption.CREATE, java.nio.file.StandardOpenOption.APPEND);
+                            } catch (IOException e) {
+                                throw new UncheckedIOException(e);
+                            }
+                        }
+                    }
                     if (r.finished()) {
                         finished.incrementAndGet();
                         if (r.winner().equals("~a"))
@@ -401,6 +422,13 @@ public class BotTeach {
                     boolean search) implements BotPlayer {
         @Override
         public String chooseAction(GameState gameState, AwaitingDecision decision) {
+            if (opts.recordValues() != null && decision.getDecisionType() == AwaitingDecisionType.CARD_ACTION_CHOICE) {
+                try {
+                    POSITIONS.get().add(new Object[]{getName(),
+                            new GeneralStateFeatures().extractFeatures(gameState, decision, getName())});
+                } catch (RuntimeException ignored) {
+                }
+            }
             String[] actionIds = decision.getDecisionParameters().get("actionId");
             if (decision.getDecisionType() == AwaitingDecisionType.CARD_ACTION_CHOICE && actionIds != null
                     && actionIds.length > 0 && (search || ThreadLocalRandom.current().nextDouble() < opts.teachRate())) {
@@ -556,7 +584,7 @@ public class BotTeach {
         boolean trainOnly = false, play = false, both = false, peek = false, clone = false, choices = false, assign = false;
         int minSteps = 50, depth = 0;
         double lambda = 0;
-        Path steps = null, value = null;
+        Path steps = null, value = null, recordValues = null;
         for (int i = 0; i < args.length; i++) {
             switch (args[i]) {
                 case "--play" -> play = true;
@@ -565,6 +593,7 @@ public class BotTeach {
                 case "--clone" -> clone = true;
                 case "--choices" -> choices = true;
                 case "--assign" -> assign = true;
+                case "--record-values" -> recordValues = Path.of(args[++i]);
                 case "--model" -> com.gempukku.lotro.bots.rl.fotrstarters.models.AbstractTrainer.useTrees =
                         args[++i].equals("trees");
                 case "--min-steps" -> minSteps = Integer.parseInt(args[++i]);
@@ -588,7 +617,7 @@ public class BotTeach {
         if (out == null)
             BotVsBot.die(usage());
         return new Options(suite, base, out, games, rollouts, teachRate, maxCandidates, margin, jobs, trainOnly, play,
-                minSteps, lambda, steps, depth, both, value == null ? base : value, peek, clone, choices, assign);
+                minSteps, lambda, steps, depth, both, value == null ? base : value, peek, clone, choices, assign, recordValues);
     }
 
     private static String usage() {
@@ -618,6 +647,9 @@ public class BotTeach {
                   --choices                 with --play, also search multiple-choice decisions (move again,
                                             optional costs) and small number choices (the burden bid)
                   --assign                  with --play, also search skirmish assignments: the model's best
-                                            few, and assigning nothing""";
+                                            few, and assigning nothing
+                  --record-values <file>    append the deciding player's set-2 state at each card-action
+                                            decision of the main games, labelled with whether that player
+                                            won, for a value model (BotProbe --fit)""";
     }
 }
