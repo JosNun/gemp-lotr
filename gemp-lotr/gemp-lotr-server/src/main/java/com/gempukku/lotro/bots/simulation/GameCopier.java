@@ -246,7 +246,8 @@ public final class GameCopier {
 
     /**
      * A copy of {@code game}, at the decision it is waiting on, sharing nothing mutable with it. Listeners the harness
-     * attached (game results, game-state listeners) are not carried over; the card-creation callback is dropped.
+     * attached (game results, game-state listeners) are not carried over; the card-creation callback and the deck shuffler
+     * are dropped.
      */
     public DefaultLotroGame copy(DefaultLotroGame game) {
         if (anyNewlyInitialised()) {
@@ -269,6 +270,10 @@ public final class GameCopier {
                 Object callback = field(state, GameState.class, "_cardCreationCallback");
                 if (callback != null)
                     s.seed(callback, null);
+                // a harness's hook, like the callback: the copy gets its own if it needs one (HumanReplay)
+                Object shuffler = field(state, GameState.class, "_deckShuffler");
+                if (shuffler != null)
+                    s.seed(shuffler, null);
             } catch (ReflectiveOperationException e) {
                 throw new IllegalStateException(e);
             }
@@ -475,7 +480,10 @@ public final class GameCopier {
             "java.util.Random", "java.util.concurrent.atomic.AtomicInteger",
             "java.util.concurrent.atomic.AtomicLong", "java.util.concurrent.atomic.AtomicBoolean",
             "java.util.concurrent.atomic.AtomicReference", "java.util.BitSet", "java.lang.StringBuilder",
-            "java.util.Arrays$ArrayList", "java.util.Optional", "java.util.AbstractMap$SimpleEntry",
+            "java.util.Arrays$ArrayList", "java.util.Collections$EmptyList",
+            // views: their fields point at the list they view, which is copied with them, so the copy views the copy
+            "java.util.AbstractList$SubList", "java.util.AbstractList$RandomAccessSubList",
+            "java.util.Optional", "java.util.AbstractMap$SimpleEntry",
             "java.util.AbstractMap$SimpleImmutableEntry", "java.util.KeyValueHolder",
             "java.util.Collections$UnmodifiableCollection", "java.util.Collections$UnmodifiableList",
             "java.util.Collections$UnmodifiableRandomAccessList", "java.util.Collections$UnmodifiableSet",
