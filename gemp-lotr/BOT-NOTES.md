@@ -608,6 +608,18 @@ replacing one fit on ~all self-play outcomes, does not get better (see "The line
 ceiling"). The data is the valuable part; using it needs a model that scores state and option
 together, or the labels mixed with self-play, or imitation as an auxiliary loss.
 
+**Trees on the human labels work.** Refit only the card-action models of `v2-real` with
+trees (`BotTeach --train-only --steps card-actions.jsonl --model trees --min-steps 500`,
+375,443 rows; the logistic refit above lost 44.0%): **55.2% +- 1.8** against guarded
+`v2-real` on held-out real Fellowship block decks (3,000 games), 46.2% +- 3.1 on
+`starters:test` (the human data is all Fellowship block). It plays more like people: self-play
+on the held-out FotR decks reaches site 9 in 9.8% of games against 3.3% for `v2-real`, and
+games run a median 10 turns against 8 (human decided FotR games: site 9 48%, killed 38%,
+corrupted 5%). Adding the human multiple-choice labels (12,588 "another move?", 6,108
+mulligans) to the trees made it worse: 44.9% +- 1.8 against the card-action-only refit --
+human move decisions do not suit how the bot plays the rest of the game. Models in
+`bot-models-exp/human-trees` (card actions).
+
 **Can it scale?** The pipeline does: ~0.9 CPU-seconds a game, and the full replays run
 2020-03 .. 2022-11 at 4,000-12,000 games a month -- millions of reproduced human decisions if
 other months and formats reproduce as well as this one (not measured). What limits it is the
