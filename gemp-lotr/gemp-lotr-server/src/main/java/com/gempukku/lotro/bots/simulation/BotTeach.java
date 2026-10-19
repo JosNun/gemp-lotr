@@ -53,7 +53,8 @@ public class BotTeach {
 
     private static final AtomicInteger taught = new AtomicInteger(), labelled = new AtomicInteger(),
             rolloutsRun = new AtomicInteger(), diverged = new AtomicInteger(), cutOff = new AtomicInteger(),
-            choicesSearched = new AtomicInteger(), assignmentsSearched = new AtomicInteger();
+            choicesSearched = new AtomicInteger(), assignmentsSearched = new AtomicInteger(),
+            movesSearched = new AtomicInteger(), movesTaken = new AtomicInteger();
     /** Scores a rollout's position when --depth stops it early: P(win) for the player whose state it is. */
     static volatile SoftClassifier<double[]> valueModel;
     /** 3 if the value model reads feature set 2 with KnowledgeFeatures appended (value-features.txt). */
@@ -78,6 +79,13 @@ public class BotTeach {
     static volatile int maxDecisions = 1000;
     /** --card-picks: also search single-card picks from a list (see Teaching.chooseAction). */
     static volatile boolean cardPicks = false;
+    /**
+     * --move-rollouts / --move-depth: the "move again?" question searched with its own rollouts, played out to the end
+     * (depth 0) by default. Cut-off values cannot judge a move: the value models learn the race backwards from bot
+     * games, and a model fit on human positions, which has it the right way round, loses (see BOT-NOTES.md, "Should
+     * the bot race?"). A playout asks the bot's own future play whether moving on wins.
+     */
+    static volatile int moveRollouts = 0, moveDepth = 0;
 
     public static void main(String[] args) throws Exception {
         Options opts = parse(args);
@@ -287,6 +295,9 @@ public class BotTeach {
             out.printf("  %d assignment decisions searched%n", assignmentsSearched.get());
         if (choicesSearched.get() > 0)
             out.printf("  %d multiple-choice decisions searched%n", choicesSearched.get());
+        if (movesSearched.get() > 0)
+            out.printf("  %d \"move again?\" decisions searched with %d rollouts, moved on %d%n", movesSearched.get(),
+                    moveRollouts, movesTaken.get());
         if (opts.fromCopies() && CloneRollout.copies.get() > 0)
             out.printf("  %d rollouts from copies, %.0f us a copy%n", CloneRollout.copies.get(),
                     CloneRollout.copyNanos.get() / 1e3 / CloneRollout.copies.get());
@@ -337,16 +348,20 @@ public class BotTeach {
                   List<BotGame.Step> steps, String policy, Options opts) {
         /** Wins for {@code player} out of the rollouts, with {@code answer} given at the decision after the steps. */
         double value(List<BotGame.Step> prefix, String player, String answer, long[] worlds, GameState live) {
+            return value(prefix, player, answer, worlds, live, opts.depth());
+        }
+
+        double value(List<BotGame.Step> prefix, String player, String answer, long[] worlds, GameState live, int depth) {
             double wins = 0;
             for (long world : worlds) {
                 Shared shared;
                 BotGame.Result r;
                 if (opts.fromCopies()) { // the same rollout from a copy of the live game; BotCloneCheck checks it is
-                    shared = new Shared(List.of(), player, answer, world, opts.depth(), opts.peek());
+                    shared = new Shared(List.of(), player, answer, world, depth, opts.peek());
                     r = CloneRollout.play(copier, (com.gempukku.lotro.logic.timing.DefaultLotroGame) live.getGame(),
                             prefix, shared, BotVsBot.bot(policy, "~a", ctx), BotVsBot.bot(policy, "~b", ctx));
                 } else {
-                    shared = new Shared(prefix, player, answer, world, opts.depth(), opts.peek());
+                    shared = new Shared(prefix, player, answer, world, depth, opts.peek());
                     r = BotGame.play(format, ctx.library(),
                             List.of(new Branching("~a", shared, BotVsBot.bot(policy, "~a", ctx)),
                                     new Branching("~b", shared, BotVsBot.bot(policy, "~b", ctx))),
@@ -567,7 +582,19 @@ public class BotTeach {
                     && results != null && results.length > 1) {
                 // Yes/no and pick-one questions -- move again or stop, pay a cost to assign, keep or discard --
                 // which the models answer from a fixed state ranking or not at all. Searched, not labelled.
-                String best = choose(gameState, results.length);
+                boolean move = moveRollouts > 0 && decision.getText() != null
+                        && decision.getText().toLowerCase().contains("another move");
+                String best = move ? choose(gameState, results.length, moveRollouts, moveDepth)
+                        : choose(gameState, results.length, opts.rollouts(), opts.depth());
+                if (move) {
+                    movesSearched.incrementAndGet();
+                    String answer = best != null ? best : inner.chooseAction(gameState, decision);
+                    if (answer != null && answer.matches("\\d+") && Integer.parseInt(answer) < results.length
+                            && results[Integer.parseInt(answer)].equalsIgnoreCase("yes"))
+                        movesTaken.incrementAndGet();
+                    if (best == null)
+                        return answer;
+                }
                 if (best != null) {
                     inner.chooseAction(gameState, decision);
                     return best;
@@ -594,13 +621,13 @@ public class BotTeach {
         }
 
         /** The answer (an index into the results) that won most over the rollouts; null on a tie. */
-        private String choose(GameState gameState, int n) {
+        private String choose(GameState gameState, int n, int rollouts, int depth) {
             List<BotGame.Step> prefix = List.copyOf(branch.steps());
-            long[] worlds = new SplittableRandom().longs(opts.rollouts()).toArray();
+            long[] worlds = new SplittableRandom().longs(rollouts).toArray();
             String bestOption = null;
             double best = -1, worst = 2;
             for (int i = 0; i < n; i++) {
-                double v = branch.value(prefix, getName(), String.valueOf(i), worlds, gameState);
+                double v = branch.value(prefix, getName(), String.valueOf(i), worlds, gameState, depth);
                 if (v > best) {
                     best = v;
                     bestOption = String.valueOf(i);
@@ -683,6 +710,8 @@ public class BotTeach {
                 case "--assign" -> assign = true;
                 case "--max-decisions" -> maxDecisions = Integer.parseInt(args[++i]);
                 case "--card-picks" -> cardPicks = true;
+                case "--move-rollouts" -> moveRollouts = Integer.parseInt(args[++i]);
+                case "--move-depth" -> moveDepth = Integer.parseInt(args[++i]);
                 case "--corruption-weight" -> corruptionWeight = Double.parseDouble(args[++i]);
                 case "--progress-weight" -> progressWeight = Double.parseDouble(args[++i]);
                 case "--record-values" -> recordValues = Path.of(args[++i]);
@@ -746,6 +775,8 @@ public class BotTeach {
                                             on mine) to cut-off values; pressure is 0.15/0.35/0.6/1 at 3/2/1/0
                                             resistance left
                   --max-decisions 1000      per bot per main game, then it concedes (the live server's rule)
+                  --move-rollouts 0         with --choices, search "move again?" with this many rollouts of its
+                                            own, played out (or cut off after --move-depth turns)
                   --progress-weight 0       add w x ((my site / 9)^2 - (their site / 9)^2) to cut-off values
                   --record-values <file>    append the deciding player's set-2 state at each card-action
                                             decision of the main games, labelled with whether that player

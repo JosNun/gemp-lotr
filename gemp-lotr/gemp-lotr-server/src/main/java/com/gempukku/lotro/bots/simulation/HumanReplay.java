@@ -346,6 +346,9 @@ public class HumanReplay {
         Map<String, GameCommunicationChannel> channels;
         int reproduced, questionsMatched;
         String lastQuestion;
+        /** --values: the deciding player and the set-2 state at each card-action choice reproduced, for a value model. */
+        final List<String> valueRows = new ArrayList<>();
+        final List<String> valueDeciders = new ArrayList<>();
 
         Game(Manifest m, BotVsBot.Context ctx, GameCopier copier, StepSink sink, boolean verbose) {
             this.m = m;
@@ -783,6 +786,14 @@ public class HumanReplay {
                 }
                 List<String> cands = candidates(decision, after, p);
                 double[] state = sink != null ? sink.state(game, decision, p) : null;
+                if (VALUES != null && decision.getDecisionType() == AwaitingDecisionType.CARD_ACTION_CHOICE) {
+                    double[] v = state != null ? state : valueState(game, decision, p);
+                    if (v != null) {
+                        valueDeciders.add(p);
+                        valueRows.add(Arrays.stream(v).mapToObj(x -> x == (long) x ? String.valueOf((long) x)
+                                : String.valueOf(x)).collect(Collectors.joining(",")));
+                    }
+                }
                 Trial t = tryAnswers(p, cands);
                 if (t.match == null)
                     return stop(t.error != null ? "engine error" : "no valid answer",
@@ -1259,6 +1270,41 @@ public class HumanReplay {
         void write(double[] state, AwaitingDecision decision, String answer, String player, DefaultLotroGame before);
     }
 
+    // ---------------------------------------------------------------- positions and who won
+
+    /**
+     * --values: where positions go, labelled with the recorded winner, for {@code BotProbe --fit}. Value models fit on
+     * bot games learn the race backwards (bots that move on die), so this asks how positions turned out for people.
+     */
+    static volatile PrintWriter VALUES;
+
+    static double[] valueState(DefaultLotroGame game, AwaitingDecision decision, String player) {
+        int previous = com.gempukku.lotro.bots.rl.fotrstarters.CardFeatures.version();
+        try {
+            com.gempukku.lotro.bots.rl.fotrstarters.CardFeatures.setVersion(
+                    com.gempukku.lotro.bots.rl.fotrstarters.GeneralStateFeatures.VERSION);
+            return new com.gempukku.lotro.bots.rl.fotrstarters.GeneralStateFeatures()
+                    .extractFeatures(game.getGameState(), decision, player);
+        } catch (RuntimeException e) {
+            return null;
+        } finally {
+            com.gempukku.lotro.bots.rl.fotrstarters.CardFeatures.setVersion(previous);
+        }
+    }
+
+    /** A game's positions, once it is known who won it; games with no recorded winner are left out. */
+    static void writeValues(Game g) {
+        if (VALUES == null || g.m.winner() == null || !g.m.players().contains(g.m.winner()))
+            return;
+        StringBuilder sb = new StringBuilder();
+        for (int i = 0; i < g.valueRows.size(); i++)
+            sb.append(g.valueDeciders.get(i).equals(g.m.winner()) ? '1' : '0').append(',').append(g.valueRows.get(i))
+                    .append('\n');
+        synchronized (HumanReplay.class) {
+            VALUES.print(sb);
+        }
+    }
+
     // ---------------------------------------------------------------- main
 
     public static void main(String[] args) throws Exception {
@@ -1273,11 +1319,12 @@ public class HumanReplay {
                 case "--jobs" -> jobs = Integer.parseInt(args[++i]);
                 case "--report" -> report = Path.of(args[++i]);
                 case "--steps" -> steps = Path.of(args[++i]);
+                case "--values" -> VALUES = new PrintWriter(Files.newBufferedWriter(Path.of(args[++i]), StandardCharsets.UTF_8));
                 case "--verbose" -> verbose = true;
                 case "--trace" -> TRACE = true;
                 case "--only" -> only = args[++i];
                 default -> BotVsBot.die("usage: HumanReplay --manifests <dir> [--limit N] [--jobs 2] [--report f.tsv] "
-                        + "[--steps f.jsonl] [--only <name substring>] [--verbose]");
+                        + "[--steps f.jsonl] [--values f.csv] [--only <name substring>] [--verbose]");
             }
         }
         PrintStream out = System.out;
@@ -1302,7 +1349,10 @@ public class HumanReplay {
             futures.add(pool.submit(() -> {
                 Manifest m = load(f);
                 try {
-                    return new Game(m, ctx, copier, sink, v).run();
+                    Game g = new Game(m, ctx, copier, sink, v);
+                    Outcome o = g.run();
+                    writeValues(g);
+                    return o;
                 } catch (RuntimeException e) {
                     StringWriter sw = new StringWriter();
                     e.printStackTrace(new PrintWriter(sw));
@@ -1323,6 +1373,8 @@ public class HumanReplay {
             if (verbose)
                 out.println(o);
         }
+        if (VALUES != null)
+            VALUES.close();
         if (sink instanceof TrainingSteps ts) {
             ts.close();
             out.printf("wrote %d training rows for %d reproduced decisions to %s%n", ts.steps.get(),
