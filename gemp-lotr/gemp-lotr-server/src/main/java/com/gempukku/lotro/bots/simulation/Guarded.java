@@ -23,13 +23,20 @@ import java.util.concurrent.atomic.AtomicInteger;
 public final class Guarded implements BotPlayer {
     static final int MARGIN = 3;
     /** Answers replaced, over the run. */
-    public static final AtomicInteger saved = new AtomicInteger();
+    public static final AtomicInteger saved = new AtomicInteger(), moves = new AtomicInteger();
     private static volatile GameCopier copier;
 
     private final BotPlayer inner;
+    /** Decline an optional extra move with this many companions in play or fewer; -1 never. */
+    private final int carefulMoves;
 
     public Guarded(BotPlayer inner) {
+        this(inner, -1);
+    }
+
+    public Guarded(BotPlayer inner, int carefulMoves) {
         this.inner = inner;
+        this.carefulMoves = carefulMoves;
     }
 
     static void init(BotVsBot.Context ctx) {
@@ -52,6 +59,19 @@ public final class Guarded implements BotPlayer {
                 return "";
             }
             return answer;
+        }
+        if (type == AwaitingDecisionType.MULTIPLE_CHOICE && carefulMoves >= 0
+                && decision.getText().toLowerCase().contains("another move") && companions(gameState) <= carefulMoves) {
+            // Each move adds twilight, which buys the Shadow player minions; a thin fellowship cannot take them all,
+            // and the rest go to the Ring-bearer. 50 of 85 extra moves by guarded v2-real were with 2 companions or
+            // fewer, and Ring-bearers mostly die skirmishing alone.
+            String[] results = decision.getDecisionParameters().get("results");
+            for (int i = 0; results != null && i < results.length; i++)
+                if (results[i].equalsIgnoreCase("no")) {
+                    if (!String.valueOf(i).equals(answer))
+                        moves.incrementAndGet();
+                    return String.valueOf(i);
+                }
         }
         if (type != AwaitingDecisionType.MULTIPLE_CHOICE || resistance(gameState) > MARGIN
                 || resistanceAfter(gameState, answer) > 0)
@@ -96,6 +116,11 @@ public final class Guarded implements BotPlayer {
             return false;
         int after = resistanceAfter(gs, answer);
         return after < now && after <= MARGIN;
+    }
+
+    private int companions(GameState gs) {
+        return (int) gs.getInPlay().stream().filter(c -> c.getOwner().equals(getName())
+                && c.getBlueprint().getCardType() == com.gempukku.lotro.common.CardType.COMPANION).count();
     }
 
     private int resistance(GameState gs) {
