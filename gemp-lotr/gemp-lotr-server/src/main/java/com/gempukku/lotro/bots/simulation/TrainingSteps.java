@@ -78,6 +78,21 @@ final class TrainingSteps implements HumanReplay.StepSink {
                 case ACTION_CHOICE -> {
                     return;
                 }
+                case ASSIGN_MINIONS -> {
+                    // The human's assignment and up to NEGATIVES others the rules allowed. Written alone, as it was
+                    // first, the refit model said yes to everything: assigning every minion to the Ring-bearer.
+                    var trainer = fp ? new com.gempukku.lotro.bots.rl.fotrstarters.models.assignment.FpAssignmentTrainer()
+                            : new com.gempukku.lotro.bots.rl.fotrstarters.models.assignment.ShadowAssignmentTrainer();
+                    List<String> others = new ArrayList<>(trainer.allAnswers(gs, decision,
+                            new com.gempukku.lotro.bots.AssignmentLegality(before)));
+                    String chosen = canonical(answer);
+                    if (!others.removeIf(o -> canonical(o).equals(chosen)) || others.isEmpty())
+                        return; // not an answer the enumeration makes, or the only one: nothing to compare it with
+                    labelled.add(new String[]{answer, "10"});
+                    java.util.Collections.shuffle(others, new java.util.Random(answer.hashCode() ^ gs.getTurnNumber()));
+                    for (String o : others.subList(0, Math.min(NEGATIVES, others.size())))
+                        labelled.add(new String[]{o, "0"});
+                }
                 default -> labelled.add(new String[]{answer, "10"});
             }
             for (String[] l : labelled) {
@@ -110,6 +125,21 @@ final class TrainingSteps implements HumanReplay.StepSink {
         }
         decisions.incrementAndGet();
         steps.addAndGet(lines.toString().lines().count());
+    }
+
+    /** Rejected assignments written per human one. */
+    static final int NEGATIVES = 12;
+
+    /** An assignment answer ("fp minion minion,fp minion") with its order dropped, for comparing two. */
+    static String canonical(String answer) {
+        java.util.TreeMap<String, java.util.TreeSet<String>> m = new java.util.TreeMap<>();
+        for (String part : answer.split(",")) {
+            String[] ids = part.trim().split("\\s+");
+            if (ids.length < 2)
+                continue;
+            m.computeIfAbsent(ids[0], k -> new java.util.TreeSet<>()).addAll(java.util.Arrays.asList(ids).subList(1, ids.length));
+        }
+        return m.toString();
     }
 
     void close() throws IOException {
