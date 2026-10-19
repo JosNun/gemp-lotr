@@ -63,7 +63,7 @@ public class CardFeatures {
     }
 
     public static double[] getCardFeatures(String blueprintId, int woundsPlaced) throws CardNotFoundException {
-        if (version() == 2)
+        if (version() >= 2)
             return getCardFeaturesV2(blueprintId, woundsPlaced);
         if (library != null) {
             try {
@@ -115,17 +115,21 @@ public class CardFeatures {
      * cards from another's, which across decks is most of what distinguishes them.
      */
     private static double[] getCardFeaturesV2(String blueprintId, int woundsPlaced) throws CardNotFoundException {
+        int version = version();
+        int length = v2Length() + (version >= 3 ? AbilityFeatures.LENGTH : 0);
         if (blueprintId.equals(PASS))
-            return new double[v2Length()];
+            return new double[length];
         LotroCardBlueprint blueprint = library.getLotroCardBlueprint(blueprintId);
         VERSION.set(1);
         double[] base;
         try {
             base = getCardFeatures(blueprintId, woundsPlaced);
         } finally {
-            VERSION.set(2);
+            VERSION.set(version);
         }
-        double[] f = Arrays.copyOf(base, v2Length());
+        double[] f = Arrays.copyOf(base, length);
+        if (version >= 3) // set 3: what the card's abilities cost and do (AbilityFeatures)
+            System.arraycopy(AbilityFeatures.of(blueprintId), 0, f, v2Length(), AbilityFeatures.LENGTH);
         int i = base.length;
         f[i++] = blueprint.getResistance();
         f[i++] = blueprint.isUnique() ? 1 : 0;
@@ -153,7 +157,7 @@ public class CardFeatures {
      * {@code blueprintId} is the card the option is about, or PASS.
      */
     public static double[] join(double[] state, double[] option, String blueprintId) {
-        int crossLength = version() == 2 ? CROSS_STATE.length * CROSS_CARD : 0;
+        int crossLength = version() >= 2 ? CROSS_STATE.length * CROSS_CARD : 0;
         double[] x = new double[state.length + option.length + crossLength];
         System.arraycopy(state, 0, x, 0, state.length);
         System.arraycopy(option, 0, x, state.length, option.length);

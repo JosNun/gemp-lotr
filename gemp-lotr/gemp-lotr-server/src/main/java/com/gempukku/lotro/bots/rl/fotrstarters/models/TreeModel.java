@@ -30,7 +30,9 @@ public final class TreeModel implements SoftClassifier<double[]> {
      * Trees, depth, leaves, leaf size, shrinkage, subsample. Smile's defaults are 500 trees at 0.05; 150 at 0.1 is
      * a guess at the same fit for a third of the training time, which is paid for 34 models every generation.
      */
-    private static final int TREES = 150, MAX_DEPTH = 20, MAX_NODES = 16, NODE_SIZE = 20;
+    // -Dtrees.n / -Dtrees.nodes: the human-label card-action models tell hundreds of cards apart, which 16 leaves may not
+    private static final int TREES = Integer.getInteger("trees.n", 150), MAX_DEPTH = 20,
+            MAX_NODES = Integer.getInteger("trees.nodes", 16), NODE_SIZE = 20;
     private static final double SHRINKAGE = 0.1, SUBSAMPLE = 0.7;
     /** Rows a model is fit on at most; the big card-action models have ~10x this. Sampled without replacement. */
     // -Dtrees.maxRows: the human-game labels run to millions of rows a month (BOT-NOTES.md, HumanReplay)

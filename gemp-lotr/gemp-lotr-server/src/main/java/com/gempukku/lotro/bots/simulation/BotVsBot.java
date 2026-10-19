@@ -175,6 +175,7 @@ public class BotVsBot {
         LotroFormatLibrary formats = new LotroFormatLibrary(new DefaultAdventureLibrary(), library,
                 res.resolve("lotrFormats.hjson").toFile(), res.resolve("sealed").toFile());
         CardFeatures.init(library);
+        com.gempukku.lotro.bots.rl.fotrstarters.AbilityFeatures.init(res.resolve("cards").toFile(), library);
         return new Context(library, formats, res, modelDir, new ConcurrentHashMap<>());
     }
 
@@ -277,6 +278,7 @@ public class BotVsBot {
         System.setOut(out);
 
         summarise(all, matchups, opts, unknown, (System.nanoTime() - t0) / 1e9);
+        CardUse.report(System.out);
         standings(all, matchups);
         System.exit(0); // ends any game thread still spinning in the engine
     }
@@ -286,8 +288,8 @@ public class BotVsBot {
         // A takes deck 1 on even games and deck 2 on odd ones. Fresh bots every game: FotrStarterBot keeps
         // loop-detection state and an episode log that only endEpisode() clears.
         int aSeat = game % 2 == 0 ? 1 : 2;
-        BotPlayer a = bot(opts.kindA(), BOT_A, ctx);
-        BotPlayer b = bot(opts.kindB(), BOT_B, ctx);
+        BotPlayer a = CardUse.wrap(bot(opts.kindA(), BOT_A, ctx), "A");
+        BotPlayer b = CardUse.wrap(bot(opts.kindB(), BOT_B, ctx), "B");
         Map<String, LotroDeck> decks = new HashMap<>();
         decks.put(BOT_A, aSeat == 1 ? deck1 : deck2);
         decks.put(BOT_B, aSeat == 1 ? deck2 : deck1);

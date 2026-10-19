@@ -124,7 +124,7 @@ public class AnyPhaseCardActionTrainer extends AbstractTrainer {
         System.arraycopy(kind, 0, option, context.length, kind.length);
         System.arraycopy(card, 0, option, context.length + kind.length, card.length);
         // set 1 states are 26 or 30 long by decision type; set 2's are one length already
-        double[] fixedState = CardFeatures.version() == 2 ? state : Arrays.copyOf(state, STATE_LENGTH);
+        double[] fixedState = CardFeatures.version() >= 2 ? state : Arrays.copyOf(state, STATE_LENGTH);
         return CardFeatures.join(fixedState, option, blueprintId);
     }
 

@@ -86,6 +86,11 @@ public class BotTeach {
      * the bot race?"). A playout asks the bot's own future play whether moving on wins.
      */
     static volatile int moveRollouts = 0, moveDepth = 0;
+    /**
+     * --no-card-search: with --play, card actions -- most of a game's decisions and nearly all of the search's cost --
+     * are left to the models; assignments and choices (--assign, --choices) are still searched.
+     */
+    static volatile boolean cardSearch = true;
 
     public static void main(String[] args) throws Exception {
         Options opts = parse(args);
@@ -119,7 +124,7 @@ public class BotTeach {
             for (String spec : List.of(m.deck1(), m.deck2()))
                 decks.computeIfAbsent(m.format() + "|" + spec, k -> BotVsBot.loadDeck(spec, m.format(), ctx));
         ModelRegistry models = ctx.models(opts.base());
-        RLGameStateFeatures features = models.getFeatureVersion() == GeneralStateFeatures.VERSION
+        RLGameStateFeatures features = models.getFeatureVersion() >= GeneralStateFeatures.VERSION
                 ? new GeneralStateFeatures() : new FotrStartersRLGameStateFeatures();
         // guarded: the models alone corrupt their own Ring-bearer with burden costs on real decks (see Guarded)
         String policy = (System.getenv("BOT_UNGUARDED") != null ? "general@" : "safe@") + opts.base();
@@ -506,7 +511,8 @@ public class BotTeach {
             }
             String[] actionIds = decision.getDecisionParameters().get("actionId");
             if (decision.getDecisionType() == AwaitingDecisionType.CARD_ACTION_CHOICE && actionIds != null
-                    && actionIds.length > 0 && (search || ThreadLocalRandom.current().nextDouble() < opts.teachRate())) {
+                    && actionIds.length > 0 && (search ? cardSearch
+                    : ThreadLocalRandom.current().nextDouble() < opts.teachRate())) {
                 String best = teach(gameState, decision, actionIds);
                 if (search && best != null) {
                     inner.chooseAction(gameState, decision); // keep the bot's own state (loop guard) in step
@@ -711,6 +717,7 @@ public class BotTeach {
                 case "--max-decisions" -> maxDecisions = Integer.parseInt(args[++i]);
                 case "--card-picks" -> cardPicks = true;
                 case "--move-rollouts" -> moveRollouts = Integer.parseInt(args[++i]);
+                case "--no-card-search" -> cardSearch = false;
                 case "--move-depth" -> moveDepth = Integer.parseInt(args[++i]);
                 case "--corruption-weight" -> corruptionWeight = Double.parseDouble(args[++i]);
                 case "--progress-weight" -> progressWeight = Double.parseDouble(args[++i]);
@@ -775,6 +782,8 @@ public class BotTeach {
                                             on mine) to cut-off values; pressure is 0.15/0.35/0.6/1 at 3/2/1/0
                                             resistance left
                   --max-decisions 1000      per bot per main game, then it concedes (the live server's rule)
+                  --no-card-search          with --play, leave card actions to the models and search only
+                                            assignments and choices
                   --move-rollouts 0         with --choices, search "move again?" with this many rollouts of its
                                             own, played out (or cut off after --move-depth turns)
                   --progress-weight 0       add w x ((my site / 9)^2 - (their site / 9)^2) to cut-off values
