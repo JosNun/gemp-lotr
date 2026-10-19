@@ -77,7 +77,7 @@ public class BotTrain {
                 if (models.hasModel(t.getClass()))
                     save(opts.out(), t, models.getModel(t.getClass()));
         CardFeatures.setVersion(opts.features()); // training happens on this thread
-        RLGameStateFeatures recordFeatures = opts.features() == GeneralStateFeatures.VERSION
+        RLGameStateFeatures recordFeatures = opts.features() >= GeneralStateFeatures.VERSION
                 ? new GeneralStateFeatures() : new FotrStartersRLGameStateFeatures();
 
         // Every relevant step gathered so far, by trainer. A step can serve several trainers.
@@ -243,8 +243,8 @@ public class BotTrain {
             switch (args[i]) {
                 case "--features" -> {
                     features = Integer.parseInt(args[++i]);
-                    if (features != 1 && features != GeneralStateFeatures.VERSION)
-                        BotVsBot.die("--features is 1 or " + GeneralStateFeatures.VERSION);
+                    if (features < 1 || features > 3)
+                        BotVsBot.die("--features is 1, 2 or 3 (2 plus what each card's abilities cost and do)");
                 }
                 case "--bot" -> {
                     String bot = args[++i];
@@ -285,7 +285,8 @@ public class BotTrain {
                 usage: BotTrain --out <model dir> [options]
                   --bot fotr              fotr, or general for the extended bot and its extra models
                   --model logistic        logistic, or trees (gradient-boosted; can weigh state against cards)
-                  --features 1            feature set: 1 (the original), or 2 (GeneralStateFeatures, any deck)
+                  --features 1            feature set: 1 (the original), 2 (GeneralStateFeatures, any deck), or 3
+                                          (2, plus each card's ability costs and effects: AbilityFeatures)
                   --suite starters:train  matchups to self-play (as BotVsBot: starters[:train|test|all] or a file)
                   --init bot-models       models to start from, or "random" to start from random play
                   --generations 3         play, refit, repeat

@@ -106,7 +106,7 @@ public class FotrStarterBot extends RandomDecisionBot implements LearningBotPlay
                           double epsilon, boolean extended) {
         super(playerId);
         // models trained on feature set 2 are only ever fed set 2, whatever the caller passed
-        this.features = modelRegistry != null && modelRegistry.getFeatureVersion() == GeneralStateFeatures.VERSION
+        this.features = modelRegistry != null && modelRegistry.getFeatureVersion() >= GeneralStateFeatures.VERSION
                 ? new GeneralStateFeatures() : features;
         this.modelRegistry = modelRegistry;
         this.replayBuffer = replayBuffer;

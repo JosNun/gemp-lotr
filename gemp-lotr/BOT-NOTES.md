@@ -640,6 +640,48 @@ blueprints, so a decision's state is still right if the divergence touched nothi
 features read. Not tried: other formats (the manifests support any; set 4+ cards add their own
 differences), and reseeding the engine for random draws other than from hands.
 
+## A cheap bot instead of search (2026-10-19)
+
+The goal is now the bot itself, cheap to run; ranking decks with an inaccurate bot is not worth much.
+
+**Searching only the big decisions** (`BotTeach --no-card-search`: assignments and choices searched, card actions
+left to the models) costs 0.3-1 CPU-seconds a game and adds nothing: `human22-ca-as` with it beats plain `v2-real`
+57.8% (2 rollouts), 56.9% (8), 56.7% (8, rollouts cut off 3 turns on) -- plain `human22-ca-as` is 58.0%. The full
+search's strength is in the card actions.
+
+**A better check of ranking like people** (`scripts/deck_fidelity.py`): every human Movie Block game in `games.csv`
+with a deck of 20+ games (4,476 games, 135 decks) replayed by the bot, each deck's bot win rate over the matchups it
+actually played against its human win rate. Human win rates split in half agree at r 0.62 (full record ~0.77). Plain
+`v2-real` -0.01, `human22-ca-as` 0.10-0.11 (two runs), distilled below 0.13. The 16-deck round robin swung from 0.44
+to -0.04 between bots that play equally well: too few decks to tell anything.
+
+**Distilling the search** (BotTeach teacher mode, base `human22-ca-as`, 8 rollouts, depth 1, `value-real`, 10% of
+card-action decisions, 3,000 games of `suite-train`: 24,273 decisions, 40,463 labels, 21 minutes). Trees refit on
+the human labels plus these: x1 60.7%, x10 (teacher labels repeated) **61.6% +- 1.7** against plain `v2-real`
+(`human22-ca-as` 58.7% in the same run), and `distill22-x10` beats `human22-ca-as` **55.1% +- 1.7** head to head.
+
+**How the bot uses each card** (`-DcardUse=<blueprint>|all` on BotVsBot, `CardUse`; `scripts/card_use.py` holds it
+against the human rate per card from the replays). The One Ring, Answer To All Riddles (4_1): people put it on in
+2.1% of 13,381 offers, mostly losing the skirmish by 3+ (where wounds would kill the Ring-bearer); the bots 0%
+(`v2-real`), 1.4%, 3.2% -- the same places; none uses it when -1 down, where people do (2.8%). Across 521 cards the
+gaps are elsewhere: Hand Axe (discard it for archery +1) 58% against people's 15%; Double Shot (spot an Elf archer
+for archery +1) 1% against 53%; The One Ring, The Ring of Rings (9_1) 0% of 38,844 against 5.2%; site abilities
+1-4% against 22-39%.
+
+**Ability features** (card feature set 3, `AbilityFeatures`): each card's abilities -- activated, event, response,
+optional trigger -- read from the card definitions, their cost types (burdens, discard self, exert, twilight...) and
+effect types (strength, archery total, wounds, plays a card...) by amount, appended to set 2's card vector. Self-play
+with them (`bot-train.sh --bot general --features 3 --init v2-real`, 3 x 4,000 games) ties `v2-real` (50.5% +-
+1.7); the human + teacher refit on them ties `distill22-x10` (50.9%) and beats `v2-real` 63.3%. Hand Axe fell to 27%
+(people 15%); Double Shot stayed at 2%.
+
+**Why Double Shot stays at 2%** (`ScoreProbe` on the 511 human decisions where it was offered; people took it 54%):
+`v2-real` ranks it first 82% of the time, `human22-ca-as` 25%, `distill22-x1` 13%, `distill22-x10` 0.4% -- though 13
+of its 14 teacher labels say play it. The card-action model is a per-option yes/no fit over rows pooled from every
+decision, so ten copies of the teacher labels (mostly "pass was best") move the base rate of passing, not what the
+model knows about the card. Top-1 agreement with people on November card actions (in-sample for the human models):
+`v2-real` 43.2%, `human22-ca-as` 64.4%, `distill22-x10` 62.2%.
+
 ## Human Movie Block games, and assignments learned from them (2026-10-19)
 
 **2022 replays.** October and November 2022 (`GEMP-LOTR-Replays_2022-1{0,1}.zip`, ~340 MB
