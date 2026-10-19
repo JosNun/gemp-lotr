@@ -515,9 +515,21 @@ public class HumanReplay {
                 for (Ev e : fresh.get(p))
                     if (!repeats(e, newLast, p))
                         mine.add(e);
-                Side withOnly = side(p, mine, false), withoutOnly = side(p, mine, true);
+                Side withOnly = side(p, mine, false, false), withoutOnly = side(p, mine, true, false);
                 Side best = withOnly.full() || !withoutOnly.full() && withOnly.ok() >= withoutOnly.ok()
                         ? withOnly : withoutOnly;
+                if (!best.full()) {
+                    // a question the old server asked and today's engine settles by itself -- one card to pick,
+                    // how many Elves to spot -- taken as answered, if everything after it then matches
+                    for (boolean dropEngine : new boolean[]{false, true}) {
+                        Side s = side(p, mine, dropEngine, true);
+                        if (s.full()) {
+                            best = s;
+                            recordedOnly++;
+                            break;
+                        }
+                    }
+                }
                 matched += best.ok();
                 decisions.putAll(best.decisions());
                 soft.addAll(best.soft());
@@ -547,7 +559,31 @@ public class HumanReplay {
                     Set<String> soft, List<Integer> window, int end) {
         }
 
-        Side side(String p, List<Ev> mine, boolean dropEngineOnly) {
+        /**
+         * A recorded question today's engine may not ask: one selectable card ("Choose a card to play" with one
+         * option), a number of characters to spot, or where to play Gollum from. The 2022 server asked these; today's
+         * engine plays the card, spots as many as it can, and picks the zone itself.
+         */
+        static boolean recordedOnlyEvent(Ev e) {
+            if (!e.type().equals("D"))
+                return false;
+            String type = e.attrs().getOrDefault("decisionType", ""), text = e.attrs().getOrDefault("text", "");
+            return type.equals("ARBITRARY_CARDS") && e.param("selectable").stream().filter("true"::equals).count() == 1
+                    || type.equals("INTEGER") && text.toLowerCase().contains("spot")
+                    || type.equals("MULTIPLE_CHOICE") && e.param("results").stream().anyMatch(r -> r.startsWith("Play Gollum from"));
+        }
+
+        int recordedOnly;
+
+        /** A recorded-only question with nothing like it among the engine's new events. */
+        static boolean notAsked(Ev recorded, List<Ev> engine) {
+            if (!recordedOnlyEvent(recorded))
+                return false;
+            String head = questionHead(key(recorded));
+            return engine.stream().noneMatch(x -> x.type().equals("D") && questionHead(key(x)).equals(head));
+        }
+
+        Side side(String p, List<Ev> mine, boolean dropEngineOnly, boolean dropRecordedOnly) {
             List<Ev> rec = m.events().get(p);
             boolean[] skip = redundant.get(p);
             List<Ev> ev = new ArrayList<>(), flashes = new ArrayList<>();
@@ -560,7 +596,8 @@ public class HumanReplay {
             List<Integer> window = new ArrayList<>();
             int j = i;
             for (int n = 0; n < ev.size(); n++) {
-                while (j < rec.size() && (!comparable(rec.get(j)) || skip[j] || rec.get(j).type().equals("CA")))
+                while (j < rec.size() && (!comparable(rec.get(j)) || skip[j] || rec.get(j).type().equals("CA")
+                        || dropRecordedOnly && notAsked(rec.get(j), ev)))
                     j++;
                 if (j >= rec.size())
                     break;

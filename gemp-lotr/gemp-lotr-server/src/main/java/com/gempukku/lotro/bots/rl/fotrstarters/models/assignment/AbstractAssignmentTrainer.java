@@ -74,6 +74,51 @@ public abstract class AbstractAssignmentTrainer extends AbstractTrainer {
         return ranked(gameState, decision, playerName, features, modelRegistry, legality, k, false);
     }
 
+    /**
+     * Every candidate assignment the rules accept, as answers, unscored; assigning nothing is among them when it is
+     * legal. What a human's answer is labelled against: trained on the chosen one alone, the model learns that every
+     * assignment is good.
+     */
+    public List<String> allAnswers(GameState gameState, AwaitingDecision decision, AssignmentLegality legality) {
+        Map<String, String[]> params = decision.getDecisionParameters();
+        String[] freeCharIds = params.get("freeCharacters"), minionIds = params.get("minions");
+        Side side = isForFp() ? Side.FREE_PEOPLE : Side.SHADOW;
+        List<String> answers = new ArrayList<>();
+        for (AssignmentInfo a : enumerate(gameState, decision))
+            if (legality.isLegal(side, freeCharIds, minionIds, a.physicalAssignment())) {
+                String answer = format(a.physicalAssignment());
+                if (!answers.contains(answer))
+                    answers.add(answer);
+            }
+        return answers;
+    }
+
+    private List<AssignmentInfo> enumerate(GameState gameState, AwaitingDecision decision) {
+        Map<String, String[]> params = decision.getDecisionParameters();
+        String[] freeCharIds = params.get("freeCharacters");
+        String[] minionIds = params.get("minions");
+
+        if (freeCharIds == null || minionIds == null || freeCharIds.length == 0 || minionIds.length == 0)
+            return List.of();
+        Map<String, String> freeChars = Stream.of(freeCharIds)
+                .collect(Collectors.toMap(Function.identity(), s -> gameState.getBlueprintId(Integer.parseInt(s))));
+        Map<String, String> minions = Stream.of(minionIds)
+                .collect(Collectors.toMap(Function.identity(), s -> gameState.getBlueprintId(Integer.parseInt(s))));
+        HashMap<String, List<String>> alreadyAssignedMap = new HashMap<>();
+        gameState.getAssignments().forEach(assignment -> {
+            String fpBlueprint = assignment.getFellowshipCharacter().getBlueprintId();
+            alreadyAssignedMap.put(fpBlueprint, new ArrayList<>());
+            assignment.getShadowCharacters().forEach(shadow -> alreadyAssignedMap.get(fpBlueprint).add(shadow.getBlueprintId()));
+        });
+        gameState.getInPlay().forEach(fpCharacter -> {
+            if ((fpCharacter.getBlueprint().getCardType().equals(CardType.COMPANION) ||
+                    fpCharacter.getBlueprint().getCardType().equals(CardType.ALLY)) &&
+                    fpCharacter.getOwner().equals(gameState.getCurrentPlayerId()))
+                alreadyAssignedMap.putIfAbsent(fpCharacter.getBlueprintId(), new ArrayList<>());
+        });
+        return generateAllAssignments(alreadyAssignedMap, freeChars, minions, gameState);
+    }
+
     private List<String> ranked(GameState gameState, AwaitingDecision decision, String playerName,
                                 RLGameStateFeatures features, ModelRegistry modelRegistry,
                                 AssignmentLegality legality, int k, boolean trimIllegal) {

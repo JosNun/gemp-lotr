@@ -640,6 +640,50 @@ blueprints, so a decision's state is still right if the divergence touched nothi
 features read. Not tried: other formats (the manifests support any; set 4+ cards add their own
 differences), and reseeding the engine for random draws other than from hands.
 
+## Human Movie Block games, and assignments learned from them (2026-10-19)
+
+**2022 replays.** October and November 2022 (`GEMP-LOTR-Replays_2022-1{0,1}.zip`, ~340 MB
+each, unpacked 6 GB, deleted once the manifests were built). Movie Block: 3,696 games,
+1,196,110 recorded human decisions, 385,902 reproduced (32%), 554 games to the end. At first
+only 27.8% reproduced (first 100 games): the 2022 server asked questions today's engine
+settles by itself -- "Choose a card to play" with one card, "Choose number of Elf companions
+you wish to spot", "Play Gollum from your deck / discard pile" -- and the replay stopped
+there. `HumanReplay` now passes over such a recorded question when everything after it
+matches (`recordedOnlyEvent`): 27.8% -> 38.5% on those 100 games. **Expanded reproduces
+3.4%**: from set 11 the player chooses which site to play, and the engine builds a different
+site 1 than the recording; not fixed.
+
+**Assignments, with the ones turned down.** The first try at human labels wrote each human
+assignment alone, positive, and the model learned to say yes to everything (assigning every
+minion to the Ring-bearer, losing on turn 1). `TrainingSteps` now writes the human's
+assignment and up to 12 others the rules allowed (`AbstractAssignmentTrainer.allAnswers`),
+labelled 0; an answer the enumeration does not make, or a forced one, is skipped. Two months:
+95,745 Free Peoples rows (~12,000 decisions), 1,100 Shadow (mostly forced, so skipped).
+
+**Trees on it** (`BotTeach --train-only --model trees --min-steps 500`, base `v2-real`,
+710,076 card-action rows + 96,845 assignment rows, `-Dtrees.maxRows=600000`, 17 minutes).
+Plain, against guarded `v2-real`, 4 games a matchup:
+
+| Models refit | Held-out Movie/Expanded (3,168) | Held-out FotR (1,200) |
+|---|---|---|
+| card actions only (`human22-ca`) | 50.7% +- 1.7 | |
+| assignments only (`human22-as`) | 56.0% +- 1.7 | |
+| both (`human22-ca-as`) | **58.0% +- 1.7** | 55.8% +- 2.8 |
+
+The assignments are the gain; card play from 2022 Movie Block adds a little with them and
+nothing alone (2020 FotR card play gave 55.2% on FotR). Searching (`--assign --choices`,
+value-real) against plain `v2-real`: 69.6% with `human22-as`, 66.7% with `human22-ca-as`,
+68.9% with `v2-real` -- search already tries the top few assignments, so it gains little.
+
+**Ranking like people.** The 16 most-played Movie Block decks, round robin, 20 games a pair,
+both sides searching with `human22-ca-as`: Spearman against human win rates **0.44** (0.21
+with `v2-real`; plain bots all ~0: v2-real 0.00, human22-as -0.10, human22-ca-as -0.01 over
+4,800 games). Endings: corruption 16.5% (people 18%), site 9 6.1% (people 37%, `v2-real`
+search ~2%). 8.2 CPU-seconds a game. Sixteen decks and human win rates that mix deck and
+pilot make this a noisy check (+- ~0.25), but it is the direction wanted, and
+`rank-decks.sh` now defaults to `human22-ca-as` (`BOT_MODELS=bot-models-exp/v2-real` for the
+old one).
+
 ## Should the bot race? (2026-10-19)
 
 The question: surviving to site 9 is a real strategy with a healthy fellowship, and moving
