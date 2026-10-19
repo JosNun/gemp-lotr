@@ -459,6 +459,11 @@ answers can be read off what follows. Imitating human decisions needs a state tr
 rebuilds the board from those events for the feature extractors -- days of work, but it is
 the only source of good Free Peoples play there is.
 
+Also tried on held-out real decks (`v2-real` searching, against plain `v2-real`, 1,584
+games each, +- 2.3): value model with trees fit on real decks 65.1% vs logistic 69.1% --
+logistic still wins; searching single-card picks from a list (`--card-picks`) 69.3% vs 69.1%
+at +30% CPU -- no gain, opt-in.
+
 ### The user's decks, with the real-deck bot (2026-10-19)
 
 Search on both sides with `v2-real`, `value-real`, the guard, assignments and choices.
