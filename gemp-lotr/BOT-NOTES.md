@@ -436,6 +436,29 @@ Round 1, Movie Block and Expanded (`suite-train.txt`, 800 matchups):
   AUC 0.814 (logistic, set 2) on the test half. Search with it against plain v2 on held-out
   real decks: **77.8% +- 2.9**, against 71.2% +- 3.2 with the starter-fit value model.
 
+Round 2, every format with enough decks (`suite-all-train.txt`: Fellowship, Towers, King,
+Movie, Expanded; PC Movie dropped -- its errata mapping fails on these decks): `v3-real` from
+`v2-real`, 4 generations x 8,000 games. It **ties** `v2-real` (48.5% +- 2.5 held-out real,
+48.6% +- 3.1 starters): the variety was the gain, more of it and more generations add nothing
+to a linear per-option model. A value model fit on the all-format games ties the round-1 one
+in search (69.7% vs 67.4% +- 3.3). Defaults are now `v2-real` and `value-real`
+(`rank-decks.sh`; `BOT_MODELS` / `BOT_VALUE` override). Card ids in the summaries carry
+cosmetic suffixes (`*` foil, `T` tengwar); they are stripped from the deck files.
+
+**Realism, guarded `v2-real` on the 16 most-played Movie Block decks** (4,800 games):
+median 7 turns (4 before), corruption 10% of games, kills 89%, site 9 under 1%. Human decided
+Movie Block games: kills 44%, site 9 37%, corruption 18%; 34% end at site 9 and ~70% at site 6
+or later, where bot games end around site 5. Ranking against human win rates: Spearman
+**0.04** (-0.37 before). The gap left is the Free Peoples side: fellowships are worn down
+and never reach site 9.
+
+**A lever for that, not built:** the full replays (`GEMP-LOTR-Replays_<month>.zip`, ~12,000
+games and 3 GB a month, to 2022-11) are each player's event stream: every decision put to
+them (`type="D"`, with its parameters), every card placement, message and stats update. The
+answers can be read off what follows. Imitating human decisions needs a state tracker that
+rebuilds the board from those events for the feature extractors -- days of work, but it is
+the only source of good Free Peoples play there is.
+
 ## Engine speed (2026-10-18)
 
 A JFR profile of v2 self-play put most of a game's CPU in two places that do no game

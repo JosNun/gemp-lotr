@@ -16,11 +16,12 @@
 # v2 models instead: ~0.1 CPU-seconds a game, good for screening many decks before a search
 # run on the finalists.
 #
-# Needs bot-models-exp/v2 (bot-train.sh, see BOT-NOTES.md) and, for search,
-# bot-models-exp/value-s2-logistic, fit on decks *other* than the ones being ranked:
-#   BOT_MAIN=com.gempukku.lotro.bots.simulation.BotProbe ./bot-vs-bot.sh --bot general@bot-models-exp/v2 \
-#     --suite starters:test --train-suite starters:train --games 20 \
-#     --save-value bot-models-exp/value-s2-logistic --value-features 2 --value-model logistic
+# Needs bot-models-exp/v2-real (bot-train.sh on decks/real, see BOT-NOTES.md, "Training on real
+# decks") and, for search, bot-models-exp/value-real, fit on decks *other* than the ones being
+# ranked; BOT_MODELS and BOT_VALUE override them. The value model was fit like this:
+#   BOT_MAIN=com.gempukku.lotro.bots.simulation.BotProbe ./bot-vs-bot.sh --bot safe@bot-models-exp/v2 \
+#     --suite decks/real/suite-test.txt --train-suite decks/real/suite-train.txt --games 2 \
+#     --save-value bot-models-exp/value-real --value-features 2 --value-model logistic
 set -e
 cd "$(dirname "$0")"
 [ $# -ge 2 ] || { sed -n '2,10p' "$0"; exit 1; }
@@ -33,9 +34,9 @@ pairs=$(( decks * (decks - 1) / 2 ))
 echo "$decks decks, $pairs pairs, $per games a pair ($(( pairs * per )) games)" >&2
 
 if [ -n "$quick" ]; then
-    exec ./bot-vs-bot.sh --suite "rr:$format:$list" --a safe@bot-models-exp/v2 --b safe@bot-models-exp/v2 \
+    exec ./bot-vs-bot.sh --suite "rr:$format:$list" --a safe@${BOT_MODELS:-bot-models-exp/v2-real} --b safe@${BOT_MODELS:-bot-models-exp/v2-real} \
         --games "$per"
 fi
 BOT_MAIN=com.gempukku.lotro.bots.simulation.BotTeach exec ./bot-vs-bot.sh --play --both --clone \
-    --value bot-models-exp/value-s2-logistic --rollouts 2 --depth 1 --max-candidates 10 --assign --choices \
+    --base ${BOT_MODELS:-bot-models-exp/v2-real} --value ${BOT_VALUE:-bot-models-exp/value-real} --rollouts 2 --depth 1 --max-candidates 10 --assign --choices \
     --suite "rr:$format:$list" --games $(( pairs * per )) --out "/tmp/rank-decks-$$"
