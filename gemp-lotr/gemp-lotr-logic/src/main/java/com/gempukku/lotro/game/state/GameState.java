@@ -1674,9 +1674,26 @@ public class GameState {
         }
     }
 
+    /**
+     * Decides a deck's order when it is shuffled, in place of the Random. Null (the default) everywhere except when
+     * re-creating a recorded game, where the shuffles have to come out the way the recorded game's did.
+     */
+    public interface DeckShuffler {
+        void shuffle(String player, List<? extends PhysicalCard> deck, Random random);
+    }
+
+    private DeckShuffler _deckShuffler;
+
+    public void setDeckShuffler(DeckShuffler deckShuffler) {
+        _deckShuffler = deckShuffler;
+    }
+
     public void shuffleDeck(String player) {
         List<PhysicalCardImpl> deck = _decks.get(player);
-        Collections.shuffle(deck, _random);
+        if (_deckShuffler != null)
+            _deckShuffler.shuffle(player, deck, _random);
+        else
+            Collections.shuffle(deck, _random);
     }
 
     public void sendGameStats(GameStats gameStats) {
