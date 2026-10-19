@@ -464,6 +464,16 @@ games each, +- 2.3): value model with trees fit on real decks 65.1% vs logistic 
 logistic still wins; searching single-card picks from a list (`--card-picks`) 69.3% vs 69.1%
 at +30% CPU -- no gain, opt-in.
 
+**The value models have the race backwards.** Probed on recorded positions, both say the
+further your own fellowship has got, the less likely you win: `value-real` 59% at site 2,
+42% at site 8 (`value-s2-logistic` 65% -> 19%), and the further the opponent, the more likely.
+In bot games advancing correlates with dying -- later sites are deadlier, moving feeds the
+Shadow twilight -- and outcome-fit models learn exactly that. A progress term for cut-off
+values (`--progress-weight w`: + w x ((my site/9)^2 - (their site/9)^2)) changed nothing:
+69.9% (w 0.2) and 67.4% (0.5) against 69.1%, site-9 wins ~2% of search's wins throughout.
+Steering one-turn lookahead does not keep a fellowship alive; the attrition happens in play
+the value model never sees. Off by default.
+
 ### The user's decks, with the real-deck bot (2026-10-19)
 
 Search on both sides with `v2-real`, `value-real`, the guard, assignments and choices.

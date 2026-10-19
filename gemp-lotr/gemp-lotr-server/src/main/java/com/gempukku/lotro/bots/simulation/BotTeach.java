@@ -60,6 +60,8 @@ public class BotTeach {
     private static volatile int valueFeatures = 2;
     /** --corruption-weight: how much a cut-off position's value moves with corruption pressure; 0 = off. */
     static volatile double corruptionWeight = 0;
+    /** --progress-weight: how much a cut-off position's value moves with how far each fellowship has got; 0 = off. */
+    static volatile double progressWeight = 0;
     /** With --clone, rollouts play on a copy of the live game made by this, instead of replaying it from its seed. */
     private static volatile GameCopier copier;
 
@@ -436,6 +438,16 @@ public class BotTeach {
                     v = com.gempukku.lotro.bots.rl.fotrstarters.CorruptionFeatures.withCorruption(v, gameState, shared.player);
                 valueModel.predict(v, p);
                 shared.value = p[1];
+                if (progressWeight > 0) {
+                    // The race, which outcome-fit value models learn backwards: in bot games a fellowship further
+                    // along is more likely to lose (later sites are deadlier, moving feeds the Shadow twilight), so
+                    // value-real rates the player at site 8 at 42% against 59% at site 2 -- and search steers away
+                    // from moving. Site 9 survived is a win; reward getting there.
+                    double mine = v[GeneralStateFeatures.index("myPosition")],
+                            theirs = v[GeneralStateFeatures.index("oppPosition")];
+                    shared.value = Math.max(0, Math.min(1, shared.value
+                            + progressWeight * (Math.pow(mine / 9, 2) - Math.pow(theirs / 9, 2))));
+                }
                 if (corruptionWeight > 0) {
                     // A rule the value model cannot learn from outcomes (see BOT-NOTES.md, corruption): a Ring-bearer
                     // a burden or two from its resistance is close to losing.
@@ -672,6 +684,7 @@ public class BotTeach {
                 case "--max-decisions" -> maxDecisions = Integer.parseInt(args[++i]);
                 case "--card-picks" -> cardPicks = true;
                 case "--corruption-weight" -> corruptionWeight = Double.parseDouble(args[++i]);
+                case "--progress-weight" -> progressWeight = Double.parseDouble(args[++i]);
                 case "--record-values" -> recordValues = Path.of(args[++i]);
                 case "--model" -> com.gempukku.lotro.bots.rl.fotrstarters.models.AbstractTrainer.useTrees =
                         args[++i].equals("trees");
@@ -733,6 +746,7 @@ public class BotTeach {
                                             on mine) to cut-off values; pressure is 0.15/0.35/0.6/1 at 3/2/1/0
                                             resistance left
                   --max-decisions 1000      per bot per main game, then it concedes (the live server's rule)
+                  --progress-weight 0       add w x ((my site / 9)^2 - (their site / 9)^2) to cut-off values
                   --record-values <file>    append the deciding player's set-2 state at each card-action
                                             decision of the main games, labelled with whether that player
                                             won, for a value model (BotProbe --fit)""";
