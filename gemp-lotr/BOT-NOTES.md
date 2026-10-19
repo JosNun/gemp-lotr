@@ -457,7 +457,8 @@ games and 3 GB a month, to 2022-11) are each player's event stream: every decisi
 them (`type="D"`, with its parameters), every card placement, message and stats update. The
 answers can be read off what follows. Imitating human decisions needs a state tracker that
 rebuilds the board from those events for the feature extractors -- days of work, but it is
-the only source of good Free Peoples play there is.
+the only source of good Free Peoples play there is. (Tried the other way round, by replaying the
+games in the engine instead of tracking them: see "Re-creating human games" below.)
 
 ### The user's decks, with the real-deck bot (2026-10-19)
 
@@ -476,6 +477,132 @@ Against each other, 300 a pair: Hunt 72.4%, Khazad 68.8%, Rangers 39.2%, The Lon
 19.6% (it was 37.6% with `v2` and the same search: of the four, its result depends most on the
 policy). About 5% of the games against real decks ended with a bot conceding at the live
 server's 1,000-decision limit; `rank-decks.sh` now passes `--max-decisions 3000`.
+
+## Re-creating human games in the engine (`HumanReplay`, 2026-10-19)
+
+Instead of a state tracker: play each recorded human game again inside our engine, both seats
+answered with the humans' answers and every shuffle forced to deal what they drew. Where the
+engine asks the question the human was asked, the engine's own state at that point is the
+board they saw, and the feature extractors run on it as on any bot game.
+
+```bash
+python3 -I scripts/replay_manifest.py <extract> <manifests> --format "Fellowship block"
+./replay.sh HumanReplay --manifests <manifests> --jobs 2 --report r.tsv [--steps human.jsonl]
+python3 -I scripts/replay_buckets.py r.tsv <manifests>     # why games diverged, cards named
+```
+
+`replay.sh` builds with `mvn package` and runs this checkout's jars ahead of the shared
+classpath (no `mvn install`). `--trace` prints every comparison; `--only <name>` one game.
+
+**How it works.**
+- *Card ids line up by construction.* The 2020 server, like today's engine, numbers cards as it
+  creates them: player by player in HashMap order of the names, sites, then the draw deck in
+  deck-list order, then Ring-bearer and Ring; a card gets a new id each time it enters play.
+  So a card's original id is its slot in its owner's deck list, and the 2020 summaries give no
+  decklists at all (only ids; GEMP wrote `deckReadout` from 2022): the decks are rebuilt from
+  the ids each recording shows (a drawn card keeps its id in hand). Cards never seen under
+  their original id are inferred (played straight from the deck, or listed by a deck search
+  more often than the seen copies explain) or filled with an inert card (The One Ring);
+  unplayed sites with any site of the missing number. Built from the real player names, the
+  game hands out the 2020 ids: every reproduced decision below matched them exactly.
+- *Shuffles* (`GameState.DeckShuffler`, the one engine change: null by default, consulted in
+  `shuffleDeck`): the cards each player's recording shows leaving the deck after this point go
+  on top, in that order. Ties in the bid are settled by trying seeds until the seating shuffle
+  picks the player who chose.
+- *Answers* are not recorded. Each plausible answer is played on a copy of the game
+  (`GameCopier`), and the events it produces -- cards placed, removed, moved, tokens,
+  assignments, skirmishes, phases, twilight, and the next questions with their options --
+  are held against both recordings (as a multiset per decision: the 2020 server batched some
+  differently); the answer that reproduces them is kept. A decision counts as reproduced when
+  the engine asked the same question (type, text as far as it survived, options) and an answer
+  reproduced everything up to the next question. Candidates come from what the recordings show
+  next (card ids, blueprints, AA events, numbers in messages), then the rest of the options.
+  A random discard or reveal is matched by reseeding the engine's Random (357 answers).
+- *Accepted differences*, each found in the data: messages and stats are not compared, nor CAC
+  (the 2020 engine also flashed a card paying a cost on itself); a missing or extra CA
+  (Ford of Bruinen flashed its per-turn reset then) does not break a match; repeated phase and
+  twilight updates are dropped; adventure-deck and end-of-game deck reveals are today's only.
+  Questions only today's engine asks are answered for the player and not counted: deck
+  inspections before a search, card-action prompts with nothing to play (the human's
+  auto-pass skipped them), searches with one card to take, ordering two required triggers
+  (55,050 of them). Texts were reworded freely since 2020 ("Choose characters to wound" /
+  "Choose cards to wound", "Frór" mangled to "Fr??r" by the 2020 files' encoding): card
+  selections, multiple and arbitrary choices are compared by their options only, action texts
+  by card id, and searches may now stop short (min 0).
+
+**Fellowship block, March 2020** (1,575 games with both recordings; 80 more had no stats to read
+the deck sizes from), 12 minutes on 2 threads:
+
+| | |
+|---|---|
+| human decisions reproduced | **198,067 of 454,632 (43.6%)**; with something to choose 173,008 of 398,352 (43.4%) |
+| games reproduced to the end | **327 of 1,575 (20.8%)**; median game 42% of its decisions; 694 games at least half |
+| asked with other options than the human had (counted) | 1,874 |
+| another answer fitted the recording as well (not written as data) | 8,839 |
+
+Decisions reproduced before the first divergence, games: 1-9: 53, 10-24: 105, 25-49: 233,
+50-99: 406, 100-199: 451, 200-399: 302, 400+: 25.
+
+**Why games diverge** (the first divergence of the 1,248 that did; decisions they left unreproduced):
+
+| Cause | Games | Decisions lost |
+|---|---|---|
+| engine asks a question the human was not asked | 269 | 60,418 |
+| human was asked a question the engine does not ask | 236 | 47,144 |
+| same point, a different question | 161 | 33,891 |
+| twilight differs (TP) | 105 | 21,277 |
+| a token (wound/burden) instead of the recorded question, or the reverse | 137 | 28,796 |
+| other event differences (removals, phases, placements, tokens), engine ending early | 340 | 65,039 |
+
+The cards named in the first divergence: Blade Tip 197 games, Gimli, Son of Glóin 101, Frodo
+(1_289) 62, Sting 53, Bill the Pony 48, Bilbo (2_96) 45, The Bridge of Khazad-dûm 37, ... a
+long tail. The ones looked at are all **the card behaving differently in today's engine than in
+2020's**, i.e. errata in the broad sense -- bug fixes and rules corrections, not printed errata
+(Fellowship block plays the original cards):
+- Blade Tip and Black Breath: the 2020 engine kept offering "transfer this condition from your
+  support area" after it had been transferred, and re-fired the trigger; today it does not.
+- Bill the Pony: moving to an underground site, 2020 still applied his shadow -1 to the move's
+  twilight (TP 7 recorded, 8 now); several other off-by-one twilight cases.
+- Gimli: after he was used in a skirmish and the Shadow player passed, 2020 ended the skirmish;
+  today the Free Peoples player is asked again.
+- Aragorn (1_365, "add 2 burdens to prevent exhausting"), Galdor, Úlairë Nertëa: a question asked
+  now that was not then, or the reverse.
+That none of this can be read off the repository: every set 1-3 card was rewritten from Java to
+hjson in 2022-24, so git history marks them all as changed. Divergences that are the harness's
+own (a wrong inference) were fixed one at a time until the remaining ones were card behaviour;
+the 13 copier failures (a deck view inside a pending decision) were fixed too.
+
+**Training data.** `--steps` writes each reproduced decision in BotTeach's teacher-label form
+(`LearningStep.toJson`, feature set 2 state, the board before the answer): card-action and
+multiple choices one row per option, reward 10 for the human's and 0 for the others; other
+types the human's answer only (reward 10); not decisions with nothing to choose, ambiguous
+answers or ACTION_CHOICE. March 2020 Fellowship block: **458,737 rows** (440 MB,
+`~/dev/gemp-replays/training/fotr-2020-03.jsonl`, outside the repo: other players' games):
+101,730 card-action choices (67,380 as Free Peoples), 39,805 card selections, 11,937
+multiple choices, 8,073 arbitrary-card choices, 7,428 assignments, 3,643 skirmish
+selections, 471 numbers. `BotTeach --train-only --steps` reads it.
+
+**A first look at using it (not tuned):** refitting `v2-real`'s models on all of it breaks the
+bot (5.3% +- 1.4 against v2-real): the types written with positives only (assignments,
+selections) fit a model that says yes to everything, and assigning everything to the
+Ring-bearer loses on turn 1. Refitting only the card-action models (399,317 rows) loses too:
+**44.0% +- 1.8** against guarded v2-real on held-out real Fellowship block decks
+(`suite-all-test`, fotr_block, 3,000 games), 34.1% +- 2.9 on `starters:test`. The same
+result as the teacher labels: a per-option logistic model refit on labels about the choice,
+replacing one fit on ~all self-play outcomes, does not get better (see "The linear-model
+ceiling"). The data is the valuable part; using it needs a model that scores state and option
+together, or the labels mixed with self-play, or imitation as an auxiliary loss.
+
+**Can it scale?** The pipeline does: ~0.9 CPU-seconds a game, and the full replays run
+2020-03 .. 2022-11 at 4,000-12,000 games a month -- millions of reproduced human decisions if
+other months and formats reproduce as well as this one (not measured). What limits it is the
+2020-22 engine's card behaviour: each fix since ends the games that touch that card, and the
+gain comes card by card (the five cards named most appear in 461 of the 1,248 first
+divergences). Two cheap levers: replay later months (likely closer to today's engine; not
+measured), and resync instead of stopping -- every recorded event names card ids and
+blueprints, so a decision's state is still right if the divergence touched nothing the
+features read. Not tried: other formats (the manifests support any; set 4+ cards add their own
+differences), and reseeding the engine for random draws other than from hands.
 
 ## Engine speed (2026-10-18)
 
