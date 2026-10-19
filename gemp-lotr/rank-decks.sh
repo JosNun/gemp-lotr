@@ -35,8 +35,8 @@ echo "$decks decks, $pairs pairs, $per games a pair ($(( pairs * per )) games)" 
 
 if [ -n "$quick" ]; then
     exec ./bot-vs-bot.sh --suite "rr:$format:$list" --a safe@${BOT_MODELS:-bot-models-exp/v2-real} --b safe@${BOT_MODELS:-bot-models-exp/v2-real} \
-        --games "$per"
+        --games "$per" --max-decisions 3000
 fi
 BOT_MAIN=com.gempukku.lotro.bots.simulation.BotTeach exec ./bot-vs-bot.sh --play --both --clone \
-    --base ${BOT_MODELS:-bot-models-exp/v2-real} --value ${BOT_VALUE:-bot-models-exp/value-real} --rollouts 2 --depth 1 --max-candidates 10 --assign --choices \
+    --base ${BOT_MODELS:-bot-models-exp/v2-real} --value ${BOT_VALUE:-bot-models-exp/value-real} --rollouts 2 --depth 1 --max-candidates 10 --assign --choices --max-decisions 3000 \
     --suite "rr:$format:$list" --games $(( pairs * per )) --out "/tmp/rank-decks-$$"

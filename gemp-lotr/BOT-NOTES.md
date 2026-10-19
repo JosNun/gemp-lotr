@@ -459,6 +459,24 @@ answers can be read off what follows. Imitating human decisions needs a state tr
 rebuilds the board from those events for the feature extractors -- days of work, but it is
 the only source of good Free Peoples play there is.
 
+### The user's decks, with the real-deck bot (2026-10-19)
+
+Search on both sides with `v2-real`, `value-real`, the guard, assignments and choices.
+
+Against the 30 most-played real Expanded decks (Sep 2024 - Feb 2025), 20 games a matchup:
+
+| Deck | Won | Beats | Toughest |
+|---|---|---|---|
+| Hunt the Ring-bearer | 64.0% +- 3.8 | 20 of 30 | Exp Two Men/Canequeiros 20%, Gandalf wounding - WK Nazgul 30% |
+| Khazad Rush | 56.3% +- 4.0 | 18 of 30 | Denetor uruk hunters 10%, Expanded Gondor Saruman 15% |
+| Rangers of the North Watch | 46.8% +- 4.0 | 14 of 30 | Exp Two Men/Canequeiros 15%, Gondor/Gandalf Tokeny 15% |
+| The Long Night | 34.3% +- 3.8 | 6 of 30 | EXP-archery 5%, Denetor uruk hunters 5% |
+
+Against each other, 300 a pair: Hunt 72.4%, Khazad 68.8%, Rangers 39.2%, The Long Night
+19.6% (it was 37.6% with `v2` and the same search: of the four, its result depends most on the
+policy). About 5% of the games against real decks ended with a bot conceding at the live
+server's 1,000-decision limit; `rank-decks.sh` now passes `--max-decisions 3000`.
+
 ## Engine speed (2026-10-18)
 
 A JFR profile of v2 self-play put most of a game's CPU in two places that do no game

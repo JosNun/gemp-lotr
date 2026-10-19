@@ -69,6 +69,11 @@ public class BotTeach {
     private static final ThreadLocal<Map<String, Integer>> LOWEST_RESISTANCE = ThreadLocal.withInitial(HashMap::new);
 
     private static final long STALL_MINUTES = 15;
+    /**
+     * Decisions per bot per main game before it concedes, as on the live server ("Possible loop detected"). Real decks
+     * play long games: at 1,000, about 5% of the user's decks' games against real Expanded decks ended there.
+     */
+    static volatile int maxDecisions = 1000;
 
     public static void main(String[] args) throws Exception {
         Options opts = parse(args);
@@ -168,7 +173,7 @@ public class BotTeach {
                     // its rollouts make this game slow, not stuck
                     POSITIONS.get().clear();
                     LOWEST_RESISTANCE.get().clear();
-                    BotGame.Result r = BotGame.play(format, ctx.library(), bots, seats, 1000, seed, steps, 24 * 3600);
+                    BotGame.Result r = BotGame.play(format, ctx.library(), bots, seats, maxDecisions, seed, steps, 24 * 3600);
                     if (r.finished() && opts.recordValues() != null) {
                         StringBuilder rows = new StringBuilder();
                         for (Object[] row : POSITIONS.get()) {
@@ -634,6 +639,7 @@ public class BotTeach {
                 case "--clone" -> clone = true;
                 case "--choices" -> choices = true;
                 case "--assign" -> assign = true;
+                case "--max-decisions" -> maxDecisions = Integer.parseInt(args[++i]);
                 case "--corruption-weight" -> corruptionWeight = Double.parseDouble(args[++i]);
                 case "--record-values" -> recordValues = Path.of(args[++i]);
                 case "--model" -> com.gempukku.lotro.bots.rl.fotrstarters.models.AbstractTrainer.useTrees =
@@ -693,6 +699,7 @@ public class BotTeach {
                   --corruption-weight 0     add w x (corruption pressure on the opponent's Ring-bearer less
                                             on mine) to cut-off values; pressure is 0.15/0.35/0.6/1 at 3/2/1/0
                                             resistance left
+                  --max-decisions 1000      per bot per main game, then it concedes (the live server's rule)
                   --record-values <file>    append the deciding player's set-2 state at each card-action
                                             decision of the main games, labelled with whether that player
                                             won, for a value model (BotProbe --fit)""";
