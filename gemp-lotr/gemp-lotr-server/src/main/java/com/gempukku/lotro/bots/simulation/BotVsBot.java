@@ -179,6 +179,14 @@ public class BotVsBot {
     }
 
     public static void main(String[] args) throws Exception {
+        try {
+            run(args);
+        } finally {
+            System.exit(0); // also after an exception, which otherwise leaves the game pool's threads holding the JVM
+        }
+    }
+
+    private static void run(String[] args) throws Exception {
         Options opts = parse(args);
 
         // The card library and the bots chat on System.out: one line per card file loaded, and one per decision a
