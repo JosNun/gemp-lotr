@@ -124,16 +124,23 @@ public class BotVsBot {
      */
     static BotPlayer bot(String kind, String name, Context ctx) {
         int at = kind.indexOf('@');
-        if (at > 0)
-            return new FotrStarterBot(new FotrStartersRLGameStateFeatures(), name,
-                    ctx.models(Path.of(kind.substring(at + 1))), null, 0.0, kind.startsWith("general@"));
+        if (at > 0) {
+            BotPlayer bot = new FotrStarterBot(new FotrStartersRLGameStateFeatures(), name,
+                    ctx.models(Path.of(kind.substring(at + 1))), null, 0.0, !kind.startsWith("fotr@"));
+            if (kind.startsWith("safe@") || System.getenv("BOT_GUARD") != null && kind.startsWith("general@")) {
+                // see Guarded: never corrupt your own Ring-bearer with a card's burden cost
+                Guarded.init(ctx);
+                return new Guarded(bot);
+            }
+            return bot;
+        }
         return KINDS.get(kind).apply(name, ctx);
     }
 
     static boolean knownKind(String kind) {
         int at = kind.indexOf('@');
         if (at > 0)
-            return List.of("fotr", "general").contains(kind.substring(0, at))
+            return List.of("fotr", "general", "safe").contains(kind.substring(0, at))
                     && Files.isDirectory(Path.of(kind.substring(at + 1)));
         return KINDS.containsKey(kind);
     }
