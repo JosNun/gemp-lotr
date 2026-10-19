@@ -30,7 +30,8 @@ import java.util.concurrent.*;
 public class BotProbe {
     record Row(double[] v1, double[] v2, double[] v3, String decider) {
         double[] set(int n) {
-            return n == 1 ? v1 : n == 2 ? v2 : v3;
+            return n == 1 ? v1 : n == 2 ? v2 : n == 3 ? v3
+                    : com.gempukku.lotro.bots.rl.fotrstarters.CorruptionFeatures.withCorruption(v2, null, decider);
         }
     }
 
@@ -117,6 +118,7 @@ public class BotProbe {
         out.printf("  feature set 2, trees:    held-out AUC of P(win | state) = %.3f%n", aucTrees(train, test, 2));
         out.printf("  feature set 3, logistic: held-out AUC of P(win | state) = %.3f%n", auc(train, test, 3, true));
         out.printf("  feature set 3, trees:    held-out AUC of P(win | state) = %.3f%n", aucTrees(train, test, 3));
+        out.printf("  feature set 4, logistic: held-out AUC of P(win | state) = %.3f%n", auc(train, test, 4, true));
 
         if (saveValue != null) {
             // the value model a depth-limited search scores its cut-off positions with, fit on every game of the

@@ -33,7 +33,7 @@ pairs=$(( decks * (decks - 1) / 2 ))
 echo "$decks decks, $pairs pairs, $per games a pair ($(( pairs * per )) games)" >&2
 
 if [ -n "$quick" ]; then
-    exec ./bot-vs-bot.sh --suite "rr:$format:$list" --a general@bot-models-exp/v2 --b general@bot-models-exp/v2 \
+    exec ./bot-vs-bot.sh --suite "rr:$format:$list" --a safe@bot-models-exp/v2 --b safe@bot-models-exp/v2 \
         --games "$per"
 fi
 BOT_MAIN=com.gempukku.lotro.bots.simulation.BotTeach exec ./bot-vs-bot.sh --play --both --clone \

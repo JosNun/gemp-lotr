@@ -58,11 +58,15 @@ public class BotTeach {
     static volatile SoftClassifier<double[]> valueModel;
     /** 3 if the value model reads feature set 2 with KnowledgeFeatures appended (value-features.txt). */
     private static volatile int valueFeatures = 2;
+    /** --corruption-weight: how much a cut-off position's value moves with corruption pressure; 0 = off. */
+    static volatile double corruptionWeight = 0;
     /** With --clone, rollouts play on a copy of the live game made by this, instead of replaying it from its seed. */
     private static volatile GameCopier copier;
 
     /** The main game's positions so far on this thread, for --record-values: {decider, set-2 vector}. */
     private static final ThreadLocal<List<Object[]>> POSITIONS = ThreadLocal.withInitial(ArrayList::new);
+    /** The lowest resistance each Ring-bearer had in the main game on this thread (burdens already taken off). */
+    private static final ThreadLocal<Map<String, Integer>> LOWEST_RESISTANCE = ThreadLocal.withInitial(HashMap::new);
 
     private static final long STALL_MINUTES = 15;
 
@@ -100,7 +104,8 @@ public class BotTeach {
         ModelRegistry models = ctx.models(opts.base());
         RLGameStateFeatures features = models.getFeatureVersion() == GeneralStateFeatures.VERSION
                 ? new GeneralStateFeatures() : new FotrStartersRLGameStateFeatures();
-        String policy = "general@" + opts.base();
+        // guarded: the models alone corrupt their own Ring-bearer with burden costs on real decks (see Guarded)
+        String policy = (System.getenv("BOT_UNGUARDED") != null ? "general@" : "safe@") + opts.base();
         if (opts.depth() > 0) {
             Path file = opts.value().resolve("value.model");
             if (!Files.exists(file))
@@ -162,6 +167,7 @@ public class BotTeach {
                                     : new Teaching(BotVsBot.bot(policy, "~b", ctx), branch, features, sink, opts, opts.play()));
                     // its rollouts make this game slow, not stuck
                     POSITIONS.get().clear();
+                    LOWEST_RESISTANCE.get().clear();
                     BotGame.Result r = BotGame.play(format, ctx.library(), bots, seats, 1000, seed, steps, 24 * 3600);
                     if (r.finished() && opts.recordValues() != null) {
                         StringBuilder rows = new StringBuilder();
@@ -191,6 +197,15 @@ public class BotTeach {
                         for (String deck : List.of(deckA, deckB))
                             endings.computeIfAbsent(deck, k -> new ConcurrentHashMap<>())
                                     .merge((deck.equals(winnerDeck) ? "won: " : "lost: ") + why, 1, Integer::sum);
+                        // how close each Ring-bearer came to corruption: its lowest resistance less burdens
+                        for (String seat : List.of("~a", "~b")) {
+                            Integer low = LOWEST_RESISTANCE.get().get(seat);
+                            if (low == null)
+                                continue;
+                            String bucket = low <= 0 ? "0 (corrupted)" : low >= 4 ? "4+" : String.valueOf(low);
+                            endings.computeIfAbsent(seat.equals("~a") ? deckA : deckB, k -> new ConcurrentHashMap<>())
+                                    .merge("~ own Ring-bearer's lowest resistance: " + bucket, 1, Integer::sum);
+                        }
                         pairs.compute(m.deck1() + " vs " + m.deck2(), (k, v) -> {
                             int[] w = v == null ? new int[2] : v;
                             w[1]++;
@@ -362,6 +377,12 @@ public class BotTeach {
         }
     }
 
+    /** How close a Ring-bearer with this much resistance left is to corruption, 0 (far) to 1 (corrupted). */
+    static double pressure(double resistanceLeft) {
+        return resistanceLeft <= 0 ? 1 : resistanceLeft <= 1 ? 0.6 : resistanceLeft <= 2 ? 0.35
+                : resistanceLeft <= 3 ? 0.15 : 0;
+    }
+
     /** Replays the recorded answers, gives the option being tried, then plays as the policy bot. */
     record Branching(String name, Shared shared, BotPlayer policy) implements BotPlayer {
         @Override
@@ -404,8 +425,18 @@ public class BotTeach {
                 double[] v = new GeneralStateFeatures().extractFeatures(gameState, decision, shared.player);
                 if (valueFeatures == 3)
                     v = com.gempukku.lotro.bots.rl.fotrstarters.KnowledgeFeatures.withKnowledge(v, gameState, shared.player);
+                else if (valueFeatures == 4)
+                    v = com.gempukku.lotro.bots.rl.fotrstarters.CorruptionFeatures.withCorruption(v, gameState, shared.player);
                 valueModel.predict(v, p);
                 shared.value = p[1];
+                if (corruptionWeight > 0) {
+                    // A rule the value model cannot learn from outcomes (see BOT-NOTES.md, corruption): a Ring-bearer
+                    // a burden or two from its resistance is close to losing.
+                    double mine = v[GeneralStateFeatures.index("myRbResistance")],
+                            theirs = v[GeneralStateFeatures.index("oppRbResistance")];
+                    shared.value = Math.max(0, Math.min(1, shared.value
+                            + corruptionWeight * (pressure(theirs) - pressure(mine))));
+                }
                 gameState.getGame().playerLost(name, "rollout cut off");
             }
             return policy.chooseAction(gameState, decision);
@@ -422,6 +453,16 @@ public class BotTeach {
                     boolean search) implements BotPlayer {
         @Override
         public String chooseAction(GameState gameState, AwaitingDecision decision) {
+            try {
+                var game = gameState.getGame();
+                for (String p : gameState.getPlayerNames()) {
+                    var bearer = gameState.getRingBearer(p);
+                    if (bearer != null && gameState.isInit())
+                        LOWEST_RESISTANCE.get().merge(p, game.getModifiersQuerying().getResistance(game, bearer), Math::min);
+                }
+            } catch (RuntimeException ignored) {
+                // before the deal
+            }
             if (opts.recordValues() != null && decision.getDecisionType() == AwaitingDecisionType.CARD_ACTION_CHOICE) {
                 try {
                     POSITIONS.get().add(new Object[]{getName(),
@@ -593,6 +634,7 @@ public class BotTeach {
                 case "--clone" -> clone = true;
                 case "--choices" -> choices = true;
                 case "--assign" -> assign = true;
+                case "--corruption-weight" -> corruptionWeight = Double.parseDouble(args[++i]);
                 case "--record-values" -> recordValues = Path.of(args[++i]);
                 case "--model" -> com.gempukku.lotro.bots.rl.fotrstarters.models.AbstractTrainer.useTrees =
                         args[++i].equals("trees");
@@ -648,6 +690,9 @@ public class BotTeach {
                                             optional costs) and small number choices (the burden bid)
                   --assign                  with --play, also search skirmish assignments: the model's best
                                             few, and assigning nothing
+                  --corruption-weight 0     add w x (corruption pressure on the opponent's Ring-bearer less
+                                            on mine) to cut-off values; pressure is 0.15/0.35/0.6/1 at 3/2/1/0
+                                            resistance left
                   --record-values <file>    append the deciding player's set-2 state at each card-action
                                             decision of the main games, labelled with whether that player
                                             won, for a value model (BotProbe --fit)""";

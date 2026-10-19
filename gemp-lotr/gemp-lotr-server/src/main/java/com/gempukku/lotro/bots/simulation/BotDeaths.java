@@ -85,7 +85,7 @@ public class BotDeaths {
                     BotGame.ON_START.remove();
                     ALL_AT_SHADOW.addAll(log.atShadow);
                     ALL_MOVED_AGAIN.addAll(log.movedAgainWith);
-                    if (!r.finished() || r.reason() == null || !r.reason().contains("Ring-Bearer is dead"))
+                    if (!r.finished() || r.reason() == null || !r.reason().contains(System.getenv().getOrDefault("DEATH_REASON", "Ring-Bearer is dead")))
                         return null;
                     var gs = holder[0].getGameState();
                     String loser = r.winner().equals("~a") ? "~b" : "~a";

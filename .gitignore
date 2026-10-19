@@ -26,3 +26,4 @@ gemp-lotr/docker/docker-compose.yml
 
 # Models from bot-train.sh experiments; reproducible, see gemp-lotr/BOT-NOTES.md
 gemp-lotr/bot-models-exp/
+gemp-lotr/decks/real/
