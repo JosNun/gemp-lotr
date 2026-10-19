@@ -620,6 +620,15 @@ mulligans) to the trees made it worse: 44.9% +- 1.8 against the card-action-only
 human move decisions do not suit how the bot plays the rest of the game. Models in
 `bot-models-exp/human-trees` (card actions).
 
+**More months.** April 2020 reproduced better than March: 51.4% of 1,328,111 human decisions
+(4,627 games, 1,252 to the end), 1.59 M training rows; May is processed too
+(`~/dev/gemp-replays/training/fotr-2020-0{3,4,5}.jsonl`). Trees on March + April card actions
+(1,683,187 rows, `-Dtrees.maxRows=600000`, ~40 minutes) -> `human-trees-2m`: 52.1% +- 1.8
+against the March-only `human-trees` on held-out real FotR decks, 49.7% +- 3.1 on the
+starters, site 9 in 7.6% of self-play games -- a little stronger, no more human-like.
+Making TreeModel's row cap configurable changed its computed serialVersionUID and broke
+loading every saved tree model; it is pinned now to the old value.
+
 **Can it scale?** The pipeline does: ~0.9 CPU-seconds a game, and the full replays run
 2020-03 .. 2022-11 at 4,000-12,000 games a month -- millions of reproduced human decisions if
 other months and formats reproduce as well as this one (not measured). What limits it is the

@@ -22,6 +22,10 @@ import java.util.Random;
  * cards the same way whatever the twilight, wounds or board. Trees split on state and card together.
  */
 public final class TreeModel implements SoftClassifier<double[]> {
+    // pinned to the value it had before trees.maxRows: saved models carry it, and a changed field initialiser
+    // changes the computed one
+    private static final long serialVersionUID = 5876436858692950002L;
+
     /**
      * Trees, depth, leaves, leaf size, shrinkage, subsample. Smile's defaults are 500 trees at 0.05; 150 at 0.1 is
      * a guess at the same fit for a third of the training time, which is paid for 34 models every generation.
@@ -29,7 +33,8 @@ public final class TreeModel implements SoftClassifier<double[]> {
     private static final int TREES = 150, MAX_DEPTH = 20, MAX_NODES = 16, NODE_SIZE = 20;
     private static final double SHRINKAGE = 0.1, SUBSAMPLE = 0.7;
     /** Rows a model is fit on at most; the big card-action models have ~10x this. Sampled without replacement. */
-    private static final int MAX_ROWS = 150_000;
+    // -Dtrees.maxRows: the human-game labels run to millions of rows a month (BOT-NOTES.md, HumanReplay)
+    private static final int MAX_ROWS = Integer.getInteger("trees.maxRows", 150_000);
 
     private final GradientTreeBoost model;
     private final StructType schema;
