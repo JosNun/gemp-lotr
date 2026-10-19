@@ -640,6 +640,52 @@ blueprints, so a decision's state is still right if the divergence touched nothi
 features read. Not tried: other formats (the manifests support any; set 4+ cards add their own
 differences), and reseeding the engine for random draws other than from hands.
 
+## Should the bot race? (2026-10-19)
+
+The question: surviving to site 9 is a real strategy with a healthy fellowship, and moving
+twice makes the opponent move twice to keep up, which feeds your Shadow side. The bots
+barely race: search wins at site 9 in 2-3% of games, people in 37-48%.
+
+**What people do.** 2020 Fellowship Block (March-May), 51,476 reproduced "move again?" answers: yes
+23%. More with a bigger fellowship (17% with one or two companions, 28% with five, 39%
+with six), more when behind (44% when the move still leaves them a site back, 17% level),
+most at the end (44% from site 8). The search bot says yes 0.5% of the time (25 of 4,625).
+
+**What people's positions are worth.** `HumanReplay --values <csv>` writes the set-2
+state at every reproduced card-action decision, labelled with the recorded winner, for
+`BotProbe --fit`. March 2020: 119,266 Fellowship Block positions (40,513 Movie Block from
+845 games, thinner past site 6). Among people, two sites ahead wins 62%, two behind 41%,
+site 8 62%, site 9 76% -- the race the right way round, where `value-real` has it backwards.
+A model fit on them (`value-human03`) rates site 2 at 43% and site 8 at 84%, but it also
+learned that the winner's companions carry more wounds (+0.17 per s.d. of `myWounds`) and
+that dead companions hardly matter: in human games the winner is the one out in front,
+fighting. Search scoring with it throws companions away: **34.1% +- 2.7** against plain
+`v2-real` on held-out real FotR decks, against 65.7% for `value-real` (site 9 in 5.9% of
+games against 3.1%). Human outcomes are correlation, not what an action does.
+
+**Searching the move itself.** `--move-rollouts N [--move-depth D]` gives "move again?" its
+own N rollouts, played out to the end by default: no value model judges the race, the bot's
+own future play does. Against plain `v2-real`:
+
+| Move search | FotR test (1,200) | Movie/Expanded test (1,600) | moved on |
+|---|---|---|---|
+| as before (2 rollouts, 1 turn) | 64.0% +- 2.7 | 68.9% +- 2.3 | 0.5% / 1.2% |
+| 8 rollouts, 3 turns | 64.0% | 67.8% | 3.6% / 5.8% |
+| 8 playouts | 62.3% | 64.5% | 7.1% / 9.0% |
+
+Site-9 wins stay at 1.6-3.1% of games in every row. The human-imitation policy
+(`human-trees-2m`), which survives better, the same: 59.9% -> **54.0% +- 2.8** with 8
+playouts, moving on 8.5% of the time against 0.8%, site 9 7.8% either way.
+
+So moving on more loses for these bots, measured by their own play: the extra twilight
+buys the opponent minions, and the fellowship cannot take them. The race is not where the
+bot is wrong; the skirmishes after a move are. The human move pattern above -- move on with
+five or six companions, or to catch up -- is the target once the Free Peoples play
+survives a double move. Caveat: 8 playouts decide a yes/no with a lot of noise, so some of
+the extra moves are noise; 32 would tell better, at 4x the cost of those decisions.
+For deck ranking this means decks built to race to site 9 are probably undervalued.
+`--move-rollouts` stays opt-in.
+
 ## Engine speed (2026-10-18)
 
 A JFR profile of v2 self-play put most of a game's CPU in two places that do no game
