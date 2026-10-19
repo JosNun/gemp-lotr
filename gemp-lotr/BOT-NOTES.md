@@ -380,6 +380,62 @@ Fragile: it reads JDK fields through `sun.misc.Unsafe` (fine on 21, warns from 2
 JDK collection type in game state fails loudly with its path (`CLONE_TRACE=1`); add it to
 `GameCopier.RAW_JDK` if it holds no hashes. Run `BotCloneCheck` after engine changes.
 
+## Real games: GEMP's replay summaries (2026-10-18)
+
+https://files.lotrtcgpc.net/replays/ publishes every GEMP game since 2020: monthly
+"Replay_Summaries" zips (15-20 MB, one JSON per game: both decklists, format, bids, who went
+first, win and loss reasons, sites reached) and full replays (hundreds of MB a month). Six
+months of summaries (Sep 2024 - Feb 2025, ~44,000 games) are in `~/dev/gemp-replays/`
+(outside the repo). `~/dev/gemp-replays/tools/extract.py <out> <summary dirs>` writes:
+
+- `decks/real/<format>/<id>.txt` -- every distinct deck (4,638 Movie Block, 1,784 Expanded, ...),
+  gitignored: they are other players' decks;
+- `decks/real/<format>.csv` -- each deck's human record (games, wins, how its losses ended);
+- `decks/real/games.csv` -- every game between two library decks.
+
+`decks/real/suite-train.txt` / `suite-test.txt` pair decks with 3+ human games, split by deck
+id, 800 matchups each (Movie Block and Expanded). 19 decks name cards the library lacks and
+are dropped (DeckCheck).
+
+**How real games end** (Feb 2025; ~45% are conceded, these are the rest):
+
+| Format | Ring-bearer killed | Survived to site 9 | Corrupted |
+|---|---|---|---|
+| Movie Block | 44% | 37% | 18% |
+| Expanded | 50% | 27% | 23% |
+| bots, Expanded field, search (before the guard) | 85% | 11% | 3% |
+
+("Other player won" in GEMP's records is the loser's side of a site-9 win.) Humans bid low:
+Movie Block 0 67%, 1 24%, 2 8%.
+
+**What real decks exposed:** between the 16 most-played Movie Block decks, 72% of plain-bot
+games ended with a Ring-bearer corrupted, most on turn 1 -- by its own player. The uniform 0-4
+burden bid corrupted Galadriel, Bearer of Wisdom (resistance 3) before the game started, and
+the models paid burden costs (an Elf deck's retrieval, The One Ring's +1 strength while a
+Huorn fought) until the Ring-bearer corrupted. Fixed by a human-like bid and `Guarded` (see the
+commit): corruption 72% -> 41% -> 13% of games (humans 9.5%); guarded beats unguarded v2 66.7%
++- 2.3 on held-out real decks and ties on the starters. Bot kind `safe@<dir>`; BotTeach's
+rollout policy is guarded unless `BOT_UNGUARDED` is set.
+
+**Bot vs human deck ranking:** the 16 most-played Movie Block decks ranked by plain (guarded)
+v2 against each other correlate with their human win rates at Spearman **-0.37**. Human win
+rates mix deck and pilot (strong players favour some decks) and opponents differ, so this is
+not a clean target -- but it is the only ground truth there is, and it says the plain bot's
+ranking of real decks is not to be trusted.
+
+### Training on real decks
+
+The ~45 starters were the whole training pool; the summaries have thousands of decks.
+Round 1, Movie Block and Expanded (`suite-train.txt`, 800 matchups):
+
+- **Policy** (`bot-train.sh --features 2 --init v2 --suite decks/real/suite-train.txt
+  --generations 3 --games 4000`, 5 minutes) -> `v2-real`. Guarded, against guarded v2:
+  **68.3% +- 1.6** on held-out real decks, and **54.7% +- 3.1 on `starters:test`** -- better
+  than v2 on the decks v2 was trained for. Variety was the missing ingredient.
+- **Value model** fit on real-deck games of the train half (guarded v2 playing): held-out
+  AUC 0.814 (logistic, set 2) on the test half. Search with it against plain v2 on held-out
+  real decks: **77.8% +- 2.9**, against 71.2% +- 3.2 with the starter-fit value model.
+
 ## Engine speed (2026-10-18)
 
 A JFR profile of v2 self-play put most of a game's CPU in two places that do no game
