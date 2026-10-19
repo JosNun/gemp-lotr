@@ -74,6 +74,8 @@ public class BotTeach {
      * play long games: at 1,000, about 5% of the user's decks' games against real Expanded decks ended there.
      */
     static volatile int maxDecisions = 1000;
+    /** --card-picks: also search single-card picks from a list (see Teaching.chooseAction). */
+    static volatile boolean cardPicks = false;
 
     public static void main(String[] args) throws Exception {
         Options opts = parse(args);
@@ -502,6 +504,34 @@ public class BotTeach {
                     }
                 }
             }
+            if (search && cardPicks && decision.getDecisionType() == AwaitingDecisionType.ARBITRARY_CARDS) {
+                // "Choose cards from deck" and the like: which card a search-for-a-card effect fetches, answered at
+                // random by the models (0.6 a game between real decks). One pick only; copies of a card are one option.
+                // Measured as nothing (69.3% against 69.1% +- 2.3 on held-out real decks) at +30% CPU: opt-in.
+                var p = decision.getDecisionParameters();
+                String[] ids = p.get("cardId"), blueprints = p.get("blueprintId"), selectable = p.get("selectable");
+                int min = p.get("min") != null ? Integer.parseInt(p.get("min")[0]) : 0;
+                int max = p.get("max") != null ? Integer.parseInt(p.get("max")[0]) : 0;
+                if (max == 1 && ids != null && blueprints != null && selectable != null) {
+                    List<String> options = new ArrayList<>();
+                    Set<String> seen = new HashSet<>();
+                    for (int i = 0; i < ids.length; i++)
+                        if ("true".equals(selectable[i]) && seen.add(blueprints[i]))
+                            options.add(ids[i]);
+                    Collections.shuffle(options);
+                    options = new ArrayList<>(options.subList(0, Math.min(options.size(), opts.maxCandidates())));
+                    if (min == 0)
+                        options.add("");
+                    if (options.size() > 1) {
+                        choicesSearched.incrementAndGet();
+                        String best = pick(gameState, options);
+                        if (best != null) {
+                            inner.chooseAction(gameState, decision);
+                            return best;
+                        }
+                    }
+                }
+            }
             if (search && opts.choices() && decision.getDecisionType() == AwaitingDecisionType.INTEGER) {
                 // The burden bid above all, which the models answer with a uniform 0-4 -- and which can corrupt a
                 // low-resistance Ring-bearer before the game starts. Up to five values from the minimum.
@@ -640,6 +670,7 @@ public class BotTeach {
                 case "--choices" -> choices = true;
                 case "--assign" -> assign = true;
                 case "--max-decisions" -> maxDecisions = Integer.parseInt(args[++i]);
+                case "--card-picks" -> cardPicks = true;
                 case "--corruption-weight" -> corruptionWeight = Double.parseDouble(args[++i]);
                 case "--record-values" -> recordValues = Path.of(args[++i]);
                 case "--model" -> com.gempukku.lotro.bots.rl.fotrstarters.models.AbstractTrainer.useTrees =
@@ -694,6 +725,8 @@ public class BotTeach {
                   --clone                   rollouts copy the live game (GameCopier) instead of replaying it
                   --choices                 with --play, also search multiple-choice decisions (move again,
                                             optional costs) and small number choices (the burden bid)
+                  --card-picks              with --play, also search single-card picks from a list (fetching
+                                            a card from the deck); measured as no gain
                   --assign                  with --play, also search skirmish assignments: the model's best
                                             few, and assigning nothing
                   --corruption-weight 0     add w x (corruption pressure on the opponent's Ring-bearer less
