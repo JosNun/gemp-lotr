@@ -704,6 +704,12 @@ and filter queries ~45%, tree predictions ~15%, `Guarded`'s game copies ~10%. Re
 loop -- 17-60 minutes a model set, ~2.7 of 8 cores busy -- so `BotTeach --train-only` now fits the models side by
 side, biggest first.
 
+**Distilling again, from the better bot.** Teacher mode with `h4m-big-x3` as base (8 rollouts, 15% of card
+actions, 5,000 games of `suite-train`: 63,743 decisions, 106,891 labels, 80 minutes). Refit on the four months plus
+both rounds' labels x3 (1,846,464 rows; 38 minutes with the models fit side by side) -> `h4m-d2`: **53.2% +- 1.7**
+against `h4m-big-x3`, 54.3% against `distill22-x10`, **67.8%** against `v2-real`. Each round's search starts from a
+better policy (rollouts and the bot that branches), so its labels are better.
+
 ## Human Movie Block games, and assignments learned from them (2026-10-19)
 
 **2022 replays.** October and November 2022 (`GEMP-LOTR-Replays_2022-1{0,1}.zip`, ~340 MB
