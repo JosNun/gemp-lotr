@@ -710,6 +710,21 @@ both rounds' labels x3 (1,846,464 rows; 38 minutes with the models fit side by s
 against `h4m-big-x3`, 54.3% against `distill22-x10`, **67.8%** against `v2-real`. Each round's search starts from a
 better policy (rollouts and the bot that branches), so its labels are better.
 
+**A third round plateaus.** Labels from `h4m-d2` (5,000 games, 107,717 labels) -> `h4m-d3`: 52.3% +- 1.7 against
+`h4m-d2` at 4 games a matchup, **51.1% +- 1.2** at 8 -- noise; 67.7% against `v2-real`, as `h4m-d2`.
+
+**Assignment search had been off.** BotTeach searched skirmish assignments only if its bot was a FotrStarterBot;
+since main games and rollouts are guarded by default it is a Guarded, so `--assign` did nothing in every run after
+that -- the deck rankings, the human value model, the move and partial searches, the distillation teachers. No log
+since has an "assignment decisions searched" line. Fixed (BotTeach unwraps the guard). The +7 points it was measured
+at are from before.
+
+**Teaching assignments.** Teacher mode now labels assignments too (`--assign --assign-teach-rate 1 --teach-rate 0`:
+the model's best five legal assignments and, for the Free Peoples, none, 8 rollouts each). From `h4m-d3`, 4,000
+games: 33,585 assignments taught, 97,348 labels, ~40 minutes. Refit on everything before plus these x3 (2,461,659 rows,
+60 minutes) -> `h4m-d4a`: **51.6% +- 1.2** against `h4m-d3` (8 games a matchup), **70.2% +- 1.6** against `v2-real`.
+The best plain bot.
+
 ## Human Movie Block games, and assignments learned from them (2026-10-19)
 
 **2022 replays.** October and November 2022 (`GEMP-LOTR-Replays_2022-1{0,1}.zip`, ~340 MB
