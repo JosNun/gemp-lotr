@@ -910,7 +910,7 @@ public class BotTeach {
                   --model logistic          or trees, for the refit
                   --play                    instead: a bot that searches every card-action decision (A)
                                             against the plain bot (B); reports A's win rate
-                  --both                    with --play, B searches too: for ranking decks (rr: suites)
+                  --both                    with --play, B searches too
                   --clone                   rollouts copy the live game (GameCopier) instead of replaying it
                   --choices                 with --play, also search multiple-choice decisions (move again,
                                             optional costs) and small number choices (the burden bid)
