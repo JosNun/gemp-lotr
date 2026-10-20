@@ -54,7 +54,7 @@ public class BotTeach {
     private static final AtomicInteger taught = new AtomicInteger(), labelled = new AtomicInteger(),
             rolloutsRun = new AtomicInteger(), diverged = new AtomicInteger(), cutOff = new AtomicInteger(),
             choicesSearched = new AtomicInteger(), assignmentsSearched = new AtomicInteger(),
-            movesSearched = new AtomicInteger(), movesTaken = new AtomicInteger();
+            movesSearched = new AtomicInteger(), movesTaken = new AtomicInteger(), assignmentsTaught = new AtomicInteger();
     /** Scores a rollout's position when --depth stops it early: P(win) for the player whose state it is. */
     static volatile SoftClassifier<double[]> valueModel;
     /** 3 if the value model reads feature set 2 with KnowledgeFeatures appended (value-features.txt). */
@@ -91,6 +91,8 @@ public class BotTeach {
      * are left to the models; assignments and choices (--assign, --choices) are still searched.
      */
     static volatile boolean cardSearch = true;
+    /** --assign-teach-rate: share of assignment decisions branched in teacher mode (with --assign); default --teach-rate. */
+    static volatile double assignTeachRate = -1;
 
     public static void main(String[] args) throws Exception {
         Options opts = parse(args);
@@ -300,6 +302,8 @@ public class BotTeach {
             out.printf("  %d assignment decisions searched%n", assignmentsSearched.get());
         if (choicesSearched.get() > 0)
             out.printf("  %d multiple-choice decisions searched%n", choicesSearched.get());
+        if (assignmentsTaught.get() > 0)
+            out.printf("  %d assignments taught%n", assignmentsTaught.get());
         if (movesSearched.get() > 0)
             out.printf("  %d \"move again?\" decisions searched with %d rollouts, moved on %d%n", movesSearched.get(),
                     moveRollouts, movesTaken.get());
@@ -534,8 +538,20 @@ public class BotTeach {
                     return best;
                 }
             }
+            if (!search && opts.assign() && decision.getDecisionType() == AwaitingDecisionType.ASSIGN_MINIONS
+                    && starter() instanceof com.gempukku.lotro.bots.rl.fotrstarters.FotrStarterBot bot
+                    && ThreadLocalRandom.current().nextDouble() < (assignTeachRate >= 0 ? assignTeachRate : opts.teachRate())) {
+                // Teacher labels for assignments too: who skirmishes whom decides most games, and the human
+                // assignments were the biggest single gain (human22-as, +6 points). Same candidates as the search.
+                List<String> options = new ArrayList<>(bot.assignmentCandidates(gameState, decision,
+                        Math.max(1, opts.maxCandidates() - 1)));
+                if (getName().equals(gameState.getCurrentPlayerId()) && !options.contains(""))
+                    options.add("");
+                if (options.size() > 1)
+                    teachAssignment(gameState, decision, options);
+            }
             if (search && opts.assign() && decision.getDecisionType() == AwaitingDecisionType.ASSIGN_MINIONS
-                    && inner instanceof com.gempukku.lotro.bots.rl.fotrstarters.FotrStarterBot bot) {
+                    && starter() instanceof com.gempukku.lotro.bots.rl.fotrstarters.FotrStarterBot bot) {
                 // Who skirmishes whom decides most games here: 94% end with a Ring-bearer killed, usually in a
                 // skirmish it was left to fight alone. The model's best few assignments, and (for the Free Peoples)
                 // assigning nothing and leaving it to the Shadow player.
@@ -660,6 +676,55 @@ public class BotTeach {
         }
 
         /** Branches the decision and writes its labels; returns the option that won most, or null on a tie. */
+        /**
+         * The learned bot under the guard. Checking {@code inner} itself found a Guarded since rollouts and main games
+         * were guarded by default, and turned assignment search off without a word: no run since had searched one.
+         */
+        private BotPlayer starter() {
+            return inner instanceof Guarded g ? g.inner() : inner;
+        }
+
+        /** Branches an assignment over {@code options} and writes the labels, as {@link #teach} does for card actions. */
+        private void teachAssignment(GameState gameState, AwaitingDecision decision, List<String> options) {
+            List<BotGame.Step> prefix = List.copyOf(branch.steps());
+            long[] worlds = new SplittableRandom().longs(opts.rollouts()).toArray();
+            double[] value = new double[options.size()];
+            double best = 0;
+            for (int i = 0; i < options.size(); i++) {
+                value[i] = branch.value(prefix, getName(), options.get(i), worlds, gameState);
+                best = Math.max(best, value[i]);
+            }
+            if (Arrays.stream(value).allMatch(v -> v == value[0]))
+                return;
+            assignmentsTaught.incrementAndGet();
+            double[] state = record.extractFeatures(gameState, decision, getName());
+            boolean fp = getName().equals(gameState.getCurrentPlayerId());
+            StringBuilder lines = new StringBuilder();
+            for (int i = 0; i < options.size(); i++) {
+                int label = value[i] >= best - 1e-9 ? 1 : value[i] <= best - opts.margin() ? 0 : -1;
+                if (label < 0)
+                    continue;
+                try {
+                    LearningStep step = new LearningStep(state,
+                            new com.gempukku.lotro.bots.rl.semanticaction.AssignMinionsAction(options.get(i), decision,
+                                    gameState, fp), fp, decision);
+                    step.reward = label == 1 ? 10.0 : 0.0;
+                    lines.append(step.toJson()).append('\n');
+                    labelled.incrementAndGet();
+                } catch (RuntimeException ignored) {
+                    // an answer the semantic action cannot describe
+                }
+            }
+            synchronized (sink) {
+                try {
+                    sink.write(lines.toString());
+                    sink.flush();
+                } catch (IOException e) {
+                    throw new UncheckedIOException(e);
+                }
+            }
+        }
+
         private String teach(GameState gameState, AwaitingDecision decision, String[] actionIds) {
             List<String> options = new ArrayList<>(Arrays.asList(actionIds));
             Collections.shuffle(options);
@@ -733,6 +798,7 @@ public class BotTeach {
                 case "--card-picks" -> cardPicks = true;
                 case "--move-rollouts" -> moveRollouts = Integer.parseInt(args[++i]);
                 case "--no-card-search" -> cardSearch = false;
+                case "--assign-teach-rate" -> assignTeachRate = Double.parseDouble(args[++i]);
                 case "--move-depth" -> moveDepth = Integer.parseInt(args[++i]);
                 case "--corruption-weight" -> corruptionWeight = Double.parseDouble(args[++i]);
                 case "--progress-weight" -> progressWeight = Double.parseDouble(args[++i]);

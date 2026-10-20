@@ -163,4 +163,9 @@ public final class Guarded implements BotPlayer {
     public String getName() {
         return inner.getName();
     }
+
+    /** The bot this one guards. */
+    public BotPlayer inner() {
+        return inner;
+    }
 }
