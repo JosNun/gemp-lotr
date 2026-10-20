@@ -737,6 +737,15 @@ not make a stronger bot; `h4m-d4a` stays the best.
 plain `h4m-d4a`, with `value-real` 67.8% (assignment search working again: ~7,900 assignments searched in each). Search
 is still worth ~18 points over the best plain bot, at 5.5-6 CPU-seconds a game; distillation has taken part of it.
 
+**Cheaper search, by fewer candidates.** Searching, the bot's own choice is now always a candidate; with
+`--max-candidates 2` the search weighs only it against passing. Over `h4m-d4a`, against plain `h4m-d4a`: 2
+candidates 57.4% +- 2.4 at 2.2 CPU-seconds a game, 3 (one random other) 64.3% at 4.2, up to 10 (in practice all)
+67.8% at 6.0. Most of the search's worth is in options the model would not have picked.
+
+**Weighting the teacher more ties.** All four rounds of teacher labels x5 instead of x3 (3,166,497 rows) ->
+`h4m-x5`: 49.4% +- 1.2 against `h4m-d4a`. With round 3 (51.1%) and all of 2022 (49.7%), the per-option trees have
+stopped improving with more or heavier labels; `h4m-d4a` (70.2% against `v2-real`) is where this recipe tops out.
+
 ## Human Movie Block games, and assignments learned from them (2026-10-19)
 
 **2022 replays.** October and November 2022 (`GEMP-LOTR-Replays_2022-1{0,1}.zip`, ~340 MB
