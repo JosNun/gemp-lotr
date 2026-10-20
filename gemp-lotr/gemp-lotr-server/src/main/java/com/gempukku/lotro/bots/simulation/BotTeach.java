@@ -540,11 +540,12 @@ public class BotTeach {
             if (decision.getDecisionType() == AwaitingDecisionType.CARD_ACTION_CHOICE && actionIds != null
                     && actionIds.length > 0 && (search ? cardSearch
                     : ThreadLocalRandom.current().nextDouble() < opts.teachRate())) {
-                String best = teach(gameState, decision, actionIds);
-                if (search && best != null) {
-                    inner.chooseAction(gameState, decision); // keep the bot's own state (loop guard) in step
-                    return best;
-                }
+                // searching, the bot's own choice is always a candidate (--max-candidates below the number of options
+                // then searches the model's pick, pass, and random others); asked once, so its loop guard stays in step
+                String mine = search ? inner.chooseAction(gameState, decision) : null;
+                String best = teach(gameState, decision, actionIds, mine);
+                if (search)
+                    return best != null ? best : mine;
             }
             if (!search && opts.assign() && decision.getDecisionType() == AwaitingDecisionType.ASSIGN_MINIONS
                     && starter() instanceof com.gempukku.lotro.bots.rl.fotrstarters.FotrStarterBot bot
@@ -733,9 +734,11 @@ public class BotTeach {
             }
         }
 
-        private String teach(GameState gameState, AwaitingDecision decision, String[] actionIds) {
+        private String teach(GameState gameState, AwaitingDecision decision, String[] actionIds, String mine) {
             List<String> options = new ArrayList<>(Arrays.asList(actionIds));
             Collections.shuffle(options);
+            if (mine != null && options.remove(mine))
+                options.add(0, mine);
             options = new ArrayList<>(options.subList(0, Math.min(options.size(), opts.maxCandidates() - 1)));
             options.add(""); // pass
             List<BotGame.Step> prefix = List.copyOf(branch.steps());
