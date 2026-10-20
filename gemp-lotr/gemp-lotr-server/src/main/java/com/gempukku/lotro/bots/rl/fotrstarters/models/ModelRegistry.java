@@ -16,6 +16,16 @@ public class ModelRegistry {
      * in the model directory. The single model is the one ScoreProbe can hold against human decisions offline.
      */
     private boolean anyPhaseFirst;
+    /** AnyPhaseCardActionTrainer's vectors carry its EXTRA numbers: an "any-phase-rich" file in the model directory. */
+    private boolean anyPhaseRich;
+
+    public boolean isAnyPhaseRich() {
+        return anyPhaseRich;
+    }
+
+    public void setAnyPhaseRich(boolean anyPhaseRich) {
+        this.anyPhaseRich = anyPhaseRich;
+    }
 
     public boolean isAnyPhaseFirst() {
         return anyPhaseFirst;
