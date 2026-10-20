@@ -732,6 +732,11 @@ instead of the muted exit that hid it) plus the four rounds of teacher labels x3
 -> `h11m-d5`: **49.7% +- 1.2** against `h4m-d4a`, 68.3% against `v2-real`. Past four months, more people's games do
 not make a stronger bot; `h4m-d4a` stays the best.
 
+**A value model from the better bot ties.** Fit on 597,689 positions of `h4m-d4a` playing `suite-train`
+(`value-d4a`; held-out AUC 0.752 logistic set 2, trees 0.773): search over `h4m-d4a` with it 67.5% +- 2.3 against
+plain `h4m-d4a`, with `value-real` 67.8% (assignment search working again: ~7,900 assignments searched in each). Search
+is still worth ~18 points over the best plain bot, at 5.5-6 CPU-seconds a game; distillation has taken part of it.
+
 ## Human Movie Block games, and assignments learned from them (2026-10-19)
 
 **2022 replays.** October and November 2022 (`GEMP-LOTR-Replays_2022-1{0,1}.zip`, ~340 MB
