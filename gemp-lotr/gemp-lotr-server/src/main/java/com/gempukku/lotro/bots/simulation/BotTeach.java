@@ -347,7 +347,9 @@ public class BotTeach {
         }
         work.sort(Comparator.comparingInt(e -> -e.getValue().size()));
         int version = base.getFeatureVersion();
-        ExecutorService pool = Executors.newFixedThreadPool(Math.max(1, Runtime.getRuntime().availableProcessors() - 1));
+        // -Dtrain.threads: each fit holds its rows and a copy as a DataFrame; 3.8 M rows on all cores ran out of 28 GB
+        ExecutorService pool = Executors.newFixedThreadPool(Integer.getInteger("train.threads",
+                Math.max(1, Runtime.getRuntime().availableProcessors() - 1)));
         List<Future<SoftClassifier<double[]>>> fits = new ArrayList<>();
         for (var e : work)
             fits.add(pool.submit(() -> {
@@ -356,7 +358,13 @@ public class BotTeach {
             }));
         for (int i = 0; i < work.size(); i++) {
             Trainer t = work.get(i).getKey();
-            base.registerModel(t.getClass(), fits.get(i).get());
+            try {
+                base.registerModel(t.getClass(), fits.get(i).get());
+            } catch (ExecutionException e) { // say so: System.out is muted, and the exit in main hid an OOM here
+                out.println("  " + t.getClass().getSimpleName() + " failed: " + e.getCause());
+                pool.shutdownNow();
+                throw e;
+            }
             out.printf("  %-45s %6d steps%n", t.getClass().getSimpleName(), work.get(i).getValue().size());
         }
         pool.shutdown();
