@@ -14,6 +14,8 @@ public class LearningStep implements JsonSerializable {
     public final SemanticAction action;
     public final AwaitingDecision decision;
     public double reward;
+    /** Which decision this step is an option of, numbered as the steps are read (not written): see ListwiseTreeModel. */
+    public transient int group = -1;
 
     public LearningStep(double[] state, SemanticAction action, boolean fpPlayer, AwaitingDecision decision) {
         this.state = state;

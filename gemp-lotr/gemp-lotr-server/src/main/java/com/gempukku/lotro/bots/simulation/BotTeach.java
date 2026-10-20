@@ -330,10 +330,24 @@ public class BotTeach {
         ModelRegistry base = BotVsBot.loadModels(opts.base());
         CardFeatures.setVersion(base.getFeatureVersion());
         com.gempukku.lotro.bots.rl.fotrstarters.models.AbstractTrainer.lambda = opts.lambda();
+        // A decision's options are written together (TrainingSteps, teach()): consecutive lines with the same state and
+        // question are one decision, which ListwiseTreeModel compares its options within
         List<LearningStep> steps = new ArrayList<>();
-        for (String line : Files.readAllLines(stepsFile))
-            if (!line.isBlank())
-                steps.add(LearningStep.fromJson(line));
+        String lastKey = null;
+        int group = -1;
+        for (String line : Files.readAllLines(stepsFile)) {
+            if (line.isBlank())
+                continue;
+            int a = line.indexOf("\"action\""), d = line.indexOf("\"decision\"");
+            String key = (a > 0 ? line.substring(0, a) : "") + (d > 0 ? line.substring(d) : "");
+            key = key.replaceAll("\"reward\":[-0-9.]+,?", "");
+            if (!key.equals(lastKey))
+                group++;
+            lastKey = key;
+            LearningStep step = LearningStep.fromJson(line);
+            step.group = group;
+            steps.add(step);
+        }
         out.printf("Refitting card-action models of %s on %d teacher-labelled steps (models with at least %d; "
                 + "lambda %s)%n", opts.base(), steps.size(), opts.minSteps(), opts.lambda());
 
@@ -814,8 +828,11 @@ public class BotTeach {
                 case "--corruption-weight" -> corruptionWeight = Double.parseDouble(args[++i]);
                 case "--progress-weight" -> progressWeight = Double.parseDouble(args[++i]);
                 case "--record-values" -> recordValues = Path.of(args[++i]);
-                case "--model" -> com.gempukku.lotro.bots.rl.fotrstarters.models.AbstractTrainer.useTrees =
-                        args[++i].equals("trees");
+                case "--model" -> {
+                    String m = args[++i];
+                    com.gempukku.lotro.bots.rl.fotrstarters.models.AbstractTrainer.useTrees = !m.equals("logistic");
+                    com.gempukku.lotro.bots.rl.fotrstarters.models.AbstractTrainer.listwise = m.equals("listwise");
+                }
                 case "--min-steps" -> minSteps = Integer.parseInt(args[++i]);
                 case "--depth" -> depth = Integer.parseInt(args[++i]);
                 case "--lambda" -> lambda = Double.parseDouble(args[++i]);

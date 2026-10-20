@@ -104,7 +104,7 @@ public class AnyPhaseCardActionTrainer extends AbstractTrainer {
             try {
                 data.add(new LabeledPoint(step.reward > 0 ? 1 : 0, vector(step.state, context(step.decision.getText()),
                         action.getSourceBlueprint() != null ? action.getActionText() : null, blueprint,
-                        action.getWoundsOnSource())));
+                        action.getWoundsOnSource()), step.group));
             } catch (CardNotFoundException ignored) {
             }
         }
