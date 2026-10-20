@@ -777,6 +777,17 @@ picked from the prompt; `d4a-lwrc`, 70 minutes) **52.1% +- 1.2**. Specialisation
 decision's options against each other beats the yes/no per-phase models. `d4a-lwrc` is the best plain bot, and one
 scorer per phase for every option -- play, use, pass -- is what a phase planner needs.
 
+**Which phase the search's points come from** (`-Dsearch.phases`, card actions only, over `h4m-d4a` against plain
+`h4m-d4a`, 1,600 games each; all phases with assignments and choices 67.8%): Fellowship **44.5%** -- worse than not
+searching; Shadow **57.8%** at 1.3 CPU-seconds a game; skirmish 49.8% (few prompts matched); maneuver, archery,
+assignment, regroup 54.3%; responses ("Choose action to play", "Optional responses") 56.1%. One turn on, the value
+model misjudges Fellowship plays.
+
+**A Shadow-phase planner judged at the end of the phase fails.** Rollouts cut where the phase they branched in ends
+(`-Dsearch.phaseCut`), scored by `value-real`: 30.8% +- 2.3 against plain `d4a-lwrc` (2 or 4 rollouts alike), where
+cutting one turn on gets 57.8%. Fit on outcomes, the value model rates minions in hand above minions in play mid-turn;
+a Shadow phase can only be judged once its skirmishes are fought.
+
 ## Human Movie Block games, and assignments learned from them (2026-10-19)
 
 **2022 replays.** October and November 2022 (`GEMP-LOTR-Replays_2022-1{0,1}.zip`, ~340 MB

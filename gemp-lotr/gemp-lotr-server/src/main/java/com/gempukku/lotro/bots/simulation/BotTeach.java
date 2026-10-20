@@ -92,11 +92,19 @@ public class BotTeach {
      */
     static volatile boolean cardSearch = true;
     /**
-     * -Dsearch.phases=shadow,skirmish: search only card actions whose prompt names one of these (the prompt says
-     * "Play Shadow action or Pass" and so on); unset, every phase. Which phase the search's points come from.
+     * -Dsearch.phases=shadow,skirmish: search (or, teaching, label) only card actions whose prompt names one of these
+     * (the prompt says "Play Shadow action or Pass" and so on); unset, every phase. Searching Fellowship-phase plays
+     * loses (44.5% against the plain bot), so a teacher should leave them out.
      */
     static final List<String> SEARCH_PHASES = System.getProperty("search.phases") == null ? null
             : List.of(System.getProperty("search.phases").toLowerCase().split(","));
+
+    /**
+     * -Dsearch.phaseCut: rollouts stop when the phase they branched in ends (not --depth turns on) and are scored by the
+     * value model there. A phase planner: the Shadow player's plays judged by the board they leave, sequences included
+     * (the bot plays on to the end of the phase), at a fraction of a turn-long rollout.
+     */
+    static final boolean PHASE_CUT = Boolean.getBoolean("search.phaseCut");
 
     static boolean searchedPhase(AwaitingDecision decision) {
         if (SEARCH_PHASES == null)
@@ -453,6 +461,7 @@ public class BotTeach {
         final int depth;
         final boolean peek;
         int next, startTurn;
+        com.gempukku.lotro.common.Phase startPhase;
         boolean branched, diverged;
         /** P(win) for player from the value model, if the rollout was cut off; -1 if it was played out. */
         double value = -1;
@@ -507,9 +516,11 @@ public class BotTeach {
                 for (String p : gameState.getPlayerNames())
                     gameState.shuffleDeck(p);
                 shared.startTurn = gameState.getTurnNumber();
+                shared.startPhase = gameState.getCurrentPhase();
                 return shared.answer;
             }
-            if (shared.depth > 0 && shared.value < 0 && gameState.getTurnNumber() >= shared.startTurn + shared.depth) {
+            if (shared.depth > 0 && shared.value < 0 && (PHASE_CUT ? gameState.getCurrentPhase() != shared.startPhase
+                    || gameState.getTurnNumber() > shared.startTurn : gameState.getTurnNumber() >= shared.startTurn + shared.depth)) {
                 // far enough: score the position for the player who branched, and end this throwaway game
                 double[] p = new double[2];
                 double[] v = new GeneralStateFeatures().extractFeatures(gameState, decision, shared.player);
@@ -572,7 +583,7 @@ public class BotTeach {
             }
             String[] actionIds = decision.getDecisionParameters().get("actionId");
             if (decision.getDecisionType() == AwaitingDecisionType.CARD_ACTION_CHOICE && actionIds != null
-                    && actionIds.length > 0 && (search ? cardSearch && searchedPhase(decision)
+                    && actionIds.length > 0 && searchedPhase(decision) && (search ? cardSearch
                     : ThreadLocalRandom.current().nextDouble() < opts.teachRate())) {
                 // searching, the bot's own choice is always a candidate (--max-candidates below the number of options
                 // then searches the model's pick, pass, and random others); asked once, so its loop guard stays in step
