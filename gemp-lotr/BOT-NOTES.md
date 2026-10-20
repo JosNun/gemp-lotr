@@ -725,6 +725,13 @@ games: 33,585 assignments taught, 97,348 labels, ~40 minutes. Refit on everythin
 60 minutes) -> `h4m-d4a`: **51.6% +- 1.2** against `h4m-d3` (8 games a matchup), **70.2% +- 1.6** against `v2-real`.
 The best plain bot.
 
+**All of 2022 adds nothing.** January to November 2022 Movie Block replayed: 19,439 games, 2,023,087 human
+decisions reproduced (30.7-33.5% a month). All assignment rows and 60% of the card-action rows (2,742,983; all of it
+did not fit in 28 GB with the fits side by side -- `-Dtrain.threads=3` now limits them, and a failed fit is reported
+instead of the muted exit that hid it) plus the four rounds of teacher labels x3, 900,000 rows a model, 60 minutes
+-> `h11m-d5`: **49.7% +- 1.2** against `h4m-d4a`, 68.3% against `v2-real`. Past four months, more people's games do
+not make a stronger bot; `h4m-d4a` stays the best.
+
 ## Human Movie Block games, and assignments learned from them (2026-10-19)
 
 **2022 replays.** October and November 2022 (`GEMP-LOTR-Replays_2022-1{0,1}.zip`, ~340 MB
