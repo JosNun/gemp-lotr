@@ -621,6 +621,7 @@ public class BotVsBot {
         if (!missing.isEmpty())
             die("Missing from " + dir.toAbsolutePath() + ": " + String.join(", ", missing));
         registry.setFeatureVersion(featureVersion(dir));
+        registry.setAnyPhaseFirst(Files.exists(dir.resolve("any-phase-first")));
         return registry;
     }
 

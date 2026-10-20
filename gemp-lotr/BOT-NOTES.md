@@ -682,6 +682,28 @@ decision, so ten copies of the teacher labels (mostly "pass was best") move the 
 model knows about the card. Top-1 agreement with people on November card actions (in-sample for the human models):
 `v2-real` 43.2%, `human22-ca-as` 64.4%, `distill22-x10` 62.2%.
 
+**Agreement with people, held out** (`ScoreProbe <models> all`, trained on October card actions, scored on 58,899
+November decisions): trees as before 64.1% (54.7% where people played a card, 82.2% where they passed), with ability
+features 64.7%, with 300 trees of 64 leaves (`-Dtrees.n=300 -Dtrees.nodes=64`) **66.6%** (58.0% / 83.2%). Held-out
+matches in-sample (~64%): the trees were short of capacity, not data. ScoreProbe scores the one card-action model
+(AnyPhaseCardActionTrainer); the bot answers most card actions with the per-phase models first. Making the one model
+answer everything (`any-phase-first` file in the model directory) plays worse: 33.9% against 40.1% for the same
+October models, both against `distill22-x10`.
+
+**Bigger trees in play** (October + November, card actions and assignments): `human22-big` (set 2) beats
+`human22-ca-as` 53.2% and `distill22-x10` 48.1%; `human3-big` (set 3) 51.5% / 49.0% -- the ability features add
+nothing in play.
+
+**More months.** August and September 2022 Movie Block replayed: 2,841 games, 285,390 decisions reproduced (31-32%).
+Four months' card actions and assignments (1,404,402 rows) plus the teacher labels x3, big trees, 900,000 rows a
+model -> `h4m-big-x3`: **52.1% +- 1.7** against `distill22-x10`, 54.2% against `human22-big`, 64.6% against `v2-real`.
+The best plain bot so far, by a little.
+
+**Where a plain game's time goes** (JFR, 800 games of `distill22-x10`, 0.1 CPU-seconds each): the engine's modifier
+and filter queries ~45%, tree predictions ~15%, `Guarded`'s game copies ~10%. Refitting was the slow part of the
+loop -- 17-60 minutes a model set, ~2.7 of 8 cores busy -- so `BotTeach --train-only` now fits the models side by
+side, biggest first.
+
 ## Human Movie Block games, and assignments learned from them (2026-10-19)
 
 **2022 replays.** October and November 2022 (`GEMP-LOTR-Replays_2022-1{0,1}.zip`, ~340 MB

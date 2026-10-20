@@ -230,8 +230,11 @@ public class FotrStarterBot extends RandomDecisionBot implements LearningBotPlay
         }
 
         String chosenAnswer = null;
+        boolean anyFirst = extended && modelRegistry.isAnyPhaseFirst() && modelRegistry.hasModel(AnyPhaseCardActionTrainer.class);
+        if (anyFirst)
+            chosenAnswer = anyPhaseTrainer.getAnswer(gameState, decision, getName(), features, modelRegistry);
         for (DecisionAnswerer trainer : cardActionTrainers) {
-            if (trainer.appliesTo(gameState, decision, getName())) {
+            if (!anyFirst && trainer.appliesTo(gameState, decision, getName())) {
                 chosenAnswer = trainer.getAnswer(gameState, decision, getName(), features, modelRegistry);
             }
         }

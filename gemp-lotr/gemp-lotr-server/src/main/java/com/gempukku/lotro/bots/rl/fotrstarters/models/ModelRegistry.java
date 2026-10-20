@@ -11,6 +11,19 @@ public class ModelRegistry {
     private final Map<Class<? extends Trainer>, SoftClassifier<double[]>> modelMap = new HashMap<>();
     /** The feature set (CardFeatures.version()) these models were trained on: 1 unless a model dir says 2. */
     private int featureVersion = 1;
+    /**
+     * Card actions go to AnyPhaseCardActionTrainer first, not the per-phase answerers: set by a file "any-phase-first"
+     * in the model directory. The single model is the one ScoreProbe can hold against human decisions offline.
+     */
+    private boolean anyPhaseFirst;
+
+    public boolean isAnyPhaseFirst() {
+        return anyPhaseFirst;
+    }
+
+    public void setAnyPhaseFirst(boolean anyPhaseFirst) {
+        this.anyPhaseFirst = anyPhaseFirst;
+    }
 
     public int getFeatureVersion() {
         return featureVersion;

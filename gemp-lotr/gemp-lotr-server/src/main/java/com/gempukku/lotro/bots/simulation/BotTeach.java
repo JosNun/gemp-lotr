@@ -333,14 +333,29 @@ public class BotTeach {
         out.printf("Refitting card-action models of %s on %d teacher-labelled steps (models with at least %d; "
                 + "lambda %s)%n", opts.base(), steps.size(), opts.minSteps(), opts.lambda());
 
+        // The models are fit side by side, biggest first: one at a time, a refit on human labels kept ~2.7 of 8
+        // cores busy and took 17-60 minutes, most of it in the many small models after the big one.
+        List<Map.Entry<Trainer, List<LearningStep>>> work = new ArrayList<>();
         for (Trainer t : BotService.extendedTrainers()) {
             List<LearningStep> relevant = steps.stream().filter(t::isStepRelevant).toList();
-            if (relevant.size() < opts.minSteps())
-                continue; // too few to beat the outcome-trained model it would replace
-            SoftClassifier<double[]> model = t.train(relevant);
-            base.registerModel(t.getClass(), model);
-            out.printf("  %-45s %6d steps%n", t.getClass().getSimpleName(), relevant.size());
+            if (relevant.size() >= opts.minSteps()) // fewer cannot beat the outcome-trained model it would replace
+                work.add(Map.entry(t, relevant));
         }
+        work.sort(Comparator.comparingInt(e -> -e.getValue().size()));
+        int version = base.getFeatureVersion();
+        ExecutorService pool = Executors.newFixedThreadPool(Math.max(1, Runtime.getRuntime().availableProcessors() - 1));
+        List<Future<SoftClassifier<double[]>>> fits = new ArrayList<>();
+        for (var e : work)
+            fits.add(pool.submit(() -> {
+                CardFeatures.setVersion(version); // per thread
+                return e.getKey().train(e.getValue());
+            }));
+        for (int i = 0; i < work.size(); i++) {
+            Trainer t = work.get(i).getKey();
+            base.registerModel(t.getClass(), fits.get(i).get());
+            out.printf("  %-45s %6d steps%n", t.getClass().getSimpleName(), work.get(i).getValue().size());
+        }
+        pool.shutdown();
         for (Trainer t : BotService.extendedTrainers())
             if (base.hasModel(t.getClass()) && base.getModel(t.getClass()) != null)
                 BotTrain.save(opts.out(), t, base.getModel(t.getClass()));
