@@ -767,6 +767,16 @@ companion and minions, the bearer of an item), play better than one model over a
 and agreeing with people on a held-out month (66.9% against 66.6%) does not track strength. Double Shot ranked right
 and passing in proportion did not make a stronger bot.
 
+**Visibility or specialisation?** The per-phase models see a little the any-phase model did not: an item's class and
+its holder, whether a card can touch anyone in the current skirmish (10 numbers, `-DanyPhase.rich`, an
+`any-phase-rich` file in the model directory). And each is its own model. Listwise any-phase model answering every
+card action, everything else `h4m-d4a`'s (`-Dtrain.only=AnyPhaseCardActionTrainer --base h4m-d4a`), against
+`h4m-d4a`: as before 45.0%; with the 10 numbers (`d4a-lwr`) 46.3% +- 1.2; with them and one listwise model per
+phase context (`-DanyPhase.perContext`: fellowship, shadow, maneuver, archery, assignment, skirmish, regroup, response,
+picked from the prompt; `d4a-lwrc`, 70 minutes) **52.1% +- 1.2**. Specialisation was the gap; per phase, comparing a
+decision's options against each other beats the yes/no per-phase models. `d4a-lwrc` is the best plain bot, and one
+scorer per phase for every option -- play, use, pass -- is what a phase planner needs.
+
 ## Human Movie Block games, and assignments learned from them (2026-10-19)
 
 **2022 replays.** October and November 2022 (`GEMP-LOTR-Replays_2022-1{0,1}.zip`, ~340 MB

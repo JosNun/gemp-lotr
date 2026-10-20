@@ -91,6 +91,19 @@ public class BotTeach {
      * are left to the models; assignments and choices (--assign, --choices) are still searched.
      */
     static volatile boolean cardSearch = true;
+    /**
+     * -Dsearch.phases=shadow,skirmish: search only card actions whose prompt names one of these (the prompt says
+     * "Play Shadow action or Pass" and so on); unset, every phase. Which phase the search's points come from.
+     */
+    static final List<String> SEARCH_PHASES = System.getProperty("search.phases") == null ? null
+            : List.of(System.getProperty("search.phases").toLowerCase().split(","));
+
+    static boolean searchedPhase(AwaitingDecision decision) {
+        if (SEARCH_PHASES == null)
+            return true;
+        String text = decision.getText() == null ? "" : decision.getText().toLowerCase();
+        return SEARCH_PHASES.stream().anyMatch(text::contains);
+    }
     /** --assign-teach-rate: share of assignment decisions branched in teacher mode (with --assign); default --teach-rate. */
     static volatile double assignTeachRate = -1;
 
@@ -354,7 +367,12 @@ public class BotTeach {
         // The models are fit side by side, biggest first: one at a time, a refit on human labels kept ~2.7 of 8
         // cores busy and took 17-60 minutes, most of it in the many small models after the big one.
         List<Map.Entry<Trainer, List<LearningStep>>> work = new ArrayList<>();
+        // -Dtrain.only=Name,Name: refit just these; the rest stay the base's
+        Set<String> only = System.getProperty("train.only") == null ? null
+                : Set.of(System.getProperty("train.only").split(","));
         for (Trainer t : BotService.extendedTrainers()) {
+            if (only != null && !only.contains(t.getClass().getSimpleName()))
+                continue;
             List<LearningStep> relevant = steps.stream().filter(t::isStepRelevant).toList();
             if (relevant.size() >= opts.minSteps()) // fewer cannot beat the outcome-trained model it would replace
                 work.add(Map.entry(t, relevant));
@@ -386,6 +404,8 @@ public class BotTeach {
             if (base.hasModel(t.getClass()) && base.getModel(t.getClass()) != null)
                 BotTrain.save(opts.out(), t, base.getModel(t.getClass()));
         Files.writeString(opts.out().resolve("features.txt"), base.getFeatureVersion() + "\n");
+        if (com.gempukku.lotro.bots.rl.fotrstarters.models.cardaction.AnyPhaseCardActionTrainer.RICH_TRAINING)
+            Files.writeString(opts.out().resolve("any-phase-rich"), "");
         out.println("models in " + opts.out());
     }
 
@@ -552,7 +572,7 @@ public class BotTeach {
             }
             String[] actionIds = decision.getDecisionParameters().get("actionId");
             if (decision.getDecisionType() == AwaitingDecisionType.CARD_ACTION_CHOICE && actionIds != null
-                    && actionIds.length > 0 && (search ? cardSearch
+                    && actionIds.length > 0 && (search ? cardSearch && searchedPhase(decision)
                     : ThreadLocalRandom.current().nextDouble() < opts.teachRate())) {
                 // searching, the bot's own choice is always a candidate (--max-candidates below the number of options
                 // then searches the model's pick, pass, and random others); asked once, so its loop guard stays in step
