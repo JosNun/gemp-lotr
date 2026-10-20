@@ -683,6 +683,20 @@ model misjudges Fellowship plays.
 cutting one turn on gets 57.8%. Fit on outcomes, the value model rates minions in hand above minions in play mid-turn;
 a Shadow phase can only be judged once its skirmishes are fought.
 
+**Longer horizons do not fix Fellowship search.** Fellowship-only search over `d4a-lwrc` against plain `d4a-lwrc`,
+rollouts cut 2 turns on: 46.3% +- 2.4 (2.5 CPU-seconds a game); 3 turns: 44.5% (3.2) -- as at 1 turn. The Free Peoples'
+board lasts, so a one-turn look was the suspect; it is not the problem. More likely the noise: Fellowship decisions offer
+many options of near-equal worth, and two rollouts apiece pick among them nearly at random, where the model picks as
+people do. Yet the Fellowship labels help a refit: dropping them (30,348 of round 3's 107,717, and the like from the
+others) from `d4a-lwrc`'s recipe -> 48.2% +- 1.2 against `d4a-lwrc`. Acted on one at a time the search's noise costs
+games; averaged over a hundred thousand labels it washes out and its signal stays.
+
+**Card use by type** (`scripts/card_use.py`; plain `d4a-lwrc` in 3,200 Movie Block games against people in 2022's
+replays, share of offers taken): Shadow minions 32.0% / 31.9%, Shadow conditions 41.5% / 43.0%, Shadow possessions 56.5%
+/ 49.6%, Shadow events 36.4% / 41.3%, Free Peoples companions 28.3% / 26.6%, possessions 16.4% / 17.8%, conditions
+28.8% / 29.3%, events 24.8% / 30.5%, site abilities 37.2% / 26.9%. Conditions -- lasting Shadow cards a one-turn view
+could undervalue -- are played as people play them; events a little less, sites more.
+
 ## Human Movie Block games, and assignments learned from them (2026-10-19)
 
 **2022 replays.** October and November 2022 (`GEMP-LOTR-Replays_2022-1{0,1}.zip`, ~340 MB
