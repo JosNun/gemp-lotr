@@ -34,14 +34,33 @@ for f in sys.argv[2:]:
             seen[bp] = seen.get(bp, False) or d['reward'] > 0
     flush()
 
-titles = {}
+titles, kinds = {}, {}
 for f in glob.glob('gemp-lotr-cards/src/main/resources/cards/official/**/*.hjson', recursive=True):
-    cur = None
+    cur, side = None, None
     for line in open(f, encoding='utf-8'):
-        m = re.match(r'\s*(\d+_\d+): \{', line)
-        if m: cur = m.group(1)
+        m = re.match(r'\t(\d+_\d+): \{', line)
+        if m: cur, side = m.group(1), None
         m = re.match(r'\s*title: (.+)', line)
         if m and cur and cur not in titles: titles[cur] = m.group(1).strip().strip('"')
+        m = re.match(r'\t\tside: (.+)', line)
+        if m and cur: side = m.group(1).strip().lower()
+        m = re.match(r'\t\ttype: (.+)', line)
+        if m and cur and cur not in kinds:
+            t = m.group(1).strip().lower()
+            if t in ('minion', 'condition', 'possession', 'artifact', 'event', 'companion', 'ally', 'follower', 'site'):
+                kinds[cur] = ((side or ('shadow' if t == 'minion' else 'free people' if t in ('companion', 'ally') else '?'))
+                              + ' ' + t)
+
+# by side and card type, over every card offered to both (the bot's rate pooled, people's pooled)
+by = collections.defaultdict(lambda: [0, 0, 0, 0])
+for bp in bot:
+    if bp in human and bp in kinds:
+        k = by[kinds[bp]]
+        k[0] += bot[bp][0]; k[1] += bot[bp][1]; k[2] += human[bp][0]; k[3] += human[bp][1]
+print('by card type (used / offered):')
+for k, (bu, bn, hu, hn) in sorted(by.items(), key=lambda e: -e[1][3]):
+    if bn >= 200 and hn >= 200:
+        print(f'  {k:24s} bot {100*bu/bn:5.1f}% of {bn:7d}   people {100*hu/hn:5.1f}% of {hn:7d}')
 
 rows = []
 for bp in bot:

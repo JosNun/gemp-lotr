@@ -22,15 +22,7 @@ bot with its extensions on, see `FotrStarterBot.extended`), `random`, and
 `fotr@<dir>` / `general@<dir>` for either on another model directory. A and B swap
 decks every game, so a strong deck cannot pass for a strong bot.
 
-**Ranking decks: `./rank-decks.sh <format> <deck list> [games per pair] [--quick]`.** Every
-pair plays with the search bot on both sides (~1-3 CPU-seconds a game), or the plain v2 bot
-with `--quick` (~0.1). Screen many decks with `--quick`, confirm the finalists with search,
-and read "Games needed" below before trusting a few points' difference.
-
-Round robin, for ranking decks: `--suite rr:<format>:<deck list file>` plays every pair of
-the decks in the file (one deck spec per line) and prints standings -- each deck's wins
-over all its games. `decks/king8.txt` is an example. `BotTeach --play --both` does the
-same with the search bot on both sides.
+`--suite rr:<format>:<deck list file>` plays every pair of the decks in the file.
 
 Suites: `starters` pairs every starter with the next one of the same site block,
 under that block's format (`fotr_block`, `ttt_block`, `king_block`, `expanded`).
@@ -155,10 +147,10 @@ labels are not one-sided (pass judged better 45% of the times it was tried, play
 a few hundred to 3,000 labels per model replacing fits on ~300k self-play rows is the
 likely problem. Worth retrying with far more labels, or mixed with the self-play data.
 
-### Cost against strength (for using the bot to rank decks)
+### Cost against strength
 
-Ranking decks needs ~1,000 games per comparison for +-3 points, so cost per game matters
-as much as strength. `BotTeach --play` and `bot-vs-bot.sh` both report CPU-seconds a game.
+A comparison needs ~1,000 games for +-3 points, so cost per game matters as much as
+strength. `BotTeach --play` and `bot-vs-bot.sh` both report CPU-seconds a game.
 
 - Plain v2 models: **0.18 CPU-seconds a game**.
 - Value model for cut-off rollouts: `BotProbe --save-value <dir>` fits P(win | state) on
@@ -199,8 +191,8 @@ fits on one suite and scores on another. Search player vs plain v2, `starters:te
 
 - Trees looked better split by game (AUC 0.785 vs 0.733) because they learn each deck's
   win rate. On decks never seen, logistic generalises better, and in search it is worth
-  ~6 points. **Fit the value model on decks other than the ones being ranked**, or it
-  carries their old results into the new ranking.
+  ~6 points. **Fit the value model on decks other than the ones being evaluated**, or it
+  carries their old results into the new evaluation.
 - Rollouts used to keep the opponent's real hand. It is now shuffled back into their
   unseen cards and redealt at the branch (`--peek` for the old way). Cost: nothing
   measurable. It stays on: a search that knows the tricks coming plays a game nobody can.
@@ -237,7 +229,7 @@ per 5x. `--max-candidates 10` (all options, in practice) costs nothing extra.
 ### How Ring-bearers die, and searching assignments (2026-10-18)
 
 `BotDeaths` plays games with the log recorded and reports how Ring-bearers die. Plain v2
-against the 29 Shadows-site starters, with the user's four decks: 434 of 464 games ended
+against the 29 Shadows-site starters, with four Expanded decks: 434 of 464 games ended
 with a dead Ring-bearer, all but one in a skirmish -- 192 with no companion left in play,
 133 with one. Fellowships were not starved (3-4 companions in play at most Shadow phases);
 they were worn down, and 80 of 173 "move again" choices were made with one or two left.
@@ -255,23 +247,8 @@ number choices (the burden bid, a uniform 0-4 in the models). Against plain v2 o
 | + assignments | 71.9% +- 3.1 | 1.5 |
 | + both | **73.4% +- 3.0** | 1.7 |
 
-`rank-decks.sh` now uses both. Games against plain v2 still end 92% by a killed
-Ring-bearer; between two such searchers on the user's decks, 14% now end at site 9
-(against under 5% before). It re-ranked the user's decks: The Long Night went from 20% to
-38% overall (10.7% -> 30.3% against Hunt the Ring-bearer) and passed Rangers (33% -> 27%) --
-the earlier search had been misplaying The Long Night's assignments.
-
-User's four decks against the 29 Shadows-site starters (Expanded, 40 games a matchup,
-both sides searching), before and after searching assignments and choices:
-
-| Deck | Before | After | Site-9 wins before -> after |
-|---|---|---|---|
-| Hunt the Ring-bearer | 76.7% | 74.3% +- 2.5 | 13 -> 89 |
-| Khazad Rush | 64.1% | 67.4% +- 2.7 | 2 -> 23 |
-| The Long Night | 37.6% | 46.7% +- 2.9 | 24 -> 75 |
-| Rangers of the North Watch | 42.8% | 46.2% +- 2.9 | 27 -> 70 |
-
-5.7 CPU-seconds a game, 4,640 games.
+Games against plain v2 still end 92% by a killed Ring-bearer; between two such searchers
+on four Expanded decks, 14% now end at site 9 (against under 5% before).
 
 ### Refitting the value model on search games (no)
 
@@ -287,56 +264,6 @@ Games between two searchers are closer and noisier per position, so the fit come
 timid, and the positions it judges -- one turn of v2 playout past the branch -- look like v2
 games, which the old model knows. A value model for longer plans needs a different
 target or model, not just stronger games.
-
-### Does the cheap bot rank decks like the strong one? (No.)
-
-`decks/king8.txt`, round robin. Plain v2 at 100 games a pair (2,800 games, 66s) and twice
-at 20; search (2 rollouts, depth 1, both sides) at 20 a pair (558 games, ~12 CPU-hours):
-
-| Deck | v2, 100/pair | search, 20/pair |
-|---|---|---|
-| MD - Frodo | 73.9% | 65.2% |
-| SoG - Merry | 63.3% | **46.4%** |
-| Big Baddies - Gothmog's Conquering | 59.3% | 54.0% |
-| RotK - Eomer | 53.7% | 52.5% |
-| RotK - Aragorn | 41.9% | 48.6% |
-| SoG - Pippin | 39.0% | 34.3% |
-| MD - Sam | 37.7% | 50.7% |
-| SHELBI - Gandalf | 31.3% | **48.6%** |
-
-Rank correlation (Spearman) of the two: **0.48**, against 0.83-0.93 between v2's own runs
-at the same sample sizes. The largest moves (Gandalf, Merry, ~17 points) are beyond both
-intervals. Search compresses the spread and revalues particular decks: which deck looks
-best depends on how well the bot plays it, so the cheap bot is fine for screening and
-not for the final word. (Search against itself: 51.6%, as it should be.)
-
-Rerun with the cheaper search (`rank-decks.sh`: copies, logistic value model, 2 rollouts,
-depth 1, all options; 3.0 CPU-seconds a game with both sides searching, King decks), 40
-games a pair, twice:
-
-| Deck | v2, 100/pair | old search, 20/pair | new search, 2 x 40/pair pooled |
-|---|---|---|---|
-| MD - Frodo | 73.9% | 65.2% | 57.0% +- 4.1 |
-| SoG - Merry | 63.3% | 46.4% | 56.1% +- 4.1 |
-| MD - Sam | 37.7% | 50.7% | 53.9% +- 4.1 |
-| Big Baddies - Gothmog's Conquering | 59.3% | 54.0% | 49.1% +- 4.1 |
-| SHELBI - Gandalf | 31.3% | 48.6% | 48.6% +- 4.1 |
-| RotK - Eomer | 53.7% | 52.5% | 47.9% +- 4.1 |
-| RotK - Aragorn | 41.9% | 48.6% | 47.5% +- 4.1 |
-| SoG - Pippin | 39.0% | 34.3% | 40.0% +- 4.1 |
-
-The two new-search runs agree with each other at only Spearman 0.57: **under good play
-these decks are close** (six of eight within 47-57%), and 280 games a deck (+-5.8) cannot
-order the middle. So the old "0.48" was partly noise, not only bot quality. What survives
-pooling: v2 spreads the decks twice as wide as search does, and misranks MD Sam (38% ->
-54%) and SHELBI Gandalf (31% -> 49%) by more than both intervals -- decks the plain bot
-plays badly. Frodo and Merry on top and Pippin last hold in every search run.
-
-**Games needed.** A deck's win rate over n games has a 95% interval of about +-100/sqrt(n)
-points. Separating decks 4 points apart wants +-2 each: ~2,500 games a deck. In a round
-robin each game counts for two decks, so 8 decks at 2,500 = 10,000 games, ~8 CPU-hours
-(about 1.5 hours on 6 cores) with the search bot. An 8-rollout reference run was stopped:
-at ~16 CPU-seconds a game it would have taken an hour for +-6.8 a deck, too coarse here.
 
 ### Distilling the search into a cheap bot (not yet)
 
@@ -417,12 +344,6 @@ commit): corruption 72% -> 41% -> 13% of games (humans 9.5%); guarded beats ungu
 +- 2.3 on held-out real decks and ties on the starters. Bot kind `safe@<dir>`; BotTeach's
 rollout policy is guarded unless `BOT_UNGUARDED` is set.
 
-**Bot vs human deck ranking:** the 16 most-played Movie Block decks ranked by plain (guarded)
-v2 against each other correlate with their human win rates at Spearman **-0.37**. Human win
-rates mix deck and pilot (strong players favour some decks) and opponents differ, so this is
-not a clean target -- but it is the only ground truth there is, and it says the plain bot's
-ranking of real decks is not to be trusted.
-
 ### Training on real decks
 
 The ~45 starters were the whole training pool; the summaries have thousands of decks.
@@ -441,16 +362,14 @@ Movie, Expanded; PC Movie dropped -- its errata mapping fails on these decks): `
 `v2-real`, 4 generations x 8,000 games. It **ties** `v2-real` (48.5% +- 2.5 held-out real,
 48.6% +- 3.1 starters): the variety was the gain, more of it and more generations add nothing
 to a linear per-option model. A value model fit on the all-format games ties the round-1 one
-in search (69.7% vs 67.4% +- 3.3). Defaults are now `v2-real` and `value-real`
-(`rank-decks.sh`; `BOT_MODELS` / `BOT_VALUE` override). Card ids in the summaries carry
+in search (69.7% vs 67.4% +- 3.3). Card ids in the summaries carry
 cosmetic suffixes (`*` foil, `T` tengwar); they are stripped from the deck files.
 
 **Realism, guarded `v2-real` on the 16 most-played Movie Block decks** (4,800 games):
 median 7 turns (4 before), corruption 10% of games, kills 89%, site 9 under 1%. Human decided
 Movie Block games: kills 44%, site 9 37%, corruption 18%; 34% end at site 9 and ~70% at site 6
-or later, where bot games end around site 5. Ranking against human win rates: Spearman
-**0.04** (-0.37 before). The gap left is the Free Peoples side: fellowships are worn down
-and never reach site 9.
+or later, where bot games end around site 5. The gap left is the Free Peoples side:
+fellowships are worn down and never reach site 9.
 
 **A lever for that, not built:** the full replays (`GEMP-LOTR-Replays_<month>.zip`, ~12,000
 games and 3 GB a month, to 2022-11) are each player's event stream: every decision put to
@@ -474,24 +393,6 @@ values (`--progress-weight w`: + w x ((my site/9)^2 - (their site/9)^2)) changed
 69.9% (w 0.2) and 67.4% (0.5) against 69.1%, site-9 wins ~2% of search's wins throughout.
 Steering one-turn lookahead does not keep a fellowship alive; the attrition happens in play
 the value model never sees. Off by default.
-
-### The user's decks, with the real-deck bot (2026-10-19)
-
-Search on both sides with `v2-real`, `value-real`, the guard, assignments and choices.
-
-Against the 30 most-played real Expanded decks (Sep 2024 - Feb 2025), 20 games a matchup:
-
-| Deck | Won | Beats | Toughest |
-|---|---|---|---|
-| Hunt the Ring-bearer | 64.0% +- 3.8 | 20 of 30 | Exp Two Men/Canequeiros 20%, Gandalf wounding - WK Nazgul 30% |
-| Khazad Rush | 56.3% +- 4.0 | 18 of 30 | Denetor uruk hunters 10%, Expanded Gondor Saruman 15% |
-| Rangers of the North Watch | 46.8% +- 4.0 | 14 of 30 | Exp Two Men/Canequeiros 15%, Gondor/Gandalf Tokeny 15% |
-| The Long Night | 34.3% +- 3.8 | 6 of 30 | EXP-archery 5%, Denetor uruk hunters 5% |
-
-Against each other, 300 a pair: Hunt 72.4%, Khazad 68.8%, Rangers 39.2%, The Long Night
-19.6% (it was 37.6% with `v2` and the same search: of the four, its result depends most on the
-policy). About 5% of the games against real decks ended with a bot conceding at the live
-server's 1,000-decision limit; `rank-decks.sh` now passes `--max-decisions 3000`.
 
 ## Re-creating human games in the engine (`HumanReplay`, 2026-10-19)
 
@@ -642,18 +543,12 @@ differences), and reseeding the engine for random draws other than from hands.
 
 ## A cheap bot instead of search (2026-10-19)
 
-The goal is now the bot itself, cheap to run; ranking decks with an inaccurate bot is not worth much.
+The goal is now the bot itself, cheap to run.
 
 **Searching only the big decisions** (`BotTeach --no-card-search`: assignments and choices searched, card actions
 left to the models) costs 0.3-1 CPU-seconds a game and adds nothing: `human22-ca-as` with it beats plain `v2-real`
 57.8% (2 rollouts), 56.9% (8), 56.7% (8, rollouts cut off 3 turns on) -- plain `human22-ca-as` is 58.0%. The full
 search's strength is in the card actions.
-
-**A better check of ranking like people** (`scripts/deck_fidelity.py`): every human Movie Block game in `games.csv`
-with a deck of 20+ games (4,476 games, 135 decks) replayed by the bot, each deck's bot win rate over the matchups it
-actually played against its human win rate. Human win rates split in half agree at r 0.62 (full record ~0.77). Plain
-`v2-real` -0.01, `human22-ca-as` 0.10-0.11 (two runs), distilled below 0.13. The 16-deck round robin swung from 0.44
-to -0.04 between bots that play equally well: too few decks to tell anything.
 
 **Distilling the search** (BotTeach teacher mode, base `human22-ca-as`, 8 rollouts, depth 1, `value-real`, 10% of
 card-action decisions, 3,000 games of `suite-train`: 24,273 decisions, 40,463 labels, 21 minutes). Trees refit on
@@ -715,7 +610,7 @@ better policy (rollouts and the bot that branches), so its labels are better.
 
 **Assignment search had been off.** BotTeach searched skirmish assignments only if its bot was a FotrStarterBot;
 since main games and rollouts are guarded by default it is a Guarded, so `--assign` did nothing in every run after
-that -- the deck rankings, the human value model, the move and partial searches, the distillation teachers. No log
+that -- the human value model, the move and partial searches, the distillation teachers. No log
 since has an "assignment decisions searched" line. Fixed (BotTeach unwraps the guard). The +7 points it was measured
 at are from before.
 
@@ -823,14 +718,9 @@ nothing alone (2020 FotR card play gave 55.2% on FotR). Searching (`--assign --c
 value-real) against plain `v2-real`: 69.6% with `human22-as`, 66.7% with `human22-ca-as`,
 68.9% with `v2-real` -- search already tries the top few assignments, so it gains little.
 
-**Ranking like people.** The 16 most-played Movie Block decks, round robin, 20 games a pair,
-both sides searching with `human22-ca-as`: Spearman against human win rates **0.44** (0.21
-with `v2-real`; plain bots all ~0: v2-real 0.00, human22-as -0.10, human22-ca-as -0.01 over
-4,800 games). Endings: corruption 16.5% (people 18%), site 9 6.1% (people 37%, `v2-real`
-search ~2%). 8.2 CPU-seconds a game. Sixteen decks and human win rates that mix deck and
-pilot make this a noisy check (+- ~0.25), but it is the direction wanted, and
-`rank-decks.sh` now defaults to `human22-ca-as` (`BOT_MODELS=bot-models-exp/v2-real` for the
-old one).
+**Endings.** The 16 most-played Movie Block decks, round robin, 20 games a pair,
+both sides searching with `human22-ca-as`: corruption 16.5% (people 18%), site 9 6.1%
+(people 37%, `v2-real` search ~2%). 8.2 CPU-seconds a game.
 
 ## Should the bot race? (2026-10-19)
 
@@ -875,7 +765,6 @@ bot is wrong; the skirmishes after a move are. The human move pattern above -- m
 five or six companions, or to catch up -- is the target once the Free Peoples play
 survives a double move. Caveat: 8 playouts decide a yes/no with a lot of noise, so some of
 the extra moves are noise; 32 would tell better, at 4x the cost of those decisions.
-For deck ranking this means decks built to race to site 9 are probably undervalued.
 `--move-rollouts` stays opt-in.
 
 ## Engine speed (2026-10-18)
@@ -970,6 +859,10 @@ would have loaded and been fed differently scaled inputs. **Dump a few vectors b
 
 ## Other things found
 
+- **Real decks run into the decision limit.** About 5% of games between real decks ended with a bot conceding at
+  the live server's 1,000-decision limit (long games, many card actions each); the evaluations here pass
+  `--max-decisions 3000`.
+
 - **The engine can loop forever without asking for a decision.**
   `TurnProcedure.carryOutPendingActionsUntilDecisionNeeded` only stops at a pending
   decision or a winner; about 2 games in 1,000 between starters spin there (seen in
@@ -1007,9 +900,8 @@ would have loaded and been fed differently scaled inputs. **Dump a few vectors b
 
 ## Next steps, roughly in order
 
-0. (2026-10-18) Search is now cheap enough that games, not CPU, limit deck ranking. Next
-   wins, in order: more and more varied training decks for the value model (it learns
-   decks, not the game, from ~45 starters); distil the search with how much better each
+0. (2026-10-18) Next wins, in order: more and more varied training decks for the value
+   model (it learns decks, not the game, from ~45 starters); distil the search with how much better each
    option scored (rollout values) rather than best/worst labels; the remaining engine
    hotspots (`checkCharactersZeroVitality`, keyword-modifier scans).
 
