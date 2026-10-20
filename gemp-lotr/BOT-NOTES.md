@@ -759,6 +759,14 @@ November (300 trees, 64 leaves): agreement 66.9% (yes/no trees 66.6%), 59.8% whe
 where they passed (83.2%); it passes 36.7% of the time against people's 34.1% (39.2%). Double Shot, on its 511 human
 decisions: ranked first **80.8%** of the time, against 25% for the yes/no trees -- the base rate of passing is gone.
 
+**...but it does not play better.** The full recipe of `h4m-d4a` with the any-phase model listwise (`h4m-lw`, 31
+minutes), against `h4m-d4a`, 8 games a matchup: listwise answering every card action (`any-phase-first`) **45.0% +-
+1.2**; the per-phase yes/no models first and listwise where they do not answer 49.7%; `h4m-d4a` with only its
+any-phase model swapped for the listwise one 50.4%. The per-phase models, with their own features (the skirmishing
+companion and minions, the bearer of an item), play better than one model over all card actions however it is fit,
+and agreeing with people on a held-out month (66.9% against 66.6%) does not track strength. Double Shot ranked right
+and passing in proportion did not make a stronger bot.
+
 ## Human Movie Block games, and assignments learned from them (2026-10-19)
 
 **2022 replays.** October and November 2022 (`GEMP-LOTR-Replays_2022-1{0,1}.zip`, ~340 MB
