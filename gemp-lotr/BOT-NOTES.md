@@ -746,6 +746,19 @@ candidates 57.4% +- 2.4 at 2.2 CPU-seconds a game, 3 (one random other) 64.3% at
 `h4m-x5`: 49.4% +- 1.2 against `h4m-d4a`. With round 3 (51.1%) and all of 2022 (49.7%), the per-option trees have
 stopped improving with more or heavier labels; `h4m-d4a` (70.2% against `v2-real`) is where this recipe tops out.
 
+**The 300,000-row cap.** `AbstractTrainer` sampled every model down to 300,000 rows before TreeModel's own cap, so
+every human-label refit (1.4-3.8 M rows) had been fit on 300,000 of them whatever `-Dtrees.maxRows` said. Now
+`-Dtrain.maxRows`. At 900,000 rows `h4m-d4a`'s recipe ties it: 50.9% +- 1.2 (87 minutes). The rows were not the ceiling
+either.
+
+**Comparing options within a decision** (`ListwiseTreeModel`, `BotTeach --model listwise`): boosted regression trees
+fit to the softmax over each decision's options (each round fits `chosen - P(option | decision)`), decisions sampled
+whole; the steps are grouped into decisions as they are read (one decision's rows are written together). Only the
+any-phase card-action model is fit this way (its decisions hold every option and pass). On October, held out on
+November (300 trees, 64 leaves): agreement 66.9% (yes/no trees 66.6%), 59.8% where people played a card (58.0%), 80.6%
+where they passed (83.2%); it passes 36.7% of the time against people's 34.1% (39.2%). Double Shot, on its 511 human
+decisions: ranked first **80.8%** of the time, against 25% for the yes/no trees -- the base rate of passing is gone.
+
 ## Human Movie Block games, and assignments learned from them (2026-10-19)
 
 **2022 replays.** October and November 2022 (`GEMP-LOTR-Replays_2022-1{0,1}.zip`, ~340 MB
