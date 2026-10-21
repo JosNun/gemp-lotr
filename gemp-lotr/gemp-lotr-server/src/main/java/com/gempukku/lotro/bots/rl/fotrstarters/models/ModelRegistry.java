@@ -21,6 +21,17 @@ public class ModelRegistry {
     /** Skirmish options carry what they did on a copy (EffectProbe): a "skirmish-probe" file in the model directory. */
     private boolean skirmishProbe;
 
+    /** Card-action contexts whose options carry all of EffectProbe's numbers: a "probe-contexts" file lists them. */
+    private java.util.Set<String> probeContexts = java.util.Set.of();
+
+    public java.util.Set<String> getProbeContexts() {
+        return probeContexts;
+    }
+
+    public void setProbeContexts(java.util.Set<String> probeContexts) {
+        this.probeContexts = probeContexts;
+    }
+
     public boolean isSkirmishProbe() {
         return skirmishProbe;
     }

@@ -875,6 +875,33 @@ stays.
 runs (`EffectProbe.FORK`; without one the numbers are zeros and the skirmish model is blind to them), so the server
 would need one too.
 
+**Every other phase: no gain.** The probe now runs at any card-action prompt (it stops at the next card-action prompt
+that is not "Optional responses"; outside a skirmish there is no margin or result) and gives two more numbers, the
+change in each side's total character strength, for pumps that last until regroup -- 22 in all; a `probe-contexts`
+file names the contexts whose options carry them (a `skirmish-probe` model still reads the first 20). People's
+labels for every card-action prompt, ten months (July held out), ~3.5 minutes a month, 3,439,277 rows. Each context
+refit from them alone (`-DanyPhase.refitFrom=<model> -DanyPhase.refitContexts=...`, fit side by side; Fellowship and
+Shadow 64 minutes, the other six 38), then swapped into `sel10-probe` one at a time (`AnyPhaseCardActionTrainer` main:
+`<base.model> <donor.model> <contexts> <out.model>`, no refit) and matched against it:
+
+| context refit with the probe | vs `sel10-probe` |
+|---|---|
+| Fellowship | 49.9% +- 1.2 |
+| Shadow | 49.3% |
+| Fellowship and Shadow (0.38 CPU-seconds a game) | 48.6% |
+| maneuver | 50.0% |
+| archery | 50.0% |
+| assignment | 49.9% |
+| regroup | 49.3% |
+| responses | 48.4% |
+| maneuver, archery, assignment, regroup, responses | 47.5% |
+| skirmish, 22 numbers instead of 20 | 49.6% |
+
+The probe pays where a play's worth shows within the window: the skirmish is resolved a pass or two later. A
+maneuver pump pays in a skirmish the probe does not reach, a Fellowship play over turns, and a response's worth is
+what it prevents, which on the copy has not happened yet. People's labels with the probe do match the old contexts,
+which had the teacher's labels too.
+
 ## Human Movie Block games, and assignments learned from them (2026-10-19)
 
 **2022 replays.** October and November 2022 (`GEMP-LOTR-Replays_2022-1{0,1}.zip`, ~340 MB

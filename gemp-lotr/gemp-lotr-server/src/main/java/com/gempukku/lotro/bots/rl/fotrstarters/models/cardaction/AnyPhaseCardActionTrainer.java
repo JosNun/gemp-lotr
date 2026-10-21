@@ -57,10 +57,47 @@ public class AnyPhaseCardActionTrainer extends AbstractTrainer {
      */
     public static final boolean PROBE_TRAINING = Boolean.getBoolean("anyPhase.probe");
     /**
-     * -DanyPhase.refitSkirmishFrom=&lt;a PerContextModel file&gt;: refit only its skirmish model (the prompt naming no
-     * phase -- {@link EffectProbe#SKIRMISH_PROMPT}) from these steps, keeping every other phase's as it was.
+     * -DanyPhase.probeContexts=fellowship,maneuver,none,... (training) / a "probe-contexts" file listing them (play):
+     * the options of these contexts' prompts end with all of {@link EffectProbe}'s numbers. "none" is the prompt naming no
+     * phase, the skirmish's. Supersedes "skirmish-probe" for the contexts it names.
      */
-    private static final String REFIT_SKIRMISH_FROM = System.getProperty("anyPhase.refitSkirmishFrom");
+    public static final java.util.Set<String> PROBE_CONTEXTS = names(System.getProperty("anyPhase.probeContexts"));
+    /**
+     * -DanyPhase.refitFrom=&lt;a PerContextModel file&gt; -DanyPhase.refitContexts=a,b: refit only those contexts'
+     * models from these steps, keeping every other context's as it was. -DanyPhase.refitSkirmishFrom=&lt;file&gt; is
+     * the same with "none" alone.
+     */
+    private static final String REFIT_FROM = System.getProperty("anyPhase.refitFrom",
+            System.getProperty("anyPhase.refitSkirmishFrom"));
+    private static final java.util.Set<String> REFIT_CONTEXTS = System.getProperty("anyPhase.refitContexts") != null
+            ? names(System.getProperty("anyPhase.refitContexts")) : java.util.Set.of("none");
+
+    /** Context names from a comma or line separated list; empty for null. */
+    public static java.util.Set<String> names(String list) {
+        java.util.Set<String> out = new java.util.LinkedHashSet<>();
+        if (list != null)
+            for (String n : list.split("[,\\s]+"))
+                if (!n.isBlank()) {
+                    String name = n.trim().toLowerCase();
+                    if (!name.equals("none") && !CONTEXTS.contains(name))
+                        throw new IllegalArgumentException("unknown context " + name + "; one of " + CONTEXTS + " or none");
+                    out.add(name);
+                }
+        return out;
+    }
+
+    /** The context a prompt is scored in: the first of {@link #CONTEXTS} it names, or "none". */
+    public static String contextName(String text) {
+        String lower = text == null ? "" : text.toLowerCase();
+        for (String c : CONTEXTS)
+            if (lower.contains(c))
+                return c;
+        return "none";
+    }
+
+    private static int contextIndex(String name) {
+        return name.equals("none") ? CONTEXTS.size() : CONTEXTS.indexOf(name);
+    }
 
     @Override
     public boolean appliesTo(GameState gameState, AwaitingDecision decision, String playerName) {
@@ -84,7 +121,10 @@ public class AnyPhaseCardActionTrainer extends AbstractTrainer {
         if (model == null)
             return null;
         boolean rich = modelRegistry.isAnyPhaseRich();
-        boolean probe = modelRegistry.isSkirmishProbe() && EffectProbe.applies(decision);
+        // all the probe's numbers where the model directory names the context; the first 20 for a skirmish-only model
+        int probeLength = modelRegistry.getProbeContexts().contains(contextName(decision.getText())) ? EffectProbe.LENGTH
+                : modelRegistry.isSkirmishProbe() && EffectProbe.applies(decision) ? EffectProbe.SKIRMISH_LENGTH : 0;
+        boolean probe = probeLength > 0;
         double[] state = features.extractFeatures(gameState, decision, playerName);
         double[] context = context(decision.getText());
         String[] cardIds = decision.getDecisionParameters().get("cardId");
@@ -97,7 +137,7 @@ public class AnyPhaseCardActionTrainer extends AbstractTrainer {
         double bestScore;
         try {
             bestScore = score(model, state, context, null, CardFeatures.PASS, 0, rich ? new double[EXTRA] : null,
-                    probe ? EffectProbe.pass(gameState, playerName) : null);
+                    probe ? EffectProbe.fit(EffectProbe.pass(gameState, playerName), probeLength) : null);
         } catch (CardNotFoundException e) {
             return null; // cannot happen: PASS is all zeros
         }
@@ -111,9 +151,7 @@ public class AnyPhaseCardActionTrainer extends AbstractTrainer {
                 String bp = gameState.getBlueprintId(cardId);
                 double[] did = null;
                 if (probe) {
-                    did = EffectProbe.probe(gameState, playerName, actionIds[i], bots);
-                    if (did == null)
-                        did = EffectProbe.none();
+                    did = EffectProbe.fit(EffectProbe.probe(gameState, playerName, actionIds[i], bots), probeLength);
                 }
                 double s = score(model, state, context, actionTexts[i], bp, wounds,
                         rich ? liveExtra(gameState, cardId, bp) : null, did);
@@ -201,8 +239,10 @@ public class AnyPhaseCardActionTrainer extends AbstractTrainer {
         double[] x = vector(step.state, context(step.decision.getText()),
                 action.getSourceBlueprint() != null ? action.getActionText() : null, blueprint, action.getWoundsOnSource(),
                 extra);
-        if (PROBE_TRAINING && EffectProbe.applies(step.decision))
-            x = append(x, action.getProbe() != null ? action.getProbe() : EffectProbe.none());
+        if (PROBE_CONTEXTS.contains(contextName(step.decision.getText())))
+            x = append(x, EffectProbe.fit(action.getProbe(), EffectProbe.LENGTH));
+        else if (PROBE_TRAINING && EffectProbe.applies(step.decision))
+            x = append(x, EffectProbe.fit(action.getProbe(), EffectProbe.SKIRMISH_LENGTH));
         return x;
     }
 
@@ -249,8 +289,8 @@ public class AnyPhaseCardActionTrainer extends AbstractTrainer {
     @Override
     public SoftClassifier<double[]> train(List<LearningStep> steps) {
         List<LabeledPoint> points = extractTrainingData(steps);
-        if (REFIT_SKIRMISH_FROM != null)
-            return refitSkirmish(points);
+        if (REFIT_FROM != null)
+            return refitContexts(points);
         if (!PER_CONTEXT_TRAINING || points.isEmpty())
             return trainWithPoints(points);
         // one model per phase context: the per-phase models' specialisation, with every option of a decision compared
@@ -277,23 +317,60 @@ public class AnyPhaseCardActionTrainer extends AbstractTrainer {
         return new PerContextModel(models, all, offset, CONTEXTS.size(), phases);
     }
 
-    /** The base model with its skirmish model (no context word in the prompt) fit anew on {@code points}' skirmishes. */
-    private SoftClassifier<double[]> refitSkirmish(List<LabeledPoint> points) {
-        PerContextModel base;
-        try (var in = new java.io.ObjectInputStream(new java.io.FileInputStream(REFIT_SKIRMISH_FROM))) {
-            base = (PerContextModel) in.readObject();
-        } catch (java.io.IOException | ClassNotFoundException | ClassCastException e) {
-            throw new IllegalStateException("anyPhase.refitSkirmishFrom: no per-context model in " + REFIT_SKIRMISH_FROM, e);
-        }
-        if (base.phases != null)
-            throw new IllegalStateException("anyPhase.refitSkirmishFrom: a by-phase model has no skirmish-prompt slot");
+    /** The base model with the {@link #REFIT_CONTEXTS} models fit anew, each on {@code points}' decisions of its context. */
+    private SoftClassifier<double[]> refitContexts(List<LabeledPoint> points) {
+        PerContextModel model = load(REFIT_FROM);
+        if (model.phases != null)
+            throw new IllegalStateException("anyPhase.refitFrom: a by-phase model has no slots by prompt");
         int offset = CardFeatures.version() >= 2 ? com.gempukku.lotro.bots.rl.fotrstarters.GeneralStateFeatures.length()
                 : STATE_LENGTH;
-        List<LabeledPoint> skirmish = new ArrayList<>();
-        for (LabeledPoint p : points)
-            if (PerContextModel.contextOf(p.x(), offset, CONTEXTS.size(), null) == CONTEXTS.size())
-                skirmish.add(p);
-        return base.with(CONTEXTS.size(), trainWithPoints(skirmish));
+        // the contexts fit side by side (-Dtrain.threads, 3 by default): one after another, seven of them overran the
+        // two hours a background job gets
+        java.util.Map<String, java.util.concurrent.Future<SoftClassifier<double[]>>> fits = new java.util.LinkedHashMap<>();
+        var pool = java.util.concurrent.Executors.newFixedThreadPool(Integer.getInteger("train.threads", 3));
+        try {
+            for (String name : REFIT_CONTEXTS) {
+                int c = contextIndex(name);
+                List<LabeledPoint> part = new ArrayList<>();
+                for (LabeledPoint p : points)
+                    if (PerContextModel.contextOf(p.x(), offset, CONTEXTS.size(), null) == c)
+                        part.add(p);
+                if (part.size() < 200)
+                    throw new IllegalStateException("anyPhase.refitContexts: " + part.size() + " rows for " + name);
+                System.out.printf("  refitting %-12s %8d rows%n", name, part.size());
+                fits.put(name, pool.submit(() -> trainWithPoints(part)));
+            }
+            for (var e : fits.entrySet())
+                model = model.with(contextIndex(e.getKey()), e.getValue().get());
+        } catch (InterruptedException | java.util.concurrent.ExecutionException e) {
+            throw new IllegalStateException("anyPhase.refitContexts", e);
+        } finally {
+            pool.shutdownNow();
+        }
+        return model;
+    }
+
+    static PerContextModel load(String file) {
+        try (var in = new java.io.ObjectInputStream(new java.io.FileInputStream(file))) {
+            return (PerContextModel) in.readObject();
+        } catch (java.io.IOException | ClassNotFoundException | ClassCastException e) {
+            throw new IllegalStateException("no per-context model in " + file, e);
+        }
+    }
+
+    /**
+     * Swap context models between two model files: {@code <base> <donor> <contexts> <out>} writes base with the named
+     * contexts' models taken from donor. Which phases a change helps is then a match, not a refit apiece.
+     */
+    public static void main(String[] args) throws java.io.IOException {
+        if (args.length != 4)
+            throw new IllegalArgumentException("usage: <base.model> <donor.model> <context,context> <out.model>");
+        PerContextModel base = load(args[0]), donor = load(args[1]);
+        for (String name : names(args[2]))
+            base = base.with(contextIndex(name), donor.models.get(contextIndex(name)));
+        try (var out = new java.io.ObjectOutputStream(new java.io.FileOutputStream(args[3]))) {
+            out.writeObject(base);
+        }
     }
 
     /** Dispatches each option to its decision's context model; the context is one-hot right after the state. */
