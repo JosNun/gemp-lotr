@@ -346,6 +346,8 @@ public class HumanReplay {
         Map<String, GameCommunicationChannel> channels;
         int reproduced, questionsMatched;
         String lastQuestion;
+        /** Which decisions Counterfactual tests: the same ones on every run of the same game. */
+        final Random cfSampler;
         /** --values: the deciding player and the set-2 state at each card-action choice reproduced, for a value model. */
         final List<String> valueRows = new ArrayList<>();
         final List<String> valueDeciders = new ArrayList<>();
@@ -356,6 +358,7 @@ public class HumanReplay {
             this.copier = copier;
             this.sink = sink;
             this.verbose = verbose;
+            this.cfSampler = new Random(m.name().hashCode());
             for (String p : m.players())
                 ptr.put(p, 0);
             explodeRemovals();
@@ -835,6 +838,8 @@ public class HumanReplay {
                 if (t.match == null)
                     return stop(t.error != null ? "engine error" : "no valid answer",
                             t.error != null ? t.error : lastQuestion + " candidates " + cands);
+                if (t.match.full() && !t.ambiguous && !engineOnly(decision))
+                    Counterfactual.consider(game, copier, ctx, m.name(), m.players(), p, decision, t.answer, cfSampler);
                 // the board as the human saw it; not when another answer fit the recording as well
                 if (t.match.full() && !t.ambiguous && sink != null && state != null)
                     sink.write(state, decision, t.answer, p, game);
@@ -1356,6 +1361,10 @@ public class HumanReplay {
                 case "--jobs" -> jobs = Integer.parseInt(args[++i]);
                 case "--report" -> report = Path.of(args[++i]);
                 case "--steps" -> steps = Path.of(args[++i]);
+                case "--counterfactual" -> Counterfactual.KIND = args[++i];
+                case "--cf-out" -> Counterfactual.OUT = new PrintWriter(Files.newBufferedWriter(Path.of(args[++i]), StandardCharsets.UTF_8));
+                case "--cf-rate" -> Counterfactual.RATE = Double.parseDouble(args[++i]);
+                case "--cf-rollouts" -> Counterfactual.ROLLOUTS = Integer.parseInt(args[++i]);
                 case "--values" -> VALUES = new PrintWriter(Files.newBufferedWriter(Path.of(args[++i]), StandardCharsets.UTF_8));
                 case "--verbose" -> verbose = true;
                 case "--trace" -> TRACE = true;
@@ -1412,6 +1421,12 @@ public class HumanReplay {
         }
         if (VALUES != null)
             VALUES.close();
+        if (Counterfactual.KIND != null) {
+            out.printf("counterfactual: %d decisions asked, bot agreed with the human on %d, %d played out%n",
+                    Counterfactual.asked.get(), Counterfactual.agreed.get(), Counterfactual.compared.get());
+            if (Counterfactual.OUT != null)
+                Counterfactual.OUT.close();
+        }
         if (sink instanceof TrainingSteps ts) {
             ts.close();
             out.printf("wrote %d training rows for %d reproduced decisions to %s%n", ts.steps.get(),
