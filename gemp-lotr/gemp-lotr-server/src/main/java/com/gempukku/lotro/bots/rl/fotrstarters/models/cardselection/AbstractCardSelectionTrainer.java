@@ -23,6 +23,12 @@ public abstract class AbstractCardSelectionTrainer extends AbstractTrainer {
 
     protected abstract String getTextTrigger();
     protected boolean useNotChosen() { return false; }
+
+    /**
+     * -Dtrain.notChosen: every model of this kind learns from the cards not chosen as well. Off for self-play
+     * labels (an unchosen card's worth there is unknown); on for people's, where it is the card they passed over.
+     */
+    static final boolean ALL_NOT_CHOSEN = Boolean.getBoolean("train.notChosen");
     protected String getZoneString() { return null; }
 
     @Override
@@ -127,7 +133,7 @@ public abstract class AbstractCardSelectionTrainer extends AbstractTrainer {
                 // Chosen: good
                 addLabeledPoints(data, action.getChosenBlueprintIds(), action.getWoundsOnChosen(), step.state, 1);
 
-                if (useNotChosen()) {
+                if (useNotChosen() || ALL_NOT_CHOSEN) {
                     // Not chosen: bad
                     addLabeledPoints(data, action.getNotChosenBlueprintIds(), action.getWoundsOnNotChosen(), step.state, 0);
                 }

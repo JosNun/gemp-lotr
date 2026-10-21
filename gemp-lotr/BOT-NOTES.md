@@ -702,6 +702,41 @@ actions, 5,000 games: 108,230 labels, ~95 minutes), then the per-phase listwise 
 plus every round's labels x3 (`-Dtrain.only=AnyPhaseCardActionTrainer`, base `d4a-lwrc`, 71 minutes) -> `d4a-lwrc-d5`:
 **51.9% +- 1.2** against `d4a-lwrc`, **71.4% +- 1.6** against `v2-real`. The best plain bot.
 
+## The bot against people, on people's games (2026-10-20)
+
+`HumanReplay --counterfactual <bot>` (`Counterfactual`): at a sampled share of the reproduced decisions of re-created
+human games, the bot is asked what it would do; where it differs from the human, both answers are played on copies of
+the game (the replay's forced draws off, both decks reshuffled, the bot finishing for both players), 8 times each on
+the same futures, and the deciding player's wins compared. `scripts/counterfactual_report.py` sums it by kind of
+decision and by the human's skill (their 2022 Movie Block win rate, 20+ games). The continuation is the bot's, which
+credits answers that suit its own play; it is still the nearest thing to the bot against people without people.
+
+November 2022 Movie Block, `d4a-lwrc-d5`, 20% of decisions: 32,120 asked, the bot agreed with the human on 59.0%;
+13,175 disagreements played out: **bot - human -0.9 +- 0.3 points**. Against strong players (60%+ wins) -1.0 +- 0.6,
+middling -1.1 +- 0.4, weak -0.4 +- 0.5. By kind of decision (bot - human where they differ; net = summed over them):
+
+| Decision | Agreed | Bot - human | Net |
+|---|---|---|---|
+| "Do you want to make another move?" | 69.2% | **-6.0 +- 3.3** | -19.5 |
+| Free Peoples assignment | 46.7% | -2.6 +- 1.3 | -16.9 |
+| Card action, "Choose action to play or Pass" (skirmishes) | 76.3% | -1.5 +- 1.2 | -12.1 |
+| Reconcile: card to discard | 12.4% | -0.5 +- 0.7 | -10.2 |
+| Starting fellowship | 36.9% | -1.1 +- 1.1 | -8.5 |
+| Choose cards to wound | 31.6% | -3.2 +- 2.8 | -5.8 |
+| Choose next skirmish to resolve | 48.3% | -1.5 +- 1.2 | -5.4 |
+| Card action, Shadow phase | 59.0% | +0.4 +- 0.8 | +6.1 |
+| Card action, Fellowship phase | 61.9% | +0.3 +- 0.5 | +6.5 |
+
+By type: card selections -0.8 (net -41.6), choices -3.2 (-28.1), assignments -2.4, card actions -0.3. The card
+actions -- where the human labels, search labels and listwise fits went -- are at people's level; what loses is what
+was never fit to people. "Move again?": in 298 of the 323 disagreements the human moved and the bot would have
+stopped, and moving was worth 5.6 points; the bot said yes in 5 of 727 agreements. People race; the bot does not.
+
+**Fixing the worst one.** `AnotherMoveTrainer` refit as trees on the 37,454 human "another move?" rows of August to
+November (`-Dtrain.only=AnotherMoveTrainer`, base `d4a-lwrc-d5`) -> `d5-move`: **52.7% +- 1.2** against
+`d4a-lwrc-d5`. The Free Peoples assignment model fit listwise (decisions grouped, human + teacher labels): 49.7%, a
+tie; both together 52.3%. `d5-move` is the best plain bot.
+
 ## Human Movie Block games, and assignments learned from them (2026-10-19)
 
 **2022 replays.** October and November 2022 (`GEMP-LOTR-Replays_2022-1{0,1}.zip`, ~340 MB
