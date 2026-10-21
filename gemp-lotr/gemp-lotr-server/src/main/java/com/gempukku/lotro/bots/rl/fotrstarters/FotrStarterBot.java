@@ -395,6 +395,15 @@ public class FotrStarterBot extends RandomDecisionBot implements LearningBotPlay
                 return trainer.getAnswer(gameState, decision, getName(), features, modelRegistry);
             }
         }
+        if (extended && modelRegistry.hasModel(com.gempukku.lotro.bots.rl.fotrstarters.models.multiplechoice.GenericChoiceTrainer.class)) {
+            // a card's choice of costs or effects, which no other model answers: otherwise answered at random below
+            var generic = new com.gempukku.lotro.bots.rl.fotrstarters.models.multiplechoice.GenericChoiceTrainer();
+            if (generic.appliesTo(gameState, decision, getName())) {
+                String answer = generic.getAnswer(gameState, decision, getName(), features, modelRegistry);
+                if (answer != null)
+                    return answer;
+            }
+        }
         if (List.of(options).contains("Heal a companion") && List.of(options).contains("Remove a Shadow condition from a companion")) {
             return new MultipleChoiceAction("Heal a companion").toDecisionString(decision, gameState);
         }
