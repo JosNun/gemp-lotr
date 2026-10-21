@@ -737,6 +737,14 @@ November (`-Dtrain.only=AnotherMoveTrainer`, base `d4a-lwrc-d5`) -> `d5-move`: *
 `d4a-lwrc-d5`. The Free Peoples assignment model fit listwise (decisions grouped, human + teacher labels): 49.7%, a
 tie; both together 52.3%. `d5-move` is the best plain bot.
 
+**Card selections from people.** The card-selection and arbitrary-card models (which companion to exert or wound,
+skirmish order, reconcile discard, starting fellowship, sanctuary heals, items to attach...) had only ever been fit to
+self-play. The human labels record the cards not chosen as well (`CardSelectionAction`); six models used them as
+negatives, the rest skip them, rightly for self-play outcomes, where an unchosen card's worth is unknown.
+`-Dtrain.notChosen` uses them for all. Refit as trees on August-November's 188,995 human selection rows (13 models,
+2,600-40,000 steps each; `-Dtrain.only=...`, base `d5-move`) -> `d5-move-sel`: **56.1% +- 1.2** against `d5-move`.
+The biggest step since the human assignments.
+
 ## Human Movie Block games, and assignments learned from them (2026-10-19)
 
 **2022 replays.** October and November 2022 (`GEMP-LOTR-Replays_2022-1{0,1}.zip`, ~340 MB
