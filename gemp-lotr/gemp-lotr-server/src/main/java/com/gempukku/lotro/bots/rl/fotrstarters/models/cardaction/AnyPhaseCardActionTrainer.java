@@ -42,6 +42,12 @@ public class AnyPhaseCardActionTrainer extends AbstractTrainer {
     public static final boolean RICH_TRAINING = Boolean.getBoolean("anyPhase.rich");
     /** -DanyPhase.perContext (training): one listwise model per {@link #CONTEXTS} entry, chosen by the prompt. */
     public static final boolean PER_CONTEXT_TRAINING = Boolean.getBoolean("anyPhase.perContext");
+    /**
+     * -DanyPhase.byPhase (with perContext): pick the model by the game's phase, read from the state's phase one-hot,
+     * not by the prompt. "Choose action to play or Pass" -- skirmishes, mostly -- names no phase, so by the prompt it
+     * went to the catch-all model: in October 2022's games the bot lost 2.7 points to people there.
+     */
+    public static final boolean BY_PHASE_TRAINING = Boolean.getBoolean("anyPhase.byPhase");
     static final int EXTRA = 10;
 
     @Override
@@ -214,17 +220,25 @@ public class AnyPhaseCardActionTrainer extends AbstractTrainer {
         // one model per phase context: the per-phase models' specialisation, with every option of a decision compared
         int offset = CardFeatures.version() >= 2 ? com.gempukku.lotro.bots.rl.fotrstarters.GeneralStateFeatures.length()
                 : STATE_LENGTH;
+        int[] phases = null;
+        if (BY_PHASE_TRAINING && CardFeatures.version() >= 2) {
+            var all = com.gempukku.lotro.common.Phase.values();
+            phases = new int[all.length];
+            for (int i = 0; i < all.length; i++)
+                phases[i] = com.gempukku.lotro.bots.rl.fotrstarters.GeneralStateFeatures.index("phase_" + all[i].name());
+        }
+        int contexts = phases != null ? phases.length : CONTEXTS.size();
         List<List<LabeledPoint>> parts = new ArrayList<>();
-        for (int c = 0; c <= CONTEXTS.size(); c++)
+        for (int c = 0; c <= contexts; c++)
             parts.add(new ArrayList<>());
         for (LabeledPoint p : points)
-            parts.get(PerContextModel.contextOf(p.x(), offset, CONTEXTS.size())).add(p);
+            parts.get(PerContextModel.contextOf(p.x(), offset, CONTEXTS.size(), phases)).add(p);
         List<SoftClassifier<double[]>> models = new ArrayList<>();
         for (List<LabeledPoint> part : parts)
             models.add(part.size() < 200 || part.stream().mapToInt(LabeledPoint::y).distinct().count() < 2 ? null
                     : trainWithPoints(part));
         SoftClassifier<double[]> all = trainWithPoints(points); // for a context with too few rows of its own
-        return new PerContextModel(models, all, offset, CONTEXTS.size());
+        return new PerContextModel(models, all, offset, CONTEXTS.size(), phases);
     }
 
     /** Dispatches each option to its decision's context model; the context is one-hot right after the state. */
@@ -234,15 +248,25 @@ public class AnyPhaseCardActionTrainer extends AbstractTrainer {
         private final List<SoftClassifier<double[]>> models;
         private final SoftClassifier<double[]> fallback;
         private final int offset, contexts;
+        /** State indices of the phase one-hot, when the models are by game phase; null when by the prompt. */
+        private final int[] phases;
 
-        PerContextModel(List<SoftClassifier<double[]>> models, SoftClassifier<double[]> fallback, int offset, int contexts) {
+        PerContextModel(List<SoftClassifier<double[]>> models, SoftClassifier<double[]> fallback, int offset, int contexts,
+                        int[] phases) {
             this.models = models;
             this.fallback = fallback;
             this.offset = offset;
             this.contexts = contexts;
+            this.phases = phases;
         }
 
-        static int contextOf(double[] x, int offset, int contexts) {
+        static int contextOf(double[] x, int offset, int contexts, int[] phases) {
+            if (phases != null) {
+                for (int c = 0; c < phases.length; c++)
+                    if (x[phases[c]] == 1)
+                        return c;
+                return phases.length;
+            }
             for (int c = 0; c < contexts; c++)
                 if (x[offset + c] == 1)
                     return c;
@@ -250,7 +274,7 @@ public class AnyPhaseCardActionTrainer extends AbstractTrainer {
         }
 
         private SoftClassifier<double[]> pick(double[] x) {
-            SoftClassifier<double[]> m = models.get(contextOf(x, offset, contexts));
+            SoftClassifier<double[]> m = models.get(contextOf(x, offset, contexts, phases));
             return m != null ? m : fallback;
         }
 

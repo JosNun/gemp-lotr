@@ -58,7 +58,8 @@ public class FotrStarterBot extends RandomDecisionBot implements LearningBotPlay
 
     private final List<DecisionAnswerer> arbitraryCardsTrainers = List.of(
             new CardFromDiscardTrainer(),
-            new StartingFellowshipTrainer()
+            new StartingFellowshipTrainer(),
+            new com.gempukku.lotro.bots.rl.fotrstarters.models.arbitrarycards.CardFromDeckTrainer()
     );
 
     private final List<DecisionAnswerer> cardActionTrainers = List.of(
@@ -298,6 +299,9 @@ public class FotrStarterBot extends RandomDecisionBot implements LearningBotPlay
             return "";
 
         for (DecisionAnswerer trainer : arbitraryCardsTrainers) {
+            if (trainer instanceof com.gempukku.lotro.bots.rl.fotrstarters.models.Trainer t
+                    && !modelRegistry.hasModel(t.getClass()))
+                continue; // an optional model (CardFromDeckTrainer) this model set does not have
             if (trainer.appliesTo(gameState, decision, getName())) {
                 return trainer.getAnswer(gameState, decision, getName(), features, modelRegistry);
             }
