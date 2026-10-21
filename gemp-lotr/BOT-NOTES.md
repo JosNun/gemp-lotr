@@ -771,6 +771,25 @@ card from deck 9,542; 17 minutes) -> `sel10`: 51.4% +- 1.2 against `d5-move-sel`
 read from the state (`-DanyPhase.byPhase`, so skirmish prompts get their own), refit over `sel10` (67 minutes) ->
 `sel10-ph`: 49.3% +- 1.2 against `sel10`. The prompt-picked models stay.
 
+**Held out: July 2022.** No model above was fit on July. 20% of its reproduced decisions, before (`d4a-lwrc-d5`)
+and after ("move again?", selections, card-from-deck: `sel10`):
+
+| | `d4a-lwrc-d5` | `sel10` |
+|---|---|---|
+| asked / agreed with the human | 23,875 / 56.7% | 23,927 / **63.0%** |
+| bot - human where they differ | -0.8 +- 0.3 | -0.8 +- 0.4 |
+| summed over the disagreements | -85 | **-65** |
+| card selections (agreed) | -0.6 (30.7%) | -0.6 (46.9%) |
+| arbitrary cards (deck search, starting fellowship) | -1.1 (40.3%) | **+0.2** (75.9%) |
+| choices | -2.4 | -2.7 |
+| strong / middling / weak players | -1.2 / -0.9 / -0.6 | -1.0 / -1.2 / -0.4 |
+
+The fixes make the bot answer as people do far more often; where it still differs it is about as far behind as
+before, so the total lost shrinks by about a quarter, not to nothing. October, in the selection models' training
+months, flattered them (agreement 69.5%, -0.6). Left, by net: skirmish card actions ("Choose action to play or Pass")
+-1.9 +- 1.5; Fellowship card actions -0.5 (frequent); reconcile discards (agreeing 18.9%) -0.5; "Choose action to
+perform" -4.0 +- 3.2; Free Peoples assignments -1.2; exertion choices -3.2 +- 2.7.
+
 ## Human Movie Block games, and assignments learned from them (2026-10-19)
 
 **2022 replays.** October and November 2022 (`GEMP-LOTR-Replays_2022-1{0,1}.zip`, ~340 MB
