@@ -863,6 +863,18 @@ same decisions):
 What is left is mostly the same: Shadow passing where people play (339, -3.7 +- 2.2, -12.4), Free Peoples passing
 (634, -1.3 +- 1.5, -8.2). The run took longer: every bot in every play-out now probes its skirmish options.
 
+**The teacher's labels add nothing on top.** Teacher mode from `sel10-probe` searching every skirmish prompt and nothing
+else (`-Dsearch.phases=choose` -- only the skirmish prompt among card-action prompts has the word; 8 rollouts, depth 1,
+`value-real`; stopped at the 2-hour limit after ~2,260 games: 103,072 probed labels), then the skirmish slot refit on
+people's labels plus the teacher's x3 (883,833 rows, 47 minutes) -> `sel10-probe-t`: 51.4% +- 1.2 against
+`sel10-probe`, 53.0% +- 1.2 against `sel10-gc` (where `sel10-probe` has 53.1%). `sel10-probe`, from people alone,
+stays.
+
+**Cost.** Plain bots, 1,584 games on the test suite: neither probing 0.16 CPU-seconds a game, both probing 0.23 -- about
+0.035 a bot a game, against 1.3 for the cheapest search that paid. The probe needs a `GameCopier` wherever the bot
+runs (`EffectProbe.FORK`; without one the numbers are zeros and the skirmish model is blind to them), so the server
+would need one too.
+
 ## Human Movie Block games, and assignments learned from them (2026-10-19)
 
 **2022 replays.** October and November 2022 (`GEMP-LOTR-Replays_2022-1{0,1}.zip`, ~340 MB
