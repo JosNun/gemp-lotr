@@ -30,8 +30,8 @@ import java.util.concurrent.atomic.AtomicLong;
 final class TrainingSteps implements HumanReplay.StepSink {
     private final Writer out;
     /**
-     * --probe-bot: answers what a skirmish option asks on its copy, for EffectProbe; with it, every option of a skirmish
-     * action prompt is written with what it did. Null: no probe.
+     * --probe-bot: answers what a card-action option asks on its copy, for EffectProbe; with it, every option of a
+     * card-action prompt is written with what it did. Null: no probe.
      */
     static volatile java.util.function.Function<String, com.gempukku.lotro.bots.BotPlayer> PROBE_BOTS;
     /** --steps-only: write only the decisions whose prompt matches; null for all. */
@@ -137,10 +137,10 @@ final class TrainingSteps implements HumanReplay.StepSink {
         steps.addAndGet(lines.toString().lines().count());
     }
 
-    /** What {@code answer} did on a copy, at a skirmish action prompt with --probe-bot; null otherwise. */
+    /** What {@code answer} did on a copy, at a card-action prompt with --probe-bot; null otherwise. */
     private static double[] probe(GameState gs, AwaitingDecision decision, String answer, String player) {
         var bots = PROBE_BOTS;
-        if (bots == null || !EffectProbe.applies(decision))
+        if (bots == null || decision.getDecisionType() != com.gempukku.lotro.logic.decisions.AwaitingDecisionType.CARD_ACTION_CHOICE)
             return null;
         if (answer.isEmpty())
             return EffectProbe.pass(gs, player);

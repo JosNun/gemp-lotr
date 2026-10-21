@@ -19,9 +19,9 @@ import java.util.function.Function;
 import java.util.function.UnaryOperator;
 
 /**
- * What a skirmish action does, found by doing it: the option is given on a copy of the game, the questions it raises
- * on the way (a target, a cost) answered by the bots, until the next skirmish action prompt, and the board read before
- * and after. The card-action model saw a card and the skirmish as it stood, never what the card would change; in July
+ * What a card action does, found by doing it: the option is given on a copy of the game, the questions it raises on
+ * the way (a target, a cost) answered by the bots, until the next card-action prompt that is not a response window,
+ * and the board read before and after. Built for skirmishes first. The card-action model saw a card and the skirmish as it stood, never what the card would change; in July
  * 2022's games, where it passed and the human played -- Glorfindel exerting to wound a minion, Cirdan, Smeagol --
  * it lost 3.6 points (Free Peoples) and 4.6 (Shadow) a time. One step, not a rollout: what the play does now, not how
  * the game ends, so it costs a copy (~170 us) and a few answers per option.
@@ -30,12 +30,17 @@ import java.util.function.UnaryOperator;
  * signed by whom they hurt.
  */
 public final class EffectProbe {
-    public static final int LENGTH = 20;
+    /** The numbers {@link #probe} gives. */
+    public static final int LENGTH = 22;
+    /** The first numbers, all a skirmish-only model ("skirmish-probe") was fit on: no strength totals. */
+    public static final int SKIRMISH_LENGTH = 20;
+    /** The response window prompt: passed on the copy, it is not where a play has finished. */
+    private static final String RESPONSES_PROMPT = "Optional responses";
     /** The skirmish action prompt (SkirmishActionProcedureAction); no other card-action prompt reads so. */
     public static final String SKIRMISH_PROMPT = "Choose action to play or Pass";
     /** Copies a live game (GameCopier::copy); set by what runs the bots. Null: nothing probed, and zeros. */
     public static volatile UnaryOperator<DefaultLotroGame> FORK;
-    /** Questions answered on the copy before giving up on reaching the next skirmish action prompt. */
+    /** Questions answered on the copy before giving up on reaching the next card-action prompt. */
     private static final int MAX_STEPS = 12;
 
     private EffectProbe() {
@@ -55,6 +60,11 @@ public final class EffectProbe {
         f[3] = now.result;
         f[19] = 1;
         return f;
+    }
+
+    /** {@code f} cut or padded to {@code n} numbers: stored probes are as long as the probe was when they were made. */
+    public static double[] fit(double[] f, int n) {
+        return f == null ? new double[n] : f.length == n ? f : Arrays.copyOf(f, n);
     }
 
     /**
@@ -77,6 +87,7 @@ public final class EffectProbe {
             BotDecisionFallback.decide(copy, me, pending, answer);
             copy.carryOutPendingActionsUntilDecisionNeeded();
             List<String> players = copy.getGameState().getPlayerNames();
+            boolean inSkirmish = before.fpCharacter != -1;
             boolean resolved = false, ended = false;
             for (int step = 0; step < MAX_STEPS; step++) {
                 GameState now = copy.getGameState();
@@ -85,8 +96,8 @@ public final class EffectProbe {
                     break;
                 }
                 Skirmish s = now.getSkirmish();
-                if (s == null || s.getFellowshipCharacter() == null
-                        || s.getFellowshipCharacter().getCardId() != before.fpCharacter) {
+                if (inSkirmish && (s == null || s.getFellowshipCharacter() == null
+                        || s.getFellowshipCharacter().getCardId() != before.fpCharacter)) {
                     resolved = ended = true;
                     break;
                 }
@@ -101,7 +112,7 @@ public final class EffectProbe {
                     break;
                 String reply;
                 if (d.getDecisionType() == AwaitingDecisionType.CARD_ACTION_CHOICE) {
-                    if (SKIRMISH_PROMPT.equals(d.getText())) {
+                    if (!RESPONSES_PROMPT.equals(d.getText())) {
                         resolved = true;
                         break;
                     }
@@ -136,6 +147,8 @@ public final class EffectProbe {
             f[17] = ended ? 1 : 0;
             f[18] = !copy.isFinished() || copy.getWinnerPlayerId() == null ? 0 : me.equals(copy.getWinnerPlayerId()) ? 1 : -1;
             f[19] = resolved ? 1 : 0;
+            f[20] = after.myStrength - before.myStrength;
+            f[21] = after.theirStrength - before.theirStrength;
             return f;
         } catch (Exception e) {
             return null;
@@ -150,7 +163,7 @@ public final class EffectProbe {
     /** What the probe compares, read off one board from {@code me}'s side. */
     private record Board(boolean fp, int fpCharacter, int margin, int result, int damage, int burdens, int threats,
                          int twilight, int hand, int myWounds, int theirWounds, int myCharacters, int theirCharacters,
-                         int myCards, int theirCards, int resistance) {
+                         int myCards, int theirCards, int resistance, int myStrength, int theirStrength) {
         static Board read(GameState gs, String me) {
             var game = gs.getGame();
             boolean fp = me.equals(gs.getCurrentPlayerId());
@@ -171,6 +184,7 @@ public final class EffectProbe {
                 fpCharacter = s.getFellowshipCharacter().getCardId();
             }
             int myWounds = 0, theirWounds = 0, myCharacters = 0, theirCharacters = 0, myCards = 0, theirCards = 0;
+            int myStrength = 0, theirStrength = 0;
             for (PhysicalCard c : gs.getInPlay()) {
                 boolean mine = c.getOwner().equals(me);
                 CardType type = c.getBlueprint().getCardType();
@@ -179,10 +193,12 @@ public final class EffectProbe {
                     myCards++;
                     myWounds += gs.getWounds(c);
                     myCharacters += character ? 1 : 0;
+                    myStrength += character ? game.getModifiersQuerying().getStrength(game, c) : 0;
                 } else {
                     theirCards++;
                     theirWounds += gs.getWounds(c);
                     theirCharacters += character ? 1 : 0;
+                    theirStrength += character ? game.getModifiersQuerying().getStrength(game, c) : 0;
                 }
             }
             String fpPlayer = gs.getCurrentPlayerId();
@@ -195,7 +211,7 @@ public final class EffectProbe {
             }
             return new Board(fp, fpCharacter, margin, result, damage, gs.getBurdens(), gs.getThreats(),
                     gs.getTwilightPool(), gs.getHand(me).size(), myWounds, theirWounds, myCharacters, theirCharacters,
-                    myCards, theirCards, resistance);
+                    myCards, theirCards, resistance, myStrength, theirStrength);
         }
     }
 
@@ -203,5 +219,5 @@ public final class EffectProbe {
     public static final List<String> NAMES = Arrays.asList("probed", "marginAfter", "marginDelta", "resultAfter",
             "resultDelta", "damageDelta", "burdensForMe", "threatsForMe", "twilightForMe", "handDelta", "myWoundsDelta",
             "theirWoundsDelta", "myCharactersDelta", "theirCharactersDelta", "myCardsDelta", "theirCardsDelta",
-            "resistanceForMe", "skirmishEnded", "gameOver", "resolved");
+            "resistanceForMe", "skirmishEnded", "gameOver", "resolved", "myStrengthDelta", "theirStrengthDelta");
 }

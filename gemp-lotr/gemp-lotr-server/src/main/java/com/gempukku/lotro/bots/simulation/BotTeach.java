@@ -740,9 +740,9 @@ public class BotTeach {
             return inner instanceof Guarded g ? g.inner() : inner;
         }
 
-        /** At a skirmish prompt, what {@code answer} did on a copy (EffectProbe), the models answering on the way. */
+        /** What card action {@code answer} did on a copy (EffectProbe), the models answering on the way. */
         private double[] probe(GameState gameState, AwaitingDecision decision, String answer) {
-            if (!com.gempukku.lotro.bots.rl.fotrstarters.EffectProbe.applies(decision)
+            if (decision.getDecisionType() != AwaitingDecisionType.CARD_ACTION_CHOICE
                     || !(starter() instanceof com.gempukku.lotro.bots.rl.fotrstarters.FotrStarterBot bot))
                 return null;
             if (answer.isEmpty())

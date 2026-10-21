@@ -626,6 +626,9 @@ public class BotVsBot {
         registry.setAnyPhaseFirst(Files.exists(dir.resolve("any-phase-first")));
         registry.setAnyPhaseRich(Files.exists(dir.resolve("any-phase-rich")));
         registry.setSkirmishProbe(Files.exists(dir.resolve("skirmish-probe")));
+        if (Files.exists(dir.resolve("probe-contexts")))
+            registry.setProbeContexts(com.gempukku.lotro.bots.rl.fotrstarters.models.cardaction.AnyPhaseCardActionTrainer
+                    .names(Files.readString(dir.resolve("probe-contexts"))));
         return registry;
     }
 
