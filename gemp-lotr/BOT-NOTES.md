@@ -797,6 +797,16 @@ perform" -4.0 +- 3.2; Free Peoples assignments -1.2; exertion choices -3.2 +- 2.
 remove, the number...), fit listwise on 67,513 human choice rows of ten months -> `sel10-gc`: 51.0% +- 1.2 against
 `sel10`. Rare in a game, so a small effect on the result, but no longer a coin toss between a card's costs.
 
+**Another teacher round ties.** Teacher mode from `sel10` with assignments taught at every decision (stopped at the
+2-hour limit after ~1,500 games: 68,033 card-action and 92,225 assignment labels), then the per-phase card-action model
+and the Free Peoples assignment model refit with every round's labels (75 minutes) -> `sel10-gc-d6`: 50.0% +- 1.2
+against `sel10-gc`.
+
+**Where the night ended.** `sel10-gc`: **63.0% +- 1.7** against `d4a-lwrc-d5` (the best before the counterfactual
+check), **78.9% +- 1.4** against `v2-real`. Built from `d4a-lwrc-d5` by fitting to people what had never been: "move
+again?", the card-selection and arbitrary-card models, a model for deck searches, and one for a card's choice of
+costs.
+
 ## Human Movie Block games, and assignments learned from them (2026-10-19)
 
 **2022 replays.** October and November 2022 (`GEMP-LOTR-Replays_2022-1{0,1}.zip`, ~340 MB
