@@ -120,6 +120,11 @@ public class FotrStarterBot extends RandomDecisionBot implements LearningBotPlay
         return chooseAction(gameState, decision, AssignmentLegality.UNCHECKED);
     }
 
+    /** The same models playing as {@code player}, recording nothing: for answering on a copy (EffectProbe). */
+    public FotrStarterBot as(String player) {
+        return new FotrStarterBot(features, player, modelRegistry, null, 0.0, extended);
+    }
+
     /**
      * Store learning steps with these features instead of the ones the bot plays with. Training a new feature set
      * starts from models of the old one: they play the first generation, and what it records has to be in the set

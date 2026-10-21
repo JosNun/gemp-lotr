@@ -740,6 +740,17 @@ public class BotTeach {
             return inner instanceof Guarded g ? g.inner() : inner;
         }
 
+        /** At a skirmish prompt, what {@code answer} did on a copy (EffectProbe), the models answering on the way. */
+        private double[] probe(GameState gameState, AwaitingDecision decision, String answer) {
+            if (!com.gempukku.lotro.bots.rl.fotrstarters.EffectProbe.applies(decision)
+                    || !(starter() instanceof com.gempukku.lotro.bots.rl.fotrstarters.FotrStarterBot bot))
+                return null;
+            if (answer.isEmpty())
+                return com.gempukku.lotro.bots.rl.fotrstarters.EffectProbe.pass(gameState, getName());
+            double[] f = com.gempukku.lotro.bots.rl.fotrstarters.EffectProbe.probe(gameState, getName(), answer, bot::as);
+            return f != null ? f : com.gempukku.lotro.bots.rl.fotrstarters.EffectProbe.none();
+        }
+
         /** Branches an assignment over {@code options} and writes the labels, as {@link #teach} does for card actions. */
         private void teachAssignment(GameState gameState, AwaitingDecision decision, List<String> options) {
             List<BotGame.Step> prefix = List.copyOf(branch.steps());
@@ -812,7 +823,8 @@ public class BotTeach {
                 if (label < 0)
                     continue;
                 LearningStep step = new LearningStep(state,
-                        new CardActionChoiceAction(options.get(i), decision, gameState), fp, decision);
+                        new CardActionChoiceAction(options.get(i), decision, gameState)
+                                .withProbe(probe(gameState, decision, options.get(i))), fp, decision);
                 step.reward = label == 1 ? 10.0 : 0.0; // trainers read reward > 0 as good
                 lines.append(step.toJson()).append('\n');
                 labelled.incrementAndGet();
