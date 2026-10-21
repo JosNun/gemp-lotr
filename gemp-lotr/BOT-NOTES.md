@@ -902,6 +902,11 @@ maneuver pump pays in a skirmish the probe does not reach, a Fellowship play ove
 what it prevents, which on the copy has not happened yet. People's labels with the probe do match the old contexts,
 which had the teacher's labels too.
 
+**But the probe does carry the Shadow phase.** The same labels refit without it (`canp-fs`, 56 minutes), swapped in
+the same way: Fellowship 49.3% +- 1.2 (49.9% with the probe -- nothing), Shadow **46.6%** (49.3% with it). As in the
+skirmish, people's labels alone lose ~3 points to the old context, which had the teacher's too, and the probe wins
+them back; the Shadow player's plays -- minions, conditions -- show what they cost and add at once.
+
 ## Human Movie Block games, and assignments learned from them (2026-10-19)
 
 **2022 replays.** October and November 2022 (`GEMP-LOTR-Replays_2022-1{0,1}.zip`, ~340 MB
