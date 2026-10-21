@@ -745,6 +745,28 @@ negatives, the rest skip them, rightly for self-play outcomes, where an unchosen
 2,600-40,000 steps each; `-Dtrain.only=...`, base `d5-move`) -> `d5-move-sel`: **56.1% +- 1.2** against `d5-move`.
 The biggest step since the human assignments.
 
+**Against people again, after.** October 2022 (in the selection models' training months -- flattering to them),
+10% of decisions, before and after the two fixes:
+
+| | `d4a-lwrc-d5` | `d5-move-sel` |
+|---|---|---|
+| agreed with the human | 59.0% | **69.5%** |
+| bot - human where they differ | -1.1 +- 0.4 | **-0.6 +- 0.5** |
+| card selections | -0.9 (agreed 32.7%) | +0.3 (64.4%) |
+| choices | -3.4 | -1.4 |
+| against strong players | -1.7 +- 0.8 | -1.1 +- 1.0 |
+| summed over the disagreements | -79 | -32 |
+| against `v2-real` | 71.4% | **78.6% +- 1.4** |
+
+What is left: card actions at "Choose action to play or Pass" (skirmishes, mostly) -2.7 +- 2.0 -- that prompt names
+no phase, so the per-phase model sent it to the catch-all (`-DanyPhase.byPhase` now picks by the state's phase
+one-hot); "Choose cards from deck" -11.1 +- 6.0, agreeing 14% -- no model answered it, the fallback picked at random
+(`CardFromDeckTrainer`, optional); Free Peoples assignments -1.6; mulligans -2.7.
+
+**Ten months, July held out.** "Move again?", the 13 selection models and the new card-from-deck model refit on
+January-June and August-November (634,246 rows: reconcile 112,648, another move 105,500, starting fellowship 80,118 ...
+card from deck 9,542; 17 minutes) -> `sel10`: 51.4% +- 1.2 against `d5-move-sel`.
+
 ## Human Movie Block games, and assignments learned from them (2026-10-19)
 
 **2022 replays.** October and November 2022 (`GEMP-LOTR-Replays_2022-1{0,1}.zip`, ~340 MB
