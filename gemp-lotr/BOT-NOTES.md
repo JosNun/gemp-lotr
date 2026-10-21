@@ -697,6 +697,11 @@ replays, share of offers taken): Shadow minions 32.0% / 31.9%, Shadow conditions
 28.8% / 29.3%, events 24.8% / 30.5%, site abilities 37.2% / 26.9%. Conditions -- lasting Shadow cards a one-turn view
 could undervalue -- are played as people play them; events a little less, sites more.
 
+**Distilling from the per-phase listwise bot.** Teacher mode from `d4a-lwrc` (all phases, 8 rollouts, 15% of card
+actions, 5,000 games: 108,230 labels, ~95 minutes), then the per-phase listwise any-phase model refit on the four months
+plus every round's labels x3 (`-Dtrain.only=AnyPhaseCardActionTrainer`, base `d4a-lwrc`, 71 minutes) -> `d4a-lwrc-d5`:
+**51.9% +- 1.2** against `d4a-lwrc`, **71.4% +- 1.6** against `v2-real`. The best plain bot.
+
 ## Human Movie Block games, and assignments learned from them (2026-10-19)
 
 **2022 replays.** October and November 2022 (`GEMP-LOTR-Replays_2022-1{0,1}.zip`, ~340 MB
