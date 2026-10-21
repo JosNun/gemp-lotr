@@ -98,6 +98,7 @@ public class BotService {
         List<Trainer> trainers = new ArrayList<>(allTrainers());
         trainers.add(new AnyPhaseCardActionTrainer());
         trainers.add(new com.gempukku.lotro.bots.rl.fotrstarters.models.arbitrarycards.CardFromDeckTrainer());
+        trainers.add(new com.gempukku.lotro.bots.rl.fotrstarters.models.multiplechoice.GenericChoiceTrainer());
         return trainers;
     }
 

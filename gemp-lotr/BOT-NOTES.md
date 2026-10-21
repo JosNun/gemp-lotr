@@ -790,6 +790,13 @@ months, flattered them (agreement 69.5%, -0.6). Left, by net: skirmish card acti
 -1.9 +- 1.5; Fellowship card actions -0.5 (frequent); reconcile discards (agreeing 18.9%) -0.5; "Choose action to
 perform" -4.0 +- 3.2; Free Peoples assignments -1.2; exertion choices -3.2 +- 2.7.
 
+**A card's choice of costs.** Multiple choices no dedicated model answers -- "Discard your hand" or "Add 2 burdens",
+"Make Gollum strength +3" or "Add a burden", "Add 2 burdens" or "Add 2 threats" -- were answered at random
+(`FotrStarterBot` falls back to the random bot): -4.0 +- 3.2 against people in July. `GenericChoiceTrainer`
+(optional): the state and words from each option's text (burden, threat, discard, hand, exert, wound, heal, add,
+remove, the number...), fit listwise on 67,513 human choice rows of ten months -> `sel10-gc`: 51.0% +- 1.2 against
+`sel10`. Rare in a game, so a small effect on the result, but no longer a coin toss between a card's costs.
+
 ## Human Movie Block games, and assignments learned from them (2026-10-19)
 
 **2022 replays.** October and November 2022 (`GEMP-LOTR-Replays_2022-1{0,1}.zip`, ~340 MB
