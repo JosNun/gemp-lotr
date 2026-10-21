@@ -22,6 +22,8 @@ public class CardActionChoiceAction implements SemanticAction {
     private final List<String> skirmishingMinionBlueprintIds = new ArrayList<>();
     private final List<Integer> remainingVitalityOnSkirmishingMinions = new ArrayList<>();
     private final boolean sourceInSkirmish;
+    /** At a skirmish action prompt, what this option did on a copy of the game (EffectProbe); null if not probed. */
+    private double[] probe;
 
     public CardActionChoiceAction(String answer, AwaitingDecision decision, GameState gameState) {
         if (answer == null || answer.isEmpty()) {
@@ -140,6 +142,15 @@ public class CardActionChoiceAction implements SemanticAction {
         return remainingVitalityOnSkirmishFp;
     }
 
+    public double[] getProbe() {
+        return probe;
+    }
+
+    public CardActionChoiceAction withProbe(double[] probe) {
+        this.probe = probe;
+        return this;
+    }
+
     public List<Integer> getRemainingVitalityOnSkirmishingMinions() {
         return remainingVitalityOnSkirmishingMinions;
     }
@@ -178,6 +189,8 @@ public class CardActionChoiceAction implements SemanticAction {
         obj.put("sourceInSkirmish", sourceInSkirmish);
         obj.put("remainingVitalityOnSkirmishFp", remainingVitalityOnSkirmishFp);
         obj.put("remainingVitalityOnSkirmishingMinions", remainingVitalityOnSkirmishingMinions.toArray(new Integer[0]));
+        if (probe != null)
+            obj.put("probe", probe);
         return obj;
     }
 
@@ -195,6 +208,7 @@ public class CardActionChoiceAction implements SemanticAction {
         boolean sourceInSkirmish = obj.getBoolean("sourceInSkirmish");
         return new CardActionChoiceAction(actionText, sourceBlueprint, woundsOnSource, holderBlueprint, notChosenActions,
                 notChosenBlueprints, skirmishingFpBlueprintId, skirmishingMinionBlueprintIds, sourceInSkirmish,
-                remainingVitalityOnSkirmishFp, remainingVitalityOnSkirmishingMinions);
+                remainingVitalityOnSkirmishFp, remainingVitalityOnSkirmishingMinions)
+                .withProbe(obj.containsKey("probe") ? obj.getObject("probe", double[].class) : null);
     }
 }

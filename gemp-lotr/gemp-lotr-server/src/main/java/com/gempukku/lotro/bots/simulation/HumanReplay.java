@@ -3,6 +3,7 @@ package com.gempukku.lotro.bots.simulation;
 import com.alibaba.fastjson2.JSON;
 import com.alibaba.fastjson2.JSONArray;
 import com.alibaba.fastjson2.JSONObject;
+import com.gempukku.lotro.bots.rl.fotrstarters.EffectProbe;
 import com.gempukku.lotro.common.CardType;
 import com.gempukku.lotro.game.DefaultUserFeedback;
 import com.gempukku.lotro.game.LotroCardBlueprint;
@@ -1353,7 +1354,7 @@ public class HumanReplay {
         Path manifests = null, report = null, steps = null;
         int limit = Integer.MAX_VALUE, jobs = 2;
         boolean verbose = false;
-        String only = null;
+        String only = null, probeBot = null;
         for (int i = 0; i < args.length; i++) {
             switch (args[i]) {
                 case "--manifests" -> manifests = Path.of(args[++i]);
@@ -1365,18 +1366,27 @@ public class HumanReplay {
                 case "--cf-out" -> Counterfactual.OUT = new PrintWriter(Files.newBufferedWriter(Path.of(args[++i]), StandardCharsets.UTF_8));
                 case "--cf-rate" -> Counterfactual.RATE = Double.parseDouble(args[++i]);
                 case "--cf-rollouts" -> Counterfactual.ROLLOUTS = Integer.parseInt(args[++i]);
+                case "--cf-only" -> Counterfactual.ONLY = java.util.regex.Pattern.compile(args[++i]);
+                case "--steps-only" -> TrainingSteps.ONLY = java.util.regex.Pattern.compile(args[++i]);
+                case "--probe-bot" -> probeBot = args[++i];
                 case "--values" -> VALUES = new PrintWriter(Files.newBufferedWriter(Path.of(args[++i]), StandardCharsets.UTF_8));
                 case "--verbose" -> verbose = true;
                 case "--trace" -> TRACE = true;
                 case "--only" -> only = args[++i];
                 default -> BotVsBot.die("usage: HumanReplay --manifests <dir> [--limit N] [--jobs 2] [--report f.tsv] "
-                        + "[--steps f.jsonl] [--values f.csv] [--only <name substring>] [--verbose]");
+                        + "[--steps f.jsonl [--steps-only <prompt regex>] [--probe-bot <bot>]] [--values f.csv] "
+                        + "[--only <name substring>] [--verbose]");
             }
         }
         PrintStream out = System.out;
         System.setOut(new PrintStream(OutputStream.nullOutputStream()));
         BotVsBot.Context ctx = BotVsBot.context(Path.of("gemp-lotr-cards/src/main/resources"), Path.of("bot-models"));
         GameCopier copier = new GameCopier(ctx.library(), ctx.formats());
+        if (probeBot != null) {
+            String kind = probeBot;
+            EffectProbe.FORK = copier::copy;
+            TrainingSteps.PROBE_BOTS = p -> BotVsBot.bot(kind, p, ctx);
+        }
         List<Path> files;
         try (var s = Files.list(manifests)) {
             String o = only;

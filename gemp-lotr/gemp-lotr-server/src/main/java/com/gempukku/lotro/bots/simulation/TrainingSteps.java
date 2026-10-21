@@ -2,6 +2,7 @@ package com.gempukku.lotro.bots.simulation;
 
 import com.gempukku.lotro.bots.rl.LearningStep;
 import com.gempukku.lotro.bots.rl.fotrstarters.CardFeatures;
+import com.gempukku.lotro.bots.rl.fotrstarters.EffectProbe;
 import com.gempukku.lotro.bots.rl.fotrstarters.GeneralStateFeatures;
 import com.gempukku.lotro.bots.rl.semanticaction.*;
 import com.gempukku.lotro.common.Phase;
@@ -28,6 +29,13 @@ import java.util.concurrent.atomic.AtomicLong;
  */
 final class TrainingSteps implements HumanReplay.StepSink {
     private final Writer out;
+    /**
+     * --probe-bot: answers what a skirmish option asks on its copy, for EffectProbe; with it, every option of a skirmish
+     * action prompt is written with what it did. Null: no probe.
+     */
+    static volatile java.util.function.Function<String, com.gempukku.lotro.bots.BotPlayer> PROBE_BOTS;
+    /** --steps-only: write only the decisions whose prompt matches; null for all. */
+    static volatile java.util.regex.Pattern ONLY;
     final AtomicLong decisions = new AtomicLong(), steps = new AtomicLong();
 
     private TrainingSteps(Writer out) {
@@ -54,6 +62,8 @@ final class TrainingSteps implements HumanReplay.StepSink {
     /** {@code before} is the game as the decision was asked: the semantic actions read the board as it was. */
     @Override
     public void write(double[] state, AwaitingDecision decision, String answer, String player, DefaultLotroGame before) {
+        if (ONLY != null && (decision.getText() == null || !ONLY.matcher(decision.getText()).find()))
+            return;
         int previous = CardFeatures.version();
         StringBuilder lines = new StringBuilder();
         try {
@@ -100,7 +110,7 @@ final class TrainingSteps implements HumanReplay.StepSink {
                     case INTEGER -> new IntegerChoiceAction(Integer.parseInt(l[0]));
                     case MULTIPLE_CHOICE -> new MultipleChoiceAction(l[0], decision);
                     case ARBITRARY_CARDS -> new ChooseFromArbitraryCardsAction(l[0], decision);
-                    case CARD_ACTION_CHOICE -> new CardActionChoiceAction(l[0], decision, gs);
+                    case CARD_ACTION_CHOICE -> new CardActionChoiceAction(l[0], decision, gs).withProbe(probe(gs, decision, l[0], player));
                     case CARD_SELECTION -> gs.getCurrentPhase() == Phase.SKIRMISH
                             ? new CardSelectionAssignedAction(l[0], decision, gs)
                             : new CardSelectionAction(l[0], decision, gs);
@@ -125,6 +135,17 @@ final class TrainingSteps implements HumanReplay.StepSink {
         }
         decisions.incrementAndGet();
         steps.addAndGet(lines.toString().lines().count());
+    }
+
+    /** What {@code answer} did on a copy, at a skirmish action prompt with --probe-bot; null otherwise. */
+    private static double[] probe(GameState gs, AwaitingDecision decision, String answer, String player) {
+        var bots = PROBE_BOTS;
+        if (bots == null || !EffectProbe.applies(decision))
+            return null;
+        if (answer.isEmpty())
+            return EffectProbe.pass(gs, player);
+        double[] f = EffectProbe.probe(gs, player, answer, bots);
+        return f != null ? f : EffectProbe.none();
     }
 
     /** Rejected assignments written per human one. */

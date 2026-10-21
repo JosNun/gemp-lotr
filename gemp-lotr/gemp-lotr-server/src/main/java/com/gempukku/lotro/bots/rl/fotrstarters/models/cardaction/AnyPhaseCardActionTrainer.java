@@ -3,6 +3,8 @@ package com.gempukku.lotro.bots.rl.fotrstarters.models.cardaction;
 import com.gempukku.lotro.bots.rl.LearningStep;
 import com.gempukku.lotro.bots.rl.RLGameStateFeatures;
 import com.gempukku.lotro.bots.rl.fotrstarters.CardFeatures;
+import com.gempukku.lotro.bots.rl.fotrstarters.EffectProbe;
+import com.gempukku.lotro.bots.rl.fotrstarters.FotrStarterBot;
 import com.gempukku.lotro.bots.rl.fotrstarters.models.AbstractTrainer;
 import com.gempukku.lotro.bots.rl.fotrstarters.models.LabeledPoint;
 import com.gempukku.lotro.bots.rl.fotrstarters.models.ModelRegistry;
@@ -49,6 +51,16 @@ public class AnyPhaseCardActionTrainer extends AbstractTrainer {
      */
     public static final boolean BY_PHASE_TRAINING = Boolean.getBoolean("anyPhase.byPhase");
     static final int EXTRA = 10;
+    /**
+     * -DanyPhase.probe (training) / a "skirmish-probe" file in the model directory (play): skirmish options end with
+     * what they did on a copy of the game, {@link EffectProbe}'s numbers. Other prompts' vectors are unchanged.
+     */
+    public static final boolean PROBE_TRAINING = Boolean.getBoolean("anyPhase.probe");
+    /**
+     * -DanyPhase.refitSkirmishFrom=&lt;a PerContextModel file&gt;: refit only its skirmish model (the prompt naming no
+     * phase -- {@link EffectProbe#SKIRMISH_PROMPT}) from these steps, keeping every other phase's as it was.
+     */
+    private static final String REFIT_SKIRMISH_FROM = System.getProperty("anyPhase.refitSkirmishFrom");
 
     @Override
     public boolean appliesTo(GameState gameState, AwaitingDecision decision, String playerName) {
@@ -72,15 +84,20 @@ public class AnyPhaseCardActionTrainer extends AbstractTrainer {
         if (model == null)
             return null;
         boolean rich = modelRegistry.isAnyPhaseRich();
+        boolean probe = modelRegistry.isSkirmishProbe() && EffectProbe.applies(decision);
         double[] state = features.extractFeatures(gameState, decision, playerName);
         double[] context = context(decision.getText());
         String[] cardIds = decision.getDecisionParameters().get("cardId");
+        String[] actionIds = decision.getDecisionParameters().get("actionId");
         String[] actionTexts = decision.getDecisionParameters().get("actionText");
+        java.util.function.Function<String, com.gempukku.lotro.bots.BotPlayer> bots = p -> new FotrStarterBot(features, p,
+                modelRegistry, null, 0.0, true);
 
         int best = -1; // -1 is pass
         double bestScore;
         try {
-            bestScore = score(model, state, context, null, CardFeatures.PASS, 0, rich ? new double[EXTRA] : null);
+            bestScore = score(model, state, context, null, CardFeatures.PASS, 0, rich ? new double[EXTRA] : null,
+                    probe ? EffectProbe.pass(gameState, playerName) : null);
         } catch (CardNotFoundException e) {
             return null; // cannot happen: PASS is all zeros
         }
@@ -92,8 +109,14 @@ public class AnyPhaseCardActionTrainer extends AbstractTrainer {
                     if (card.getCardId() == cardId)
                         wounds = gameState.getWounds(card);
                 String bp = gameState.getBlueprintId(cardId);
+                double[] did = null;
+                if (probe) {
+                    did = EffectProbe.probe(gameState, playerName, actionIds[i], bots);
+                    if (did == null)
+                        did = EffectProbe.none();
+                }
                 double s = score(model, state, context, actionTexts[i], bp, wounds,
-                        rich ? liveExtra(gameState, cardId, bp) : null);
+                        rich ? liveExtra(gameState, cardId, bp) : null, did);
                 if (s > bestScore) {
                     bestScore = s;
                     best = i;
@@ -106,10 +129,18 @@ public class AnyPhaseCardActionTrainer extends AbstractTrainer {
     }
 
     private double score(SoftClassifier<double[]> model, double[] state, double[] context, String actionText,
-                         String blueprintId, int wounds, double[] extra) throws CardNotFoundException {
+                         String blueprintId, int wounds, double[] extra, double[] probe) throws CardNotFoundException {
         double[] probs = new double[2];
-        model.predict(vector(state, context, actionText, blueprintId, wounds, extra), probs);
+        model.predict(append(vector(state, context, actionText, blueprintId, wounds, extra), probe), probs);
         return probs[1];
+    }
+
+    private static double[] append(double[] x, double[] more) {
+        if (more == null)
+            return x;
+        double[] out = Arrays.copyOf(x, x.length + more.length);
+        System.arraycopy(more, 0, out, x.length, more.length);
+        return out;
     }
 
     /** The EXTRA numbers from the game, as the per-phase answerers compute theirs. */
@@ -167,9 +198,12 @@ public class AnyPhaseCardActionTrainer extends AbstractTrainer {
                     action.getSkirmishingFpBlueprintId(), action.getRemainingVitalityOnSkirmishFp() > 1,
                     action.getSkirmishingMinionBlueprintIds() != null ? action.getSkirmishingMinionBlueprintIds() : List.of(),
                     action.isSourceInSkirmish());
-        return vector(step.state, context(step.decision.getText()),
+        double[] x = vector(step.state, context(step.decision.getText()),
                 action.getSourceBlueprint() != null ? action.getActionText() : null, blueprint, action.getWoundsOnSource(),
                 extra);
+        if (PROBE_TRAINING && EffectProbe.applies(step.decision))
+            x = append(x, action.getProbe() != null ? action.getProbe() : EffectProbe.none());
+        return x;
     }
 
     @Override
@@ -215,6 +249,8 @@ public class AnyPhaseCardActionTrainer extends AbstractTrainer {
     @Override
     public SoftClassifier<double[]> train(List<LearningStep> steps) {
         List<LabeledPoint> points = extractTrainingData(steps);
+        if (REFIT_SKIRMISH_FROM != null)
+            return refitSkirmish(points);
         if (!PER_CONTEXT_TRAINING || points.isEmpty())
             return trainWithPoints(points);
         // one model per phase context: the per-phase models' specialisation, with every option of a decision compared
@@ -241,6 +277,25 @@ public class AnyPhaseCardActionTrainer extends AbstractTrainer {
         return new PerContextModel(models, all, offset, CONTEXTS.size(), phases);
     }
 
+    /** The base model with its skirmish model (no context word in the prompt) fit anew on {@code points}' skirmishes. */
+    private SoftClassifier<double[]> refitSkirmish(List<LabeledPoint> points) {
+        PerContextModel base;
+        try (var in = new java.io.ObjectInputStream(new java.io.FileInputStream(REFIT_SKIRMISH_FROM))) {
+            base = (PerContextModel) in.readObject();
+        } catch (java.io.IOException | ClassNotFoundException | ClassCastException e) {
+            throw new IllegalStateException("anyPhase.refitSkirmishFrom: no per-context model in " + REFIT_SKIRMISH_FROM, e);
+        }
+        if (base.phases != null)
+            throw new IllegalStateException("anyPhase.refitSkirmishFrom: a by-phase model has no skirmish-prompt slot");
+        int offset = CardFeatures.version() >= 2 ? com.gempukku.lotro.bots.rl.fotrstarters.GeneralStateFeatures.length()
+                : STATE_LENGTH;
+        List<LabeledPoint> skirmish = new ArrayList<>();
+        for (LabeledPoint p : points)
+            if (PerContextModel.contextOf(p.x(), offset, CONTEXTS.size(), null) == CONTEXTS.size())
+                skirmish.add(p);
+        return base.with(CONTEXTS.size(), trainWithPoints(skirmish));
+    }
+
     /** Dispatches each option to its decision's context model; the context is one-hot right after the state. */
     static final class PerContextModel implements SoftClassifier<double[]>, java.io.Serializable {
         @java.io.Serial
@@ -258,6 +313,13 @@ public class AnyPhaseCardActionTrainer extends AbstractTrainer {
             this.offset = offset;
             this.contexts = contexts;
             this.phases = phases;
+        }
+
+        /** This model with context {@code c}'s model replaced. */
+        PerContextModel with(int c, SoftClassifier<double[]> model) {
+            List<SoftClassifier<double[]>> copy = new ArrayList<>(models);
+            copy.set(c, model);
+            return new PerContextModel(copy, fallback, offset, contexts, phases);
         }
 
         static int contextOf(double[] x, int offset, int contexts, int[] phases) {

@@ -414,6 +414,8 @@ public class BotTeach {
         Files.writeString(opts.out().resolve("features.txt"), base.getFeatureVersion() + "\n");
         if (com.gempukku.lotro.bots.rl.fotrstarters.models.cardaction.AnyPhaseCardActionTrainer.RICH_TRAINING)
             Files.writeString(opts.out().resolve("any-phase-rich"), "");
+        if (com.gempukku.lotro.bots.rl.fotrstarters.models.cardaction.AnyPhaseCardActionTrainer.PROBE_TRAINING)
+            Files.writeString(opts.out().resolve("skirmish-probe"), "");
         out.println("models in " + opts.out());
     }
 

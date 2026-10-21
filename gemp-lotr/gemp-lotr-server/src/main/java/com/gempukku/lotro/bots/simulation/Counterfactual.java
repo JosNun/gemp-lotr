@@ -29,6 +29,8 @@ final class Counterfactual {
     static volatile double RATE = 0.1;
     static volatile int ROLLOUTS = 8;
     static volatile PrintWriter OUT;
+    /** --cf-only: test only the decisions whose bucket matches (e.g. "play or Pass" for skirmishes); null for all. */
+    static volatile java.util.regex.Pattern ONLY;
     static final AtomicLong asked = new AtomicLong(), agreed = new AtomicLong(), compared = new AtomicLong();
 
     private Counterfactual() {
@@ -38,9 +40,13 @@ final class Counterfactual {
     static void consider(DefaultLotroGame live, GameCopier copier, BotVsBot.Context ctx, String gameName,
                          List<String> players, String player, AwaitingDecision decision, String humanAnswer,
                          Random sampler) {
-        if (KIND == null || sampler.nextDouble() >= RATE)
+        if (KIND == null)
             return;
         GameState gs = live.getGameState();
+        if (ONLY != null && !ONLY.matcher(bucket(gs, decision, player)).find())
+            return;
+        if (sampler.nextDouble() >= RATE)
+            return;
         String botAnswer;
         try {
             BotPlayer bot = BotVsBot.bot(KIND, player, ctx);
@@ -54,7 +60,7 @@ final class Counterfactual {
         String bucket = bucket(gs, decision, player);
         if (same(gs, decision, humanAnswer, botAnswer)) {
             agreed.incrementAndGet();
-            write(gameName, player, bucket, decision, humanAnswer, botAnswer, -1, -1, 0);
+            write(gs, gameName, player, bucket, decision, humanAnswer, botAnswer, -1, -1, 0);
             return;
         }
         int humanWins = 0, botWins = 0, n = 0;
@@ -72,7 +78,7 @@ final class Counterfactual {
         if (n == 0)
             return;
         compared.incrementAndGet();
-        write(gameName, player, bucket, decision, humanAnswer, botAnswer, humanWins, botWins, n);
+        write(gs, gameName, player, bucket, decision, humanAnswer, botAnswer, humanWins, botWins, n);
     }
 
     /** Whether {@code player} wins after giving {@code answer} on a copy, the bot playing on for both; null on error. */
@@ -172,14 +178,28 @@ final class Counterfactual {
         };
     }
 
-    private static void write(String game, String player, String bucket, AwaitingDecision d, String human, String bot,
-                              int humanWins, int botWins, int n) {
+    /**
+     * One row: game, player, bucket, type, the two raw answers, the wins and rollouts; then the side, what each answer
+     * did (card and action text for card actions), and in a skirmish the deciding player's strength margin.
+     */
+    private static void write(GameState gs, String game, String player, String bucket, AwaitingDecision d, String human,
+                              String bot, int humanWins, int botWins, int n) {
         PrintWriter out = OUT;
         if (out == null)
             return;
+        String side = player.equals(gs.getCurrentPlayerId()) ? "FP" : "Shadow";
+        boolean actions = d.getDecisionType() == AwaitingDecisionType.CARD_ACTION_CHOICE;
+        String humanDid = actions ? describeAction(gs, d, human) : "", botDid = actions ? describeAction(gs, d, bot) : "";
+        String margin = "";
+        var stats = gs.getMostRecentGameStats();
+        if (gs.getSkirmish() != null && gs.getSkirmish().getFellowshipCharacter() != null && stats != null) {
+            int m = stats.getFellowshipSkirmishStrength() - stats.getShadowSkirmishStrength();
+            margin = String.valueOf(side.equals("FP") ? m : -m);
+        }
         synchronized (Counterfactual.class) {
             out.println(String.join("\t", game, player, bucket, d.getDecisionType().name(), human.replace('\t', ' '),
-                    bot.replace('\t', ' '), String.valueOf(humanWins), String.valueOf(botWins), String.valueOf(n)));
+                    bot.replace('\t', ' '), String.valueOf(humanWins), String.valueOf(botWins), String.valueOf(n),
+                    side, humanDid.replace('\t', ' '), botDid.replace('\t', ' '), margin));
             out.flush();
         }
     }

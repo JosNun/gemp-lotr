@@ -176,6 +176,8 @@ public class BotVsBot {
                 res.resolve("lotrFormats.hjson").toFile(), res.resolve("sealed").toFile());
         CardFeatures.init(library);
         com.gempukku.lotro.bots.rl.fotrstarters.AbilityFeatures.init(res.resolve("cards").toFile(), library);
+        if (com.gempukku.lotro.bots.rl.fotrstarters.EffectProbe.FORK == null)
+            com.gempukku.lotro.bots.rl.fotrstarters.EffectProbe.FORK = new GameCopier(library, formats)::copy;
         return new Context(library, formats, res, modelDir, new ConcurrentHashMap<>());
     }
 
@@ -623,6 +625,7 @@ public class BotVsBot {
         registry.setFeatureVersion(featureVersion(dir));
         registry.setAnyPhaseFirst(Files.exists(dir.resolve("any-phase-first")));
         registry.setAnyPhaseRich(Files.exists(dir.resolve("any-phase-rich")));
+        registry.setSkirmishProbe(Files.exists(dir.resolve("skirmish-probe")));
         return registry;
     }
 

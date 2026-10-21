@@ -18,6 +18,16 @@ public class ModelRegistry {
     private boolean anyPhaseFirst;
     /** AnyPhaseCardActionTrainer's vectors carry its EXTRA numbers: an "any-phase-rich" file in the model directory. */
     private boolean anyPhaseRich;
+    /** Skirmish options carry what they did on a copy (EffectProbe): a "skirmish-probe" file in the model directory. */
+    private boolean skirmishProbe;
+
+    public boolean isSkirmishProbe() {
+        return skirmishProbe;
+    }
+
+    public void setSkirmishProbe(boolean skirmishProbe) {
+        this.skirmishProbe = skirmishProbe;
+    }
 
     public boolean isAnyPhaseRich() {
         return anyPhaseRich;
