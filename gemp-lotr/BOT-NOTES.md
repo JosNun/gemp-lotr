@@ -767,6 +767,10 @@ one-hot); "Choose cards from deck" -11.1 +- 6.0, agreeing 14% -- no model answer
 January-June and August-November (634,246 rows: reconcile 112,648, another move 105,500, starting fellowship 80,118 ...
 card from deck 9,542; 17 minutes) -> `sel10`: 51.4% +- 1.2 against `d5-move-sel`.
 
+**Picking the card-action model by the game's phase ties.** The per-phase listwise any-phase model with the phase
+read from the state (`-DanyPhase.byPhase`, so skirmish prompts get their own), refit over `sel10` (67 minutes) ->
+`sel10-ph`: 49.3% +- 1.2 against `sel10`. The prompt-picked models stay.
+
 ## Human Movie Block games, and assignments learned from them (2026-10-19)
 
 **2022 replays.** October and November 2022 (`GEMP-LOTR-Replays_2022-1{0,1}.zip`, ~340 MB
