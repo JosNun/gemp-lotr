@@ -807,6 +807,49 @@ check), **78.9% +- 1.4** against `v2-real`. Built from `d4a-lwrc-d5` by fitting 
 again?", the card-selection and arbitrary-card models, a model for deck searches, and one for a card's choice of
 costs.
 
+## Skirmish plays: what a card does, found by doing it (2026-10-21)
+
+**Where the bot loses skirmishes to people.** July 2022 (held out), `sel10-gc`, skirmish action prompts only
+(`--cf-only "play or Pass"`, 60% of them): 7,442 asked, the bot agreed on 75.4%; 1,829 disagreements played out. The
+rows now carry the side, what each answer did and the skirmish margin. Nearly all the loss is passing where the human
+played:
+
+| where they differ | n | bot - human | net |
+|---|---|---|---|
+| Shadow: human plays, bot passes | 508 | **-3.7 +- 1.7** | -18.9 |
+| Free Peoples: human plays, bot passes | 814 | -1.7 +- 1.3 | -13.6 |
+| Free Peoples: different card | 224 | -1.7 +- 2.3 | -3.8 |
+| Free Peoples: human passes, bot plays | 169 | +3.0 +- 2.8 | +5.1 |
+
+What people played: abilities more than events -- Úlairë Enquëa healing itself for a burden (53), Advance Marauder,
+Anduin Banks, They Stole It, Morgul Brute; Glorfindel, Círdan and Sméagol exerting for an effect. And Shadow passed
+when already winning by 4 or more (-3.7, 191), where people pushed on for overwhelm, damage or a burden. "Choose
+action to play or Pass" is only ever the skirmish prompt (`SkirmishActionProcedureAction`), so the per-context model
+had been scoring it in its catch-all slot from the card and the skirmish as it stood, never what the card would change.
+
+**`EffectProbe`.** At a skirmish prompt each option is given on a copy of the game (~170 us); what it asks on the way --
+a target, a choice of cost -- is answered by the bots, response windows are passed, until the next skirmish prompt.
+Twenty numbers from the decider's side, before against after: the margin and its change, the skirmish's result
+(`ResolveSkirmishEffect.getUpcomingResult`, overwhelm either way) and its change, damage bonus, burdens, threats and
+twilight signed by whom they hurt, hand, wounds on each side, characters and cards in play on each side, the
+Ring-bearer's resistance, whether the skirmish or the game ended. Pass is "nothing changes". Read off people's
+decisions it gets cards right: Úlairë Enquëa (enduring) -1 wound, -2 margin, +1 burden; Valor +3 margin and a lost
+skirmish won.
+
+**Fit to people, with and without it.** `HumanReplay --steps-only "^Choose action to play or Pass$" --probe-bot
+safe@bot-models-exp/sel10-gc`: probed labels for every option of every reproduced skirmish decision, ten months (July
+held out), ~3 minutes a month, 574,617 rows, none failed. Only the skirmish slot of `sel10-gc`'s per-context model
+refit (`-DanyPhase.refitSkirmishFrom=<model>`, listwise, 300 trees x 64 nodes, ~28 minutes), every other phase as
+it was; against `sel10-gc`, 8 games a matchup:
+
+| skirmish slot | vs `sel10-gc` |
+|---|---|
+| people, ten months, no probe (`sel10-noprobe`) | 46.8% +- 1.2 |
+| people, ten months, with the probe (`sel10-probe`) | **53.1% +- 1.2** |
+
+The same labels, so the probe is worth ~6 points; people's skirmishes alone lose ~3 to the old slot's mix of four
+months and the teacher's labels, which the refit dropped. A `skirmish-probe` file in the model directory turns it on.
+
 ## Human Movie Block games, and assignments learned from them (2026-10-19)
 
 **2022 replays.** October and November 2022 (`GEMP-LOTR-Replays_2022-1{0,1}.zip`, ~340 MB
