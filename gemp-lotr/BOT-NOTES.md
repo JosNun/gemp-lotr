@@ -850,6 +850,19 @@ it was; against `sel10-gc`, 8 games a matchup:
 The same labels, so the probe is worth ~6 points; people's skirmishes alone lose ~3 to the old slot's mix of four
 months and the teacher's labels, which the refit dropped. A `skirmish-probe` file in the model directory turns it on.
 
+**Against people again, on held-out July** (the same 60% of skirmish prompts; the sampling is seeded by game, so the
+same decisions):
+
+| | `sel10-gc` | `sel10-probe` |
+|---|---|---|
+| agrees with the human | 75.4% | **80.6%** |
+| Shadow agrees | 67.2% | 76.0% |
+| disagreements, bot - human | -1.8 +- 0.9 | -1.3 +- 1.0 |
+| summed over them | -32.9 | **-18.8** |
+
+What is left is mostly the same: Shadow passing where people play (339, -3.7 +- 2.2, -12.4), Free Peoples passing
+(634, -1.3 +- 1.5, -8.2). The run took longer: every bot in every play-out now probes its skirmish options.
+
 ## Human Movie Block games, and assignments learned from them (2026-10-19)
 
 **2022 replays.** October and November 2022 (`GEMP-LOTR-Replays_2022-1{0,1}.zip`, ~340 MB
