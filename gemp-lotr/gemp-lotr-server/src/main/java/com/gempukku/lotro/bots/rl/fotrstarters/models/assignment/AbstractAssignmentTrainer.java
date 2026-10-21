@@ -260,10 +260,10 @@ public abstract class AbstractAssignmentTrainer extends AbstractTrainer {
 
             if (step.reward > 0) {
                 // Chosen: good
-                addLabeledPoints(data, assignmentMap, numberOfUnassignedMinions, strengthOfUnassignedMinions, action.getWoundsOnFp(), step.state, 1);
+                addLabeledPoints(data, assignmentMap, numberOfUnassignedMinions, strengthOfUnassignedMinions, action.getWoundsOnFp(), step.state, 1, step.group);
             } else {
                 // Chosen: bad
-                addLabeledPoints(data, assignmentMap, numberOfUnassignedMinions, strengthOfUnassignedMinions, action.getWoundsOnFp(), step.state, 0);
+                addLabeledPoints(data, assignmentMap, numberOfUnassignedMinions, strengthOfUnassignedMinions, action.getWoundsOnFp(), step.state, 0, step.group);
             }
         }
 
@@ -272,13 +272,13 @@ public abstract class AbstractAssignmentTrainer extends AbstractTrainer {
 
     private void addLabeledPoints(List<LabeledPoint> data, Map<String, List<String>> assignmentMap,
                                   int numberOfUnassignedMinions, int strengthOfUnassignedMinions,
-                                  Map<String, Integer> woundsMap, double[] state, int label) {
+                                  Map<String, Integer> woundsMap, double[] state, int label, int group) {
         try {
             double[] assignmentVector = CardFeatures.getAssignmentFeatures(assignmentMap, woundsMap,
                     numberOfUnassignedMinions, strengthOfUnassignedMinions);
             double[] extended = Arrays.copyOf(state, state.length + assignmentVector.length);
             System.arraycopy(assignmentVector, 0, extended, state.length, assignmentVector.length);
-            data.add(new LabeledPoint(label, extended));
+            data.add(new LabeledPoint(label, extended, group)); // group: the decision, for --model listwise
         } catch (CardNotFoundException ignore) {
         }
     }
