@@ -639,6 +639,7 @@ public class BotVsBot {
         registry.setReconcilePlain(Files.exists(dir.resolve("reconcile-plain")));
         registry.setPassByMass(Files.exists(dir.resolve("pass-by-mass")));
         registry.setNoSkirmishRule(Files.exists(dir.resolve("no-skirmish-rule")));
+        registry.setNumberBid(Files.exists(dir.resolve("number-bid")));
         // the probe's value numbers: the model directory carries the value model it was fit with
         if (Files.exists(dir.resolve("probe-value.model")))
             com.gempukku.lotro.bots.rl.fotrstarters.EffectProbe.VALUE = readModel(dir.resolve("probe-value.model"));

@@ -87,6 +87,17 @@ public class ModelRegistry {
         this.assignProbe = assignProbe;
     }
 
+    /** NumberChoiceTrainer answers the burden bid too: a "number-bid" file. */
+    private boolean numberBid;
+
+    public boolean isNumberBid() {
+        return numberBid;
+    }
+
+    public void setNumberBid(boolean numberBid) {
+        this.numberBid = numberBid;
+    }
+
     public boolean isSkirmishProbe() {
         return skirmishProbe;
     }

@@ -114,6 +114,24 @@ public class BotTeach {
     }
     /** --assign-teach-rate: share of assignment decisions branched in teacher mode (with --assign); default --teach-rate. */
     static volatile double assignTeachRate = -1;
+    /**
+     * --deck-order-teach-rate: share of "Choose card to put on top of deck" / "beneath draw deck" decisions branched
+     * in teacher mode -- the bot's commonest random answer (3.8 a game between real decks), which people's replays do
+     * not record. Each option's value goes to -Dteach.pickValues=&lt;file&gt; too: whether the order matters at all.
+     */
+    static volatile double deckOrderTeachRate = 0;
+    static final java.util.regex.Pattern DECK_ORDER = java.util.regex.Pattern.compile("on top of deck|beneath draw deck");
+    private static final PrintWriter PICK_VALUES;
+    static {
+        PrintWriter w = null;
+        try {
+            if (System.getProperty("teach.pickValues") != null)
+                w = new PrintWriter(Files.newBufferedWriter(Path.of(System.getProperty("teach.pickValues"))), true);
+        } catch (IOException e) {
+            throw new UncheckedIOException(e);
+        }
+        PICK_VALUES = w;
+    }
 
     public static void main(String[] args) throws Exception {
         Options opts = parse(args);
@@ -606,6 +624,22 @@ public class BotTeach {
                 if (options.size() > 1)
                     teachAssignment(gameState, decision, options);
             }
+            if (!search && deckOrderTeachRate > 0 && decision.getDecisionType() == AwaitingDecisionType.ARBITRARY_CARDS
+                    && decision.getText() != null && DECK_ORDER.matcher(decision.getText()).find()
+                    && ThreadLocalRandom.current().nextDouble() < deckOrderTeachRate) {
+                var p = decision.getDecisionParameters();
+                String[] ids = p.get("cardId"), blueprints = p.get("blueprintId"), selectable = p.get("selectable");
+                if (ids != null && blueprints != null && selectable != null && p.get("max") != null
+                        && "1".equals(p.get("max")[0])) {
+                    List<String> options = new ArrayList<>();
+                    Set<String> seen = new HashSet<>();
+                    for (int i = 0; i < ids.length; i++)
+                        if ("true".equals(selectable[i]) && seen.add(blueprints[i]))
+                            options.add(ids[i]);
+                    if (options.size() > 1)
+                        teachPick(gameState, decision, options);
+                }
+            }
             if (search && opts.assign() && decision.getDecisionType() == AwaitingDecisionType.ASSIGN_MINIONS
                     && starter() instanceof com.gempukku.lotro.bots.rl.fotrstarters.FotrStarterBot bot) {
                 // Who skirmishes whom decides most games here: 94% end with a Ring-bearer killed, usually in a
@@ -752,6 +786,48 @@ public class BotTeach {
         }
 
         /** Branches an assignment over {@code options} and writes the labels, as {@link #teach} does for card actions. */
+        /** Branches a one-card pick over {@code options} and writes the labels, as {@link #teach} does for card actions. */
+        private void teachPick(GameState gameState, AwaitingDecision decision, List<String> options) {
+            List<BotGame.Step> prefix = List.copyOf(branch.steps());
+            long[] worlds = new SplittableRandom().longs(opts.rollouts()).toArray();
+            double[] value = new double[options.size()];
+            double best = 0, worst = 1;
+            for (int i = 0; i < options.size(); i++) {
+                value[i] = branch.value(prefix, getName(), options.get(i), worlds, gameState);
+                best = Math.max(best, value[i]);
+                worst = Math.min(worst, value[i]);
+            }
+            if (PICK_VALUES != null)
+                synchronized (PICK_VALUES) {
+                    PICK_VALUES.println(decision.getText().replace('\t', ' ') + "\t" + options.size() + "\t" + best + "\t"
+                            + worst + "\t" + opts.rollouts());
+                }
+            if (Arrays.stream(value).allMatch(v -> v == value[0]))
+                return;
+            double[] state = record.extractFeatures(gameState, decision, getName());
+            boolean fp = getName().equals(gameState.getCurrentPlayerId());
+            StringBuilder lines = new StringBuilder();
+            for (int i = 0; i < options.size(); i++) {
+                int label = value[i] >= best - 1e-9 ? 1 : value[i] <= best - opts.margin() ? 0 : -1;
+                if (label < 0)
+                    continue;
+                LearningStep step = new LearningStep(state,
+                        new com.gempukku.lotro.bots.rl.semanticaction.ChooseFromArbitraryCardsAction(options.get(i), decision),
+                        fp, decision);
+                step.reward = label == 1 ? 10.0 : 0.0;
+                lines.append(step.toJson()).append('\n');
+                labelled.incrementAndGet();
+            }
+            synchronized (sink) {
+                try {
+                    sink.write(lines.toString());
+                    sink.flush();
+                } catch (IOException e) {
+                    throw new UncheckedIOException(e);
+                }
+            }
+        }
+
         private void teachAssignment(GameState gameState, AwaitingDecision decision, List<String> options) {
             List<BotGame.Step> prefix = List.copyOf(branch.steps());
             long[] worlds = new SplittableRandom().longs(opts.rollouts()).toArray();
@@ -869,6 +945,7 @@ public class BotTeach {
                 case "--move-rollouts" -> moveRollouts = Integer.parseInt(args[++i]);
                 case "--no-card-search" -> cardSearch = false;
                 case "--assign-teach-rate" -> assignTeachRate = Double.parseDouble(args[++i]);
+                case "--deck-order-teach-rate" -> deckOrderTeachRate = Double.parseDouble(args[++i]);
                 case "--move-depth" -> moveDepth = Integer.parseInt(args[++i]);
                 case "--corruption-weight" -> corruptionWeight = Double.parseDouble(args[++i]);
                 case "--progress-weight" -> progressWeight = Double.parseDouble(args[++i]);
