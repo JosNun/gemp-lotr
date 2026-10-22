@@ -99,6 +99,7 @@ public class BotService {
         trainers.add(new AnyPhaseCardActionTrainer());
         trainers.add(new com.gempukku.lotro.bots.rl.fotrstarters.models.arbitrarycards.CardFromDeckTrainer());
         trainers.add(new com.gempukku.lotro.bots.rl.fotrstarters.models.multiplechoice.GenericChoiceTrainer());
+        trainers.add(new com.gempukku.lotro.bots.rl.fotrstarters.models.cardselection.ReconcileChoiceTrainer());
         return trainers;
     }
 

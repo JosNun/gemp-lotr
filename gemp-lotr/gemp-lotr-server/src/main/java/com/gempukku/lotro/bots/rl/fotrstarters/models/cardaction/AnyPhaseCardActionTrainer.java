@@ -137,9 +137,11 @@ public class AnyPhaseCardActionTrainer extends AbstractTrainer {
                 modelRegistry, null, 0.0, true);
 
         int best = -1; // -1 is pass
-        double bestScore;
+        double bestScore, passScore;
+        double[] scores = new double[cardIds.length];
+        Arrays.fill(scores, Double.NEGATIVE_INFINITY);
         try {
-            bestScore = score(model, state, context, null, CardFeatures.PASS, 0, rich ? new double[EXTRA] : null,
+            passScore = bestScore = score(model, state, context, null, CardFeatures.PASS, 0, rich ? new double[EXTRA] : null,
                     probe ? EffectProbe.fit(EffectProbe.pass(gameState, playerName), probeLength) : null);
         } catch (CardNotFoundException e) {
             return null; // cannot happen: PASS is all zeros
@@ -158,6 +160,7 @@ public class AnyPhaseCardActionTrainer extends AbstractTrainer {
                 }
                 double s = score(model, state, context, actionTexts[i], bp, wounds,
                         rich ? liveExtra(gameState, cardId, bp) : null, did);
+                scores[i] = s;
                 if (s > bestScore) {
                     bestScore = s;
                     best = i;
@@ -166,7 +169,31 @@ public class AnyPhaseCardActionTrainer extends AbstractTrainer {
                 // a card the features cannot describe is not offered
             }
         }
+        if (modelRegistry.isPassByMass())
+            return passByMass(passScore, scores);
         return best < 0 ? "" : String.valueOf(best);
+    }
+
+    /**
+     * Pass only if passing is likelier than playing anything at all, else the likeliest play. The likeliest single
+     * option passes whenever pass beats each play on its own though playing something is likelier -- pass is one
+     * option against several -- and the bot's loss to people was passing where they played (skirmishes: Shadow -3.7 a
+     * time, Free Peoples -1.7). Scores are the listwise model's probabilities: the logistic of each option's score.
+     */
+    static String passByMass(double pass, double[] plays) {
+        double[] score = new double[plays.length + 1];
+        score[0] = com.gempukku.lotro.bots.rl.fotrstarters.models.cardselection.ReconcileChoiceTrainer.logit(pass);
+        for (int i = 0; i < plays.length; i++)
+            score[i + 1] = plays[i] == Double.NEGATIVE_INFINITY ? Double.NEGATIVE_INFINITY
+                    : com.gempukku.lotro.bots.rl.fotrstarters.models.cardselection.ReconcileChoiceTrainer.logit(plays[i]);
+        double[] share = com.gempukku.lotro.bots.rl.fotrstarters.models.cardselection.ReconcileChoiceTrainer.softmax(score);
+        if (share[0] >= 0.5 || plays.length == 0)
+            return "";
+        int best = 1;
+        for (int i = 2; i < share.length; i++)
+            if (share[i] > share[best])
+                best = i;
+        return share[best] > 0 ? String.valueOf(best - 1) : "";
     }
 
     private double score(SoftClassifier<double[]> model, double[] state, double[] context, String actionText,

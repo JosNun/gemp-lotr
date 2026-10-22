@@ -626,6 +626,8 @@ public class BotVsBot {
         registry.setAnyPhaseFirst(Files.exists(dir.resolve("any-phase-first")));
         registry.setAnyPhaseRich(Files.exists(dir.resolve("any-phase-rich")));
         registry.setSkirmishProbe(Files.exists(dir.resolve("skirmish-probe")));
+        registry.setReconcilePlain(Files.exists(dir.resolve("reconcile-plain")));
+        registry.setPassByMass(Files.exists(dir.resolve("pass-by-mass")));
         if (Files.exists(dir.resolve("probe-contexts"))) {
             String list = Files.readString(dir.resolve("probe-contexts"));
             var length = java.util.regex.Pattern.compile("length=(\\d+)").matcher(list);
