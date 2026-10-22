@@ -1017,6 +1017,39 @@ choice, is the thing to look at. Not adopted.
 0.9** against `sel10-rec` (16 games a matchup), **80.8% +- 1.4** against `v2-real`, agreement with people 66.5%. The best
 bot.
 
+## Fixed rules and random answers, replaced (2026-10-22)
+
+What still answered without a model, in 1,582 `sel10-c` games: a fixed rule for one-of skirmish selections (kept, above),
+the `Guarded` wrapper's three corruption rules, "how many to spot" (the most -- always right), Shadows-era site choice
+(not in Movie Block), two hard-coded multiple choices now behind `GenericChoiceTrainer` and never reached, and ~2.7
+random answers a bot a game: putting cards on top of or beneath the deck (3.8 a game for the two bots), number prompts
+("how many times to heal" with Elrond, Herald to Gil-galad; X; how many times to exert Gandalf; tokens, twilight,
+threats), a few arbitrary picks, and the order of simultaneous required triggers. The burden bid is a rule too: people's
+overall rates drawn at random, whatever the game.
+
+**The `Guarded` wrapper is not needed any more.** Added when the models corrupted their own Ring-bearer with burden
+costs (72% of games between the most-played real decks). `sel10-c` without it (`general@`) against itself with it
+(`safe@`): **50.9% +- 1.2**; corruption endings rise from ~10% to 13.2% of games (people's: 18%), and agreement with
+people 66.5% -> 66.6% (skirmish plays, responses, maneuver plays, discards from hand -- where it vetoed). It never was
+in the server's bot (`BotService` does not wrap); matches run `general@` from here.
+
+**Number prompts: `NumberChoiceTrainer`.** Each value from min to max (at most 10) an option, listwise, with the
+prompt's words and the value against the range; fit on people's 9,107 number decisions (July held out). With a
+`number-bid` file it takes the burden bid as well. Against unwrapped `sel10-c`: 50.4% +- 1.2, with the bid 50.7%.
+Agreement on July: Elrond's heal count 0.0% -> **98.6%** (people heal as often as allowed), X 38.8% -> 65.3%, the bid
+89.3% (people's rates drawn at random) -> 100%.
+
+**Mulligan from people.** `MulliganTrainer` was fit on bot games and agreed with people 65.4% for every bot since
+`v2-real`; refit on people's 69,706 mulligan rows (July held out): 50.6% +- 1.2, agreement **77.6%**.
+
+**`sel10-d`** = `sel10-c` with both, the bid included: **52.2% +- 0.9** against `sel10-c` (each alone was within noise;
+together they add up), **82.6% +- 1.3** against `v2-real`; agreement with people **67.1%** over all decisions (66.6%),
+**67.0%** as the mean over 35 kinds (63.7%). The best bot.
+
+**Deck order has no labels from people.** HumanReplay does not reproduce the put-on-top choices, so the teacher gives
+them: `--deck-order-teach-rate` branches "Choose card to put on top of deck" / "beneath draw deck" over the distinct
+cards, and `-Dteach.pickValues=<file>` writes each decision's best and worst value -- whether the order matters at all.
+
 ## Human Movie Block games, and assignments learned from them (2026-10-19)
 
 **2022 replays.** October and November 2022 (`GEMP-LOTR-Replays_2022-1{0,1}.zip`, ~340 MB

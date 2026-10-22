@@ -12,6 +12,7 @@ import com.gempukku.lotro.bots.rl.fotrstarters.models.assignment.ShadowAssignmen
 import com.gempukku.lotro.bots.rl.fotrstarters.models.cardaction.*;
 import com.gempukku.lotro.bots.rl.fotrstarters.models.cardselection.*;
 import com.gempukku.lotro.bots.rl.fotrstarters.models.integerchoice.BurdenTrainer;
+import com.gempukku.lotro.bots.rl.fotrstarters.models.integerchoice.NumberChoiceTrainer;
 import com.gempukku.lotro.bots.rl.fotrstarters.models.multiplechoice.AnotherMoveTrainer;
 import com.gempukku.lotro.bots.rl.fotrstarters.models.multiplechoice.GoFirstTrainer;
 import com.gempukku.lotro.bots.rl.fotrstarters.models.multiplechoice.MulliganTrainer;
@@ -102,6 +103,8 @@ public class FotrStarterBot extends RandomDecisionBot implements LearningBotPlay
     private final ReconcileChoiceTrainer reconcileChoice = new ReconcileChoiceTrainer();
     /** One-of exerts, compared with each character's vitality and fights, where the model directory has the model. */
     private final ExertChoiceTrainer exertChoice = new ExertChoiceTrainer();
+    /** "How many?" prompts, where the model directory has the model. */
+    private final NumberChoiceTrainer numberChoice = new NumberChoiceTrainer();
 
     public FotrStarterBot(RLGameStateFeatures features, String playerId, ModelRegistry modelRegistry, ReplayBuffer replayBuffer) {
         this(features, playerId, modelRegistry, replayBuffer, 0.0, false);
@@ -395,6 +398,12 @@ public class FotrStarterBot extends RandomDecisionBot implements LearningBotPlay
     }
 
     private String chooseIntegerAction(GameState gameState, AwaitingDecision decision) {
+        if (extended && modelRegistry.hasModel(NumberChoiceTrainer.class)
+                && NumberChoiceTrainer.applies(decision, modelRegistry.isNumberBid())) {
+            String answer = numberChoice.getAnswer(gameState, decision, getName(), features, modelRegistry);
+            if (answer != null)
+                return answer;
+        }
         for (DecisionAnswerer trainer : integerTrainers) {
             if (trainer.appliesTo(gameState, decision, getName())) {
                 return trainer.getAnswer(gameState, decision, getName(), features, modelRegistry);
