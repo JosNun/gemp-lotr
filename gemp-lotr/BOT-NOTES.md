@@ -1049,6 +1049,12 @@ together they add up), **82.6% +- 1.3** against `v2-real`; agreement with people
 **Deck order has no labels from people.** HumanReplay does not reproduce the put-on-top choices, so the teacher gives
 them: `--deck-order-teach-rate` branches "Choose card to put on top of deck" / "beneath draw deck" over the distinct
 cards, and `-Dteach.pickValues=<file>` writes each decision's best and worst value -- whether the order matters at all.
+From `sel10-d`, 1,500 games on the training decks (8 rollouts, a turn on, `value-real`): only 551 of these prompts
+offered two different cards, 0.4 a game -- the 3.8 random answers a game were nearly all one card, or copies of one.
+Of those, every option scored the same in 95% (top of deck, 452) and 98% (beneath, 99); best against worst 0.002 on
+average, none 0.25 apart. Within a turn, and as the value model reads a hand, the order does not matter; left at random.
+The order of simultaneous required triggers (`ACTION_CHOICE`) is the other random answer left; neither people's
+replays (`TrainingSteps` skips them) nor the teacher label it yet.
 
 ## Human Movie Block games, and assignments learned from them (2026-10-19)
 
