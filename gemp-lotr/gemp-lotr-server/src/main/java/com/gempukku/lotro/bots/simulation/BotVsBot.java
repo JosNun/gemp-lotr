@@ -165,6 +165,16 @@ public class BotVsBot {
         }
     }
 
+    /** A serialised model file. */
+    @SuppressWarnings("unchecked")
+    static smile.classification.SoftClassifier<double[]> readModel(Path file) throws IOException {
+        try (var in = new java.io.ObjectInputStream(Files.newInputStream(file))) {
+            return (smile.classification.SoftClassifier<double[]>) in.readObject();
+        } catch (ClassNotFoundException e) {
+            throw new IOException(e);
+        }
+    }
+
     /** The card and format libraries, read straight from gemp-lotr-cards with no server configuration. */
     static Context context(Path res, Path modelDir) {
         if (!Files.isDirectory(res.resolve("cards")))
@@ -628,6 +638,13 @@ public class BotVsBot {
         registry.setSkirmishProbe(Files.exists(dir.resolve("skirmish-probe")));
         registry.setReconcilePlain(Files.exists(dir.resolve("reconcile-plain")));
         registry.setPassByMass(Files.exists(dir.resolve("pass-by-mass")));
+        registry.setNoSkirmishRule(Files.exists(dir.resolve("no-skirmish-rule")));
+        // the probe's value numbers: the model directory carries the value model it was fit with
+        if (Files.exists(dir.resolve("probe-value.model")))
+            com.gempukku.lotro.bots.rl.fotrstarters.EffectProbe.VALUE = readModel(dir.resolve("probe-value.model"));
+        if (Files.exists(dir.resolve("assign-probe")))
+            registry.setAssignProbe(java.util.Set.of(Files.readString(dir.resolve("assign-probe")).trim().toLowerCase()
+                    .split("[,\\s]+")));
         if (Files.exists(dir.resolve("probe-contexts"))) {
             String list = Files.readString(dir.resolve("probe-contexts"));
             var length = java.util.regex.Pattern.compile("length=(\\d+)").matcher(list);

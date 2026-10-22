@@ -65,6 +65,28 @@ public class ModelRegistry {
         this.passByMass = passByMass;
     }
 
+    /** Skirmish card selections go to the models, not to "the one fighting": a "no-skirmish-rule" file. */
+    private boolean noSkirmishRule;
+
+    public boolean isNoSkirmishRule() {
+        return noSkirmishRule;
+    }
+
+    public void setNoSkirmishRule(boolean noSkirmishRule) {
+        this.noSkirmishRule = noSkirmishRule;
+    }
+
+    /** Sides ("fp", "shadow") whose assignment model reads AssignmentProbe's numbers: an "assign-probe" file. */
+    private java.util.Set<String> assignProbe = java.util.Set.of();
+
+    public java.util.Set<String> getAssignProbe() {
+        return assignProbe;
+    }
+
+    public void setAssignProbe(java.util.Set<String> assignProbe) {
+        this.assignProbe = assignProbe;
+    }
+
     public boolean isSkirmishProbe() {
         return skirmishProbe;
     }

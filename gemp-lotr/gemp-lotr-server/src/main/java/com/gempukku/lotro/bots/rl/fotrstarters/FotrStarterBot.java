@@ -100,6 +100,8 @@ public class FotrStarterBot extends RandomDecisionBot implements LearningBotPlay
     private final AnyPhaseCardActionTrainer anyPhaseTrainer = new AnyPhaseCardActionTrainer();
     /** Reconcile with "keep everything" as an option, where the model directory has one. */
     private final ReconcileChoiceTrainer reconcileChoice = new ReconcileChoiceTrainer();
+    /** One-of exerts, compared with each character's vitality and fights, where the model directory has the model. */
+    private final ExertChoiceTrainer exertChoice = new ExertChoiceTrainer();
 
     public FotrStarterBot(RLGameStateFeatures features, String playerId, ModelRegistry modelRegistry, ReplayBuffer replayBuffer) {
         this(features, playerId, modelRegistry, replayBuffer, 0.0, false);
@@ -341,8 +343,15 @@ public class FotrStarterBot extends RandomDecisionBot implements LearningBotPlay
             return String.join(",", cardIds);
         }
 
-        // Choose the one skirmishing
-        if (gameState.getSkirmish() != null &&
+        if (extended && modelRegistry.hasModel(ExertChoiceTrainer.class) && ExertChoiceTrainer.applies(decision)) {
+            String answer = exertChoice.getAnswer(gameState, decision, getName(), features, modelRegistry);
+            if (answer != null)
+                return answer;
+        }
+
+        // Choose the one skirmishing -- unless the model directory says to ask the models ("no-skirmish-rule"): an
+        // exert cost paid by the companion fighting is often the wrong one
+        if (!(extended && modelRegistry.isNoSkirmishRule()) && gameState.getSkirmish() != null &&
                 gameState.getSkirmish().getFellowshipCharacter() != null &&
                 gameState.getSkirmish().getShadowCharacters() != null &&
                 !gameState.getSkirmish().getShadowCharacters().isEmpty()

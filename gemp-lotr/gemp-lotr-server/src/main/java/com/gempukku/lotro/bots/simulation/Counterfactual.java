@@ -63,6 +63,12 @@ final class Counterfactual {
             write(gs, gameName, player, bucket, decision, humanAnswer, botAnswer, -1, -1, 0);
             return;
         }
+        if (ROLLOUTS == 0) {
+            // --cf-rollouts 0: only whether the bot chose as the human did -- how human-like it is, at the cost of
+            // replaying the games
+            write(gs, gameName, player, bucket, decision, humanAnswer, botAnswer, -1, -1, -1);
+            return;
+        }
         int humanWins = 0, botWins = 0, n = 0;
         long seedBase = sampler.nextLong();
         for (int r = 0; r < ROLLOUTS; r++) {
@@ -180,7 +186,8 @@ final class Counterfactual {
 
     /**
      * One row: game, player, bucket, type, the two raw answers, the wins and rollouts; then the side, what each answer
-     * did (card and action text for card actions), and in a skirmish the deciding player's strength margin.
+     * did (card and action text for card actions, the cards for selections), and in a skirmish the deciding player's
+     * strength margin. Agreed: n is 0; differed but not played out (--cf-rollouts 0): n is -1.
      */
     private static void write(GameState gs, String game, String player, String bucket, AwaitingDecision d, String human,
                               String bot, int humanWins, int botWins, int n) {
@@ -189,7 +196,10 @@ final class Counterfactual {
             return;
         String side = player.equals(gs.getCurrentPlayerId()) ? "FP" : "Shadow";
         boolean actions = d.getDecisionType() == AwaitingDecisionType.CARD_ACTION_CHOICE;
-        String humanDid = actions ? describeAction(gs, d, human) : "", botDid = actions ? describeAction(gs, d, bot) : "";
+        boolean selections = d.getDecisionType() == AwaitingDecisionType.CARD_SELECTION
+                || d.getDecisionType() == AwaitingDecisionType.ARBITRARY_CARDS;
+        String humanDid = actions ? describeAction(gs, d, human) : selections ? String.join(" ", blueprints(gs, d, human)) : "";
+        String botDid = actions ? describeAction(gs, d, bot) : selections ? String.join(" ", blueprints(gs, d, bot)) : "";
         String margin = "";
         var stats = gs.getMostRecentGameStats();
         if (gs.getSkirmish() != null && gs.getSkirmish().getFellowshipCharacter() != null && stats != null) {

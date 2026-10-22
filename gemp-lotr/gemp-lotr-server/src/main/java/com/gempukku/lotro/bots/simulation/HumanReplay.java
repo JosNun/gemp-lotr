@@ -1369,6 +1369,7 @@ public class HumanReplay {
                 case "--cf-only" -> Counterfactual.ONLY = java.util.regex.Pattern.compile(args[++i]);
                 case "--steps-only" -> TrainingSteps.ONLY = java.util.regex.Pattern.compile(args[++i]);
                 case "--probe-bot" -> probeBot = args[++i];
+                case "--probe-value" -> EffectProbe.VALUE = BotVsBot.readModel(Path.of(args[++i]).resolve("value.model"));
                 case "--values" -> VALUES = new PrintWriter(Files.newBufferedWriter(Path.of(args[++i]), StandardCharsets.UTF_8));
                 case "--verbose" -> verbose = true;
                 case "--trace" -> TRACE = true;

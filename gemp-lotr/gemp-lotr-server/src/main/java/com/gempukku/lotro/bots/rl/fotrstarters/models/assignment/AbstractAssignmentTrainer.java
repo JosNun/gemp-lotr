@@ -171,6 +171,9 @@ public abstract class AbstractAssignmentTrainer extends AbstractTrainer {
             try {
                 double[] assignmentVector = CardFeatures.getAssignmentFeatures(assignment.blueprintAssignment(), woundsOnFp,
                         assignment.numberOfUnassignedMinions(), assignment.strengthOfUnassignedMinions());
+                if (modelRegistry.getAssignProbe().contains(side()))
+                    assignmentVector = append(assignmentVector,
+                            AssignmentProbe.features(gameState, decision, assignment.physicalAssignment()));
                 double[] extended = Arrays.copyOf(stateVector, stateVector.length + assignmentVector.length);
                 System.arraycopy(assignmentVector, 0, extended, stateVector.length, assignmentVector.length);
 
@@ -258,12 +261,14 @@ public abstract class AbstractAssignmentTrainer extends AbstractTrainer {
             });
 
 
+            double[] probe = PROBE_SIDES.contains(side())
+                    ? (action.getProbe() != null ? action.getProbe() : new double[AssignmentProbe.LENGTH]) : null;
             if (step.reward > 0) {
                 // Chosen: good
-                addLabeledPoints(data, assignmentMap, numberOfUnassignedMinions, strengthOfUnassignedMinions, action.getWoundsOnFp(), step.state, 1, step.group);
+                addLabeledPoints(data, assignmentMap, numberOfUnassignedMinions, strengthOfUnassignedMinions, action.getWoundsOnFp(), step.state, 1, step.group, probe);
             } else {
                 // Chosen: bad
-                addLabeledPoints(data, assignmentMap, numberOfUnassignedMinions, strengthOfUnassignedMinions, action.getWoundsOnFp(), step.state, 0, step.group);
+                addLabeledPoints(data, assignmentMap, numberOfUnassignedMinions, strengthOfUnassignedMinions, action.getWoundsOnFp(), step.state, 0, step.group, probe);
             }
         }
 
@@ -272,15 +277,34 @@ public abstract class AbstractAssignmentTrainer extends AbstractTrainer {
 
     private void addLabeledPoints(List<LabeledPoint> data, Map<String, List<String>> assignmentMap,
                                   int numberOfUnassignedMinions, int strengthOfUnassignedMinions,
-                                  Map<String, Integer> woundsMap, double[] state, int label, int group) {
+                                  Map<String, Integer> woundsMap, double[] state, int label, int group, double[] probe) {
         try {
             double[] assignmentVector = CardFeatures.getAssignmentFeatures(assignmentMap, woundsMap,
                     numberOfUnassignedMinions, strengthOfUnassignedMinions);
+            if (probe != null)
+                assignmentVector = append(assignmentVector, probe);
             double[] extended = Arrays.copyOf(state, state.length + assignmentVector.length);
             System.arraycopy(assignmentVector, 0, extended, state.length, assignmentVector.length);
             data.add(new LabeledPoint(label, extended, group)); // group: the decision, for --model listwise
         } catch (CardNotFoundException ignore) {
         }
+    }
+
+    /**
+     * -Dassign.probe=fp[,shadow] (training) / an "assign-probe" file naming the sides (play): assignments end with the
+     * skirmishes they set up as the board stands, AssignmentProbe's numbers, where the printed strengths were all.
+     */
+    static final Set<String> PROBE_SIDES = System.getProperty("assign.probe") == null ? Set.of()
+            : Set.of(System.getProperty("assign.probe").toLowerCase().split("[,\\s]+"));
+
+    private String side() {
+        return isForFp() ? "fp" : "shadow";
+    }
+
+    private static double[] append(double[] x, double[] more) {
+        double[] out = Arrays.copyOf(x, x.length + more.length);
+        System.arraycopy(more, 0, out, x.length, more.length);
+        return out;
     }
 
     protected record AssignmentInfo(Map<String, List<String>> blueprintAssignment,

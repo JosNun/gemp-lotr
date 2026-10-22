@@ -958,6 +958,65 @@ As strong against the bot, closer to people and level with them where it differs
 the model directory), over `sel10-probe`: 49.1% +- 1.2; with the reconcile model too, 49.7%. Pass, unlike keeping, is
 chosen in proportion already: the skirmish passivity is in the scores, not in how one is picked from them.
 
+## Two scores: strength and human-likeness (2026-10-22)
+
+**Human-likeness.** Win rate alone would have dropped the reconcile model, which ties in strength and chooses as people
+do far more often. `HumanReplay --counterfactual <bot> --cf-rollouts 0` only asks: at each sampled decision of the
+re-created games, did the bot choose as the human did (`same()`: the same card and action, pairings, cards)? No
+play-outs, so ~3 minutes for 30% of July 2022's decisions (36,424; the sampling is seeded by game, so every bot is asked
+the same ones). `scripts/human_likeness.py name=file ...` gives each kind's agreement, over all decisions (Fellowship
+and Shadow plays dominate) and the mean over kinds (a rare decision counts once). Changes are judged on both: kept if
+no weaker (within a standard error) and more human-like, or clearly stronger (two standard errors) and no less
+human-like.
+
+| | all decisions | mean over 29 kinds |
+|---|---|---|
+| `v2-real` | 43.6% | 43.1% |
+| `sel10-gc` | 63.4% | 62.3% |
+| `sel10-probe` | 63.9% | 62.4% |
+| `sel10-rec` | 66.1% | 63.5% |
+| `sel10-c` (below) | **66.5%** | **63.8%** |
+
+## The three gaps left against people (2026-10-22)
+
+From July's counterfactual: Free Peoples assignments (45% agreement, -1.2 a disagreement), the character chosen to exert
+(-3.2 +- 2.7), Shadow passing in skirmishes. One labelling pass over the ten training months wrote all three
+(`--steps-only "^Assign minions|^Choose cards to exert|^Choose action to play or Pass$"`, ~5 minutes a month, from a
+snapshot of the classes: a recompile empties `target/classes` under a running job).
+
+**Assignments: the model saw printed strengths.** `CardFeatures.getAssignmentFeatures` scored each candidate from the
+cards' printed strength -- no weapon, no site or condition bonus, no vitality left, no damage. `AssignmentProbe` reads
+the skirmishes an assignment sets up from the board as it is (the engine's strength, vitality, damage keyword and
+overwhelm multiplier, with the assignments already made): won, lost, overwhelmed, companions and minions that would die,
+the Ring-bearer losing or dying, the tightest and total margin, and what is left for the Shadow player -- minions
+unassigned, their strength, the characters still free and how badly the weakest is outmatched. 15 numbers, written
+with every assignment label (people's and 12 legal others), read where an `assign-probe` file names the side. The Free
+Peoples model refit on 456,272 rows (9 minutes): **52.6% +- 1.2** against `sel10-rec`; the same labels without the
+probe 50.1%. Agreement with people on assignments 45.1% -> **55.1%**.
+
+**Exerts: in a skirmish the bot exerted whoever was fighting.** Any one-of card selection during a skirmish went to a
+fixed rule -- the character in the skirmish, or at random -- before any model; for an exert cost that is the companion
+the cost weakens most. Asking the models instead for every skirmish selection (`no-skirmish-rule`): 48.7% -- for pumps
+and wounds the rule is right. `ExertChoiceTrainer` takes one-of "Choose cards to exert" (99% of them) first, listwise,
+with each candidate's side, vitality before and after (one on 1 is never offered, but one left on 1 pays no more exert
+costs and dies to the next wound), last exert, Ring-bearer, fighting now or assigned later, strength, wounds: 50.0%
++- 1.2, exert agreement 65.3% -> 66.2%.
+
+**Shadow skirmish plays: no gain from a value number.** The probe gives an outcome-fit value model's chance of winning
+after the play and its change (`value-real`, a `probe-value.model` in the model directory, `--probe-value`; 29
+numbers): the skirmish context refit with them 49.4% +- 1.2, agreement 81.1% (81.2%); with the 27 numbers before it
+49.5%.
+
+**Going first, as people do, loses.** "Choose one" -- Go first / Go second, after the bid -- was answered "Go second"
+every time, by every bot (11.0% agreement); people go first 90.6% of the time (17,931 decisions). `GoFirstTrainer`
+refit on them: 47.8% +- 1.2 -- and the player going first won exactly that, 47.8% of the 6,335 games. Between these bots
+going second is worth ~2 points, the reverse of what people choose; something in the bots' first turns, not the seat
+choice, is the thing to look at. Not adopted.
+
+**Together: `sel10-c`** = `sel10-rec` with the probed Free Peoples assignment model and `ExertChoiceTrainer`: **52.5% +-
+0.9** against `sel10-rec` (16 games a matchup), **80.8% +- 1.4** against `v2-real`, agreement with people 66.5%. The best
+bot.
+
 ## Human Movie Block games, and assignments learned from them (2026-10-19)
 
 **2022 replays.** October and November 2022 (`GEMP-LOTR-Replays_2022-1{0,1}.zip`, ~340 MB
