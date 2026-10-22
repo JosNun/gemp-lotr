@@ -52,12 +52,17 @@ public class CardSelectionAssignedAction extends CardSelectionAction {
         obj.put("zone", zoneString);
         obj.put("minionsOnChosen", minionsOnChosen.toArray());
         obj.put("strengthOfMinionsOnChosen", strengthOfMinionsOnChosen.toArray());
+        putOptions(obj);
         return obj;
     }
 
     public static CardSelectionAssignedAction fromJson(JSONObject obj) {
-        return new CardSelectionAssignedAction(obj.getObject("chosenBlueprints", String[].class), obj.getObject("notChosenBlueprints", String[].class),
+        CardSelectionAssignedAction a = new CardSelectionAssignedAction(obj.getObject("chosenBlueprints", String[].class), obj.getObject("notChosenBlueprints", String[].class),
                 obj.getObject("woundsOnChosen", Integer[].class), obj.getObject("woundsOnNotChosen", Integer[].class), obj.getString("zone"),
                 obj.getObject("minionsOnChosen", Integer[].class), obj.getObject("strengthOfMinionsOnChosen", Integer[].class));
+        if (obj.containsKey("optionExtras"))
+            a.withOptions(obj.getObject("options", String[].class), obj.getObject("optionExtras", double[][].class),
+                    obj.getIntValue("optionChosen"));
+        return a;
     }
 }

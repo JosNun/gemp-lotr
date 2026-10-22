@@ -39,7 +39,7 @@ public final class EffectProbe {
      * format GEMP has makes a draw deck half and half (validateShadowFPCount), so each side's half less that side's
      * cards out of the deck.
      */
-    public static final int LENGTH = 27;
+    public static final int LENGTH = 29;
     /** What models fit before the hand numbers read: a "probe-contexts" file with no length= line. */
     public static final int LENGTH_WITHOUT_HAND = 22;
     /** The first numbers, all a skirmish-only model ("skirmish-probe") was fit on: no strength totals. */
@@ -48,6 +48,22 @@ public final class EffectProbe {
     private static final String RESPONSES_PROMPT = "Optional responses";
     /** The skirmish action prompt (SkirmishActionProcedureAction); no other card-action prompt reads so. */
     public static final String SKIRMISH_PROMPT = "Choose action to play or Pass";
+    /**
+     * The last two: an outcome-fit value model's chance that I win, after the play, and its change from now. People's
+     * choices teach what people do, not what an extra burden or wound is worth; in July's games the bot passed where
+     * Shadow players kept pushing a skirmish already won, and lost 3.7 points a time. Null: zeros.
+     */
+    public static volatile smile.classification.SoftClassifier<double[]> VALUE;
+
+    private static double value(GameState gs, String me) {
+        var model = VALUE;
+        if (model == null)
+            return 0;
+        double[] p = new double[2];
+        model.predict(new GeneralStateFeatures().extractFeatures(gs, null, me), p);
+        return p[1];
+    }
+
     /** Copies a live game (GameCopier::copy); set by what runs the bots. Null: nothing probed, and zeros. */
     public static volatile UnaryOperator<DefaultLotroGame> FORK;
     /** Questions answered on the copy before giving up on reaching the next card-action prompt. */
@@ -74,6 +90,7 @@ public final class EffectProbe {
         int[] deck = deckLeft(gs, me);
         f[25] = deck[0];
         f[26] = deck[1];
+        f[28] = value(gs, me);
         return f;
     }
 
@@ -171,6 +188,9 @@ public final class EffectProbe {
             int[] deck = deckLeft(gs, me);
             f[25] = deck[0];
             f[26] = deck[1];
+            double valueAfter = value(copy.getGameState(), me);
+            f[27] = valueAfter - value(gs, me);
+            f[28] = valueAfter;
             return f;
         } catch (Exception e) {
             return null;
@@ -309,5 +329,6 @@ public final class EffectProbe {
             "resultDelta", "damageDelta", "burdensForMe", "threatsForMe", "twilightForMe", "handDelta", "myWoundsDelta",
             "theirWoundsDelta", "myCharactersDelta", "theirCharactersDelta", "myCardsDelta", "theirCardsDelta",
             "resistanceForMe", "skirmishEnded", "gameOver", "resolved", "myStrengthDelta", "theirStrengthDelta",
-            "copiesInHand", "myHandFpAfter", "myHandShadowAfter", "myDeckFpLeft", "myDeckShadowLeft");
+            "copiesInHand", "myHandFpAfter", "myHandShadowAfter", "myDeckFpLeft", "myDeckShadowLeft",
+            "valueDelta", "valueAfter");
 }

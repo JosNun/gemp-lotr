@@ -24,6 +24,8 @@ public class AssignMinionsAction implements SemanticAction {
     // blueprint-level assignmentMap cannot tell apart two copies of a card, so turning it back into card ids can pick
     // a different copy than the one chosen (e.g. the Uruk Guard that forbade this companion instead of its twin).
     private final String physicalAnswer;
+    /** The skirmishes this assignment sets up as the board stood (AssignmentProbe); null if not written. */
+    private double[] probe;
 
     public AssignMinionsAction(String answer, AwaitingDecision decision, GameState gameState, boolean isFreePeoplesAssignment) {
         this.isFreePeoplesAssignment = isFreePeoplesAssignment;
@@ -154,6 +156,15 @@ public class AssignMinionsAction implements SemanticAction {
                 .collect(Collectors.joining(","));
     }
 
+    public double[] getProbe() {
+        return probe;
+    }
+
+    public AssignMinionsAction withProbe(double[] probe) {
+        this.probe = probe;
+        return this;
+    }
+
     @Override
     public JSONObject toJson() {
         JSONObject obj = new JSONObject();
@@ -164,6 +175,8 @@ public class AssignMinionsAction implements SemanticAction {
         obj.put("isFreePeoplesAssignment", isFreePeoplesAssignment);
         obj.put("alreadyAssignedMap", alreadyAssignedMap);
         obj.put("woundsOnFp", woundsOnFp);
+        if (probe != null)
+            obj.put("probe", probe);
         return obj;
     }
 
@@ -176,6 +189,7 @@ public class AssignMinionsAction implements SemanticAction {
         HashMap<String, Integer> wounds = obj.getObject("woundsOnFp", HashMap.class);
 
         return new AssignMinionsAction(assignmentMap, isFreePeoplesAssignment, alreadyAssignedMap, wounds,
-                numberOfUnassignedMinions, strengthOfUnassignedMinions);
+                numberOfUnassignedMinions, strengthOfUnassignedMinions)
+                .withProbe(obj.containsKey("probe") ? obj.getObject("probe", double[].class) : null);
     }
 }

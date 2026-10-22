@@ -4,6 +4,7 @@ import com.gempukku.lotro.bots.rl.LearningStep;
 import com.gempukku.lotro.bots.rl.fotrstarters.CardFeatures;
 import com.gempukku.lotro.bots.rl.fotrstarters.EffectProbe;
 import com.gempukku.lotro.bots.rl.fotrstarters.GeneralStateFeatures;
+import com.gempukku.lotro.bots.rl.fotrstarters.models.cardselection.ExertChoiceTrainer;
 import com.gempukku.lotro.bots.rl.fotrstarters.models.cardselection.ReconcileChoiceTrainer;
 import com.gempukku.lotro.bots.rl.semanticaction.*;
 import com.gempukku.lotro.common.Phase;
@@ -113,9 +114,11 @@ final class TrainingSteps implements HumanReplay.StepSink {
                     case ARBITRARY_CARDS -> new ChooseFromArbitraryCardsAction(l[0], decision);
                     case CARD_ACTION_CHOICE -> new CardActionChoiceAction(l[0], decision, gs).withProbe(probe(gs, decision, l[0], player));
                     case CARD_SELECTION -> gs.getCurrentPhase() == Phase.SKIRMISH
-                            ? new CardSelectionAssignedAction(l[0], decision, gs)
+                            ? withOptions(new CardSelectionAssignedAction(l[0], decision, gs), gs, decision, l[0], player)
                             : withOptions(new CardSelectionAction(l[0], decision, gs), gs, decision, l[0], player);
-                    case ASSIGN_MINIONS -> new AssignMinionsAction(l[0], decision, gs, fp);
+                    case ASSIGN_MINIONS -> new AssignMinionsAction(l[0], decision, gs, fp).withProbe(
+                            com.gempukku.lotro.bots.rl.fotrstarters.models.assignment.AssignmentProbe.features(gs,
+                                    decision, com.gempukku.lotro.bots.rl.fotrstarters.models.assignment.AssignmentProbe.parse(l[0])));
                     case ACTION_CHOICE -> throw new IllegalStateException();
                 };
                 LearningStep step = new LearningStep(state, action, fp, decision);
@@ -149,13 +152,21 @@ final class TrainingSteps implements HumanReplay.StepSink {
         return f != null ? f : EffectProbe.none();
     }
 
-    /** At reconcile, the options -- keep everything, each card -- with what ReconcileChoiceTrainer compares them on. */
+    /**
+     * The options with what only the live game knows: at reconcile keep everything and each card
+     * (ReconcileChoiceTrainer), at a one-of exert each character (ExertChoiceTrainer).
+     */
     private static CardSelectionAction withOptions(CardSelectionAction action, GameState gs, AwaitingDecision decision,
                                                    String answer, String player) {
-        if (!ReconcileChoiceTrainer.applies(decision))
-            return action;
-        var o = ReconcileChoiceTrainer.options(gs, decision, player);
-        return action.withOptions(o.blueprints(), o.extras(), ReconcileChoiceTrainer.chosen(decision, answer));
+        if (ReconcileChoiceTrainer.applies(decision)) {
+            var o = ReconcileChoiceTrainer.options(gs, decision, player);
+            return action.withOptions(o.blueprints(), o.extras(), ReconcileChoiceTrainer.chosen(decision, answer));
+        }
+        if (ExertChoiceTrainer.applies(decision)) {
+            var o = ExertChoiceTrainer.options(gs, decision, player);
+            return action.withOptions(o.blueprints(), o.extras(), ExertChoiceTrainer.chosen(decision, answer));
+        }
+        return action;
     }
 
     /** Rejected assignments written per human one. */

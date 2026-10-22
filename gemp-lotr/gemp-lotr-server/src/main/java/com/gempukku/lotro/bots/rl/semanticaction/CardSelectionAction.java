@@ -113,6 +113,15 @@ public class CardSelectionAction implements SemanticAction {
         return this;
     }
 
+    /** The options, if written, into a JSON form (subclasses write their own). */
+    protected void putOptions(JSONObject obj) {
+        if (optionExtras != null) {
+            obj.put("options", optionBlueprints);
+            obj.put("optionExtras", optionExtras);
+            obj.put("optionChosen", optionChosen);
+        }
+    }
+
     public String[] getOptionBlueprints() {
         return optionBlueprints;
     }
@@ -167,11 +176,7 @@ public class CardSelectionAction implements SemanticAction {
         obj.put("notChosenBlueprints", notChosenBlueprintIds.toArray());
         obj.put("woundsOnNotChosen", woundsOnNotChosen.toArray());
         obj.put("zone", zoneString);
-        if (optionExtras != null) {
-            obj.put("options", optionBlueprints);
-            obj.put("optionExtras", optionExtras);
-            obj.put("optionChosen", optionChosen);
-        }
+        putOptions(obj);
         return obj;
     }
 

@@ -30,7 +30,7 @@ def group(key):
         g[k]['asked'] += 1
         if n == 0:
             g[k]['agree'] += 1
-        else:
+        elif n > 0:
             g[k]['diffs'].append((b - h) / n)
             g[k]['h'] += h / n
             g[k]['b'] += b / n
