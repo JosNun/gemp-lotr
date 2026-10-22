@@ -30,8 +30,18 @@ import java.util.function.UnaryOperator;
  * signed by whom they hurt.
  */
 public final class EffectProbe {
-    /** The numbers {@link #probe} gives. */
-    public static final int LENGTH = 22;
+    /**
+     * The numbers {@link #probe} gives. The last three are the hand: one hand holds both sides' cards, so a Shadow card
+     * played is a slot for a Free Peoples card at reconcile, and a card held may be the only one of its kind -- other
+     * copies of the played card in hand, and my hand's Free Peoples and Shadow cards after the play. Then my draw deck's
+     * Free Peoples and Shadow cards left: a player knows their own deck, not its order. A re-created human game knows
+     * only the deck cards that were seen -- the ones drawn later -- so these are counted from the other side: every
+     * format GEMP has makes a draw deck half and half (validateShadowFPCount), so each side's half less that side's
+     * cards out of the deck.
+     */
+    public static final int LENGTH = 27;
+    /** What models fit before the hand numbers read: a "probe-contexts" file with no length= line. */
+    public static final int LENGTH_WITHOUT_HAND = 22;
     /** The first numbers, all a skirmish-only model ("skirmish-probe") was fit on: no strength totals. */
     public static final int SKIRMISH_LENGTH = 20;
     /** The response window prompt: passed on the copy, it is not where a play has finished. */
@@ -59,6 +69,11 @@ public final class EffectProbe {
         f[1] = now.margin;
         f[3] = now.result;
         f[19] = 1;
+        f[23] = now.handFp;
+        f[24] = now.handShadow;
+        int[] deck = deckLeft(gs, me);
+        f[25] = deck[0];
+        f[26] = deck[1];
         return f;
     }
 
@@ -83,6 +98,7 @@ public final class EffectProbe {
             AwaitingDecision pending = feedback.getAwaitingDecision(me);
             if (pending == null)
                 return null;
+            int copies = copies(gs, pending, answer, me);
             feedback.participantDecided(me);
             BotDecisionFallback.decide(copy, me, pending, answer);
             copy.carryOutPendingActionsUntilDecisionNeeded();
@@ -149,10 +165,77 @@ public final class EffectProbe {
             f[19] = resolved ? 1 : 0;
             f[20] = after.myStrength - before.myStrength;
             f[21] = after.theirStrength - before.theirStrength;
+            f[22] = copies;
+            f[23] = after.handFp;
+            f[24] = after.handShadow;
+            int[] deck = deckLeft(gs, me);
+            f[25] = deck[0];
+            f[26] = deck[1];
             return f;
         } catch (Exception e) {
             return null;
         }
+    }
+
+    /**
+     * {@code me}'s draw deck's Free Peoples and Shadow cards left, from the cards out of it: half the draw deck each,
+     * less that side's cards in hand, play, discard, dead pile, removed or stacked (the Ring-bearer never was in it).
+     * PROBE_CHECK=1 checks it against the deck itself, where the deck is real.
+     */
+    public static int[] deckLeft(GameState gs, String me) {
+        int outFp = 0, outShadow = 0;
+        PhysicalCard bearer = null;
+        try {
+            bearer = gs.getRingBearer(me);
+        } catch (RuntimeException ignored) {
+        }
+        List<List<? extends PhysicalCard>> zones = List.of(gs.getHand(me), gs.getVoidFromHand(me), gs.getRemoved(me),
+                gs.getDiscard(me), gs.getDeadPile(me), gs.getStacked(me), gs.getInPlay());
+        for (List<? extends PhysicalCard> zone : zones)
+            for (PhysicalCard c : zone) {
+                if (!c.getOwner().equals(me) || c == bearer)
+                    continue;
+                var side = c.getBlueprint().getSide();
+                outFp += side == com.gempukku.lotro.common.Side.FREE_PEOPLE ? 1 : 0;
+                outShadow += side == com.gempukku.lotro.common.Side.SHADOW ? 1 : 0;
+            }
+        int half = (gs.getDeck(me).size() + outFp + outShadow) / 2;
+        int[] left = {half - outFp, half - outShadow};
+        if (CHECK) {
+            int fp = 0, shadow = 0;
+            for (PhysicalCard c : gs.getDeck(me)) {
+                fp += c.getBlueprint().getSide() == com.gempukku.lotro.common.Side.FREE_PEOPLE ? 1 : 0;
+                shadow += c.getBlueprint().getSide() == com.gempukku.lotro.common.Side.SHADOW ? 1 : 0;
+            }
+            CHECKED.incrementAndGet();
+            if (fp != left[0] || shadow != left[1])
+                System.err.println("deckLeft: counted " + left[0] + "/" + left[1] + ", deck holds " + fp + "/" + shadow
+                        + " (" + me + ", turn " + gs.getTurnNumber() + ", " + gs.getCurrentPhase() + ")");
+        }
+        return left;
+    }
+
+    private static final boolean CHECK = System.getenv("PROBE_CHECK") != null;
+    public static final java.util.concurrent.atomic.AtomicLong CHECKED = new java.util.concurrent.atomic.AtomicLong();
+
+    /** Other copies of the card {@code answer} plays (by title) in {@code me}'s hand. */
+    private static int copies(GameState gs, AwaitingDecision decision, String answer, String me) {
+        int n = 0;
+        String[] ids = decision.getDecisionParameters().get("actionId"), cards = decision.getDecisionParameters().get("cardId");
+        for (int i = 0; ids != null && cards != null && i < ids.length && i < cards.length; i++) {
+            if (!ids[i].equals(answer))
+                continue;
+            int cardId = Integer.parseInt(cards[i]);
+            PhysicalCard source = gs.findCardById(cardId);
+            if (source == null)
+                return n;
+            String title = source.getBlueprint().getTitle();
+            for (PhysicalCard c : gs.getHand(me))
+                if (c.getCardId() != cardId && title.equals(c.getBlueprint().getTitle()))
+                    n++;
+            return n;
+        }
+        return n;
     }
 
     /** No probe: all zeros, "probed" among them. */
@@ -163,7 +246,8 @@ public final class EffectProbe {
     /** What the probe compares, read off one board from {@code me}'s side. */
     private record Board(boolean fp, int fpCharacter, int margin, int result, int damage, int burdens, int threats,
                          int twilight, int hand, int myWounds, int theirWounds, int myCharacters, int theirCharacters,
-                         int myCards, int theirCards, int resistance, int myStrength, int theirStrength) {
+                         int myCards, int theirCards, int resistance, int myStrength, int theirStrength,
+                         int handFp, int handShadow) {
         static Board read(GameState gs, String me) {
             var game = gs.getGame();
             boolean fp = me.equals(gs.getCurrentPlayerId());
@@ -209,9 +293,14 @@ public final class EffectProbe {
                     resistance = game.getModifiersQuerying().getResistance(game, bearer);
             } catch (RuntimeException ignored) {
             }
+            int handFp = 0, handShadow = 0;
+            for (PhysicalCard c : gs.getHand(me)) {
+                handFp += c.getBlueprint().getSide() == com.gempukku.lotro.common.Side.FREE_PEOPLE ? 1 : 0;
+                handShadow += c.getBlueprint().getSide() == com.gempukku.lotro.common.Side.SHADOW ? 1 : 0;
+            }
             return new Board(fp, fpCharacter, margin, result, damage, gs.getBurdens(), gs.getThreats(),
                     gs.getTwilightPool(), gs.getHand(me).size(), myWounds, theirWounds, myCharacters, theirCharacters,
-                    myCards, theirCards, resistance, myStrength, theirStrength);
+                    myCards, theirCards, resistance, myStrength, theirStrength, handFp, handShadow);
         }
     }
 
@@ -219,5 +308,6 @@ public final class EffectProbe {
     public static final List<String> NAMES = Arrays.asList("probed", "marginAfter", "marginDelta", "resultAfter",
             "resultDelta", "damageDelta", "burdensForMe", "threatsForMe", "twilightForMe", "handDelta", "myWoundsDelta",
             "theirWoundsDelta", "myCharactersDelta", "theirCharactersDelta", "myCardsDelta", "theirCardsDelta",
-            "resistanceForMe", "skirmishEnded", "gameOver", "resolved", "myStrengthDelta", "theirStrengthDelta");
+            "resistanceForMe", "skirmishEnded", "gameOver", "resolved", "myStrengthDelta", "theirStrengthDelta",
+            "copiesInHand", "myHandFpAfter", "myHandShadowAfter", "myDeckFpLeft", "myDeckShadowLeft");
 }

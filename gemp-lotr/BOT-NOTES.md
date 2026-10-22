@@ -907,6 +907,24 @@ the same way: Fellowship 49.3% +- 1.2 (49.9% with the probe -- nothing), Shadow 
 skirmish, people's labels alone lose ~3 points to the old context, which had the teacher's too, and the probe wins
 them back; the Shadow player's plays -- minions, conditions -- show what they cost and add at once.
 
+**Nor do the teacher's Shadow labels, or the hand and deck.** Teacher mode from `sel10-probe` searching only Shadow
+prompts (`-Dsearch.phases=shadow`; stopped at the 2-hour limit after ~1,000 games: 77,988 probed labels), the Shadow
+context refit on people's labels plus those x3 (43 minutes): 49.7% +- 1.2 against `sel10-probe`.
+
+One hand holds both sides' cards, so a Shadow card played is a slot for a Free Peoples card at reconcile, and a card
+held may be the only one of its kind (the user's point). The probe now also gives other copies of the played card in
+hand, the hand's Free Peoples and Shadow cards after the play, and the draw deck's Free Peoples and Shadow cards left
+(27 numbers; `length=27` in `probe-contexts`, `-DanyPhase.probeLength`). A player knows their own deck, but a
+re-created human game knows only the deck cards that were seen -- the ones drawn later, so counting them would leak
+the future. Every GEMP format makes a draw deck half and half (`validateShadowFPCount`), so the deck is counted from
+the other side: each side's half less that side's cards out of the deck. Checked against the real deck in 792 bot
+games (`PROBE_CHECK=1`): 23 of ~30,000 counts one Free Peoples card off, mid-skirmish. Fellowship and Shadow refit with
+the 27 numbers (69 minutes), swapped into `sel10-probe` one at a time: Fellowship 49.8% +- 1.2 (49.9% with 22),
+Shadow 48.8% (49.3%). The state already has the hand by side, minions and skirmish events; whether to play a card now
+does not turn on the rest, as far as 6,336 games can tell. Where hand management is the whole decision is reconcile --
+which card to discard before drawing up -- and there the bot agrees with people 18.9% of the time (July, 1,827 asked;
+-0.5 +- 0.9 a disagreement, -7.2 summed).
+
 ## Human Movie Block games, and assignments learned from them (2026-10-19)
 
 **2022 replays.** October and November 2022 (`GEMP-LOTR-Replays_2022-1{0,1}.zip`, ~340 MB

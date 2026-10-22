@@ -62,6 +62,8 @@ public class AnyPhaseCardActionTrainer extends AbstractTrainer {
      * phase, the skirmish's. Supersedes "skirmish-probe" for the contexts it names.
      */
     public static final java.util.Set<String> PROBE_CONTEXTS = names(System.getProperty("anyPhase.probeContexts"));
+    /** -DanyPhase.probeLength: how many of the probe's numbers to fit on (22 leaves out the hand). */
+    public static final int PROBE_LENGTH = Integer.getInteger("anyPhase.probeLength", EffectProbe.LENGTH);
     /**
      * -DanyPhase.refitFrom=&lt;a PerContextModel file&gt; -DanyPhase.refitContexts=a,b: refit only those contexts'
      * models from these steps, keeping every other context's as it was. -DanyPhase.refitSkirmishFrom=&lt;file&gt; is
@@ -122,7 +124,8 @@ public class AnyPhaseCardActionTrainer extends AbstractTrainer {
             return null;
         boolean rich = modelRegistry.isAnyPhaseRich();
         // all the probe's numbers where the model directory names the context; the first 20 for a skirmish-only model
-        int probeLength = modelRegistry.getProbeContexts().contains(contextName(decision.getText())) ? EffectProbe.LENGTH
+        int probeLength = modelRegistry.getProbeContexts().contains(contextName(decision.getText()))
+                ? modelRegistry.getProbeLength()
                 : modelRegistry.isSkirmishProbe() && EffectProbe.applies(decision) ? EffectProbe.SKIRMISH_LENGTH : 0;
         boolean probe = probeLength > 0;
         double[] state = features.extractFeatures(gameState, decision, playerName);
@@ -240,7 +243,7 @@ public class AnyPhaseCardActionTrainer extends AbstractTrainer {
                 action.getSourceBlueprint() != null ? action.getActionText() : null, blueprint, action.getWoundsOnSource(),
                 extra);
         if (PROBE_CONTEXTS.contains(contextName(step.decision.getText())))
-            x = append(x, EffectProbe.fit(action.getProbe(), EffectProbe.LENGTH));
+            x = append(x, EffectProbe.fit(action.getProbe(), PROBE_LENGTH));
         else if (PROBE_TRAINING && EffectProbe.applies(step.decision))
             x = append(x, EffectProbe.fit(action.getProbe(), EffectProbe.SKIRMISH_LENGTH));
         return x;
