@@ -98,6 +98,8 @@ public class FotrStarterBot extends RandomDecisionBot implements LearningBotPlay
      */
     private final boolean extended;
     private final AnyPhaseCardActionTrainer anyPhaseTrainer = new AnyPhaseCardActionTrainer();
+    /** Reconcile with "keep everything" as an option, where the model directory has one. */
+    private final ReconcileChoiceTrainer reconcileChoice = new ReconcileChoiceTrainer();
 
     public FotrStarterBot(RLGameStateFeatures features, String playerId, ModelRegistry modelRegistry, ReplayBuffer replayBuffer) {
         this(features, playerId, modelRegistry, replayBuffer, 0.0, false);
@@ -360,6 +362,11 @@ public class FotrStarterBot extends RandomDecisionBot implements LearningBotPlay
             return super.chooseAction(gameState, decision);
         }
 
+        if (extended && modelRegistry.hasModel(ReconcileChoiceTrainer.class) && ReconcileChoiceTrainer.applies(decision)) {
+            String answer = reconcileChoice.getAnswer(gameState, decision, getName(), features, modelRegistry);
+            if (answer != null)
+                return answer;
+        }
         for (DecisionAnswerer trainer : cardSelectionTrainers) {
             if (trainer.appliesTo(gameState, decision, getName())) {
                 return trainer.getAnswer(gameState, decision, getName(), features, modelRegistry);

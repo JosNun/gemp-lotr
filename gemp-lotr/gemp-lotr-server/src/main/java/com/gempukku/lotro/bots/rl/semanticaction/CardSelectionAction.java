@@ -17,6 +17,13 @@ public class CardSelectionAction implements SemanticAction {
     protected final List<String> notChosenBlueprintIds = new ArrayList<>();
     protected final List<Integer> woundsOnNotChosen = new ArrayList<>();
     protected final String zoneString;
+    /**
+     * A decision's options with numbers only the live game gives, for a model that compares them (reconcile: keep
+     * everything, then each card); null where none was written.
+     */
+    private String[] optionBlueprints;
+    private double[][] optionExtras;
+    private int optionChosen = -1;
 
     public CardSelectionAction(String answer, AwaitingDecision decision, GameState gameState) {
         String[] individualCards = answer.split(",");
@@ -99,6 +106,25 @@ public class CardSelectionAction implements SemanticAction {
         return zoneString;
     }
 
+    public CardSelectionAction withOptions(String[] blueprints, double[][] extras, int chosen) {
+        this.optionBlueprints = blueprints;
+        this.optionExtras = extras;
+        this.optionChosen = chosen;
+        return this;
+    }
+
+    public String[] getOptionBlueprints() {
+        return optionBlueprints;
+    }
+
+    public double[][] getOptionExtras() {
+        return optionExtras;
+    }
+
+    public int getOptionChosen() {
+        return optionChosen;
+    }
+
     @Override
     public String toDecisionString(AwaitingDecision decision, GameState gameState) {
         if (decision.getDecisionType() != AwaitingDecisionType.CARD_SELECTION) {
@@ -141,12 +167,21 @@ public class CardSelectionAction implements SemanticAction {
         obj.put("notChosenBlueprints", notChosenBlueprintIds.toArray());
         obj.put("woundsOnNotChosen", woundsOnNotChosen.toArray());
         obj.put("zone", zoneString);
+        if (optionExtras != null) {
+            obj.put("options", optionBlueprints);
+            obj.put("optionExtras", optionExtras);
+            obj.put("optionChosen", optionChosen);
+        }
         return obj;
     }
 
     public static CardSelectionAction fromJson(JSONObject obj) {
-        return new CardSelectionAction(obj.getObject("chosenBlueprints", String[].class), obj.getObject("notChosenBlueprints", String[].class),
+        CardSelectionAction a = new CardSelectionAction(obj.getObject("chosenBlueprints", String[].class), obj.getObject("notChosenBlueprints", String[].class),
                 obj.getObject("woundsOnChosen", Integer[].class), obj.getObject("woundsOnNotChosen", Integer[].class),
                 obj.getString("zone"));
+        if (obj.containsKey("optionExtras"))
+            a.withOptions(obj.getObject("options", String[].class), obj.getObject("optionExtras", double[][].class),
+                    obj.getIntValue("optionChosen"));
+        return a;
     }
 }

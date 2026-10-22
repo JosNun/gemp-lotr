@@ -4,6 +4,7 @@ import com.gempukku.lotro.bots.rl.LearningStep;
 import com.gempukku.lotro.bots.rl.fotrstarters.CardFeatures;
 import com.gempukku.lotro.bots.rl.fotrstarters.EffectProbe;
 import com.gempukku.lotro.bots.rl.fotrstarters.GeneralStateFeatures;
+import com.gempukku.lotro.bots.rl.fotrstarters.models.cardselection.ReconcileChoiceTrainer;
 import com.gempukku.lotro.bots.rl.semanticaction.*;
 import com.gempukku.lotro.common.Phase;
 import com.gempukku.lotro.game.state.GameState;
@@ -113,7 +114,7 @@ final class TrainingSteps implements HumanReplay.StepSink {
                     case CARD_ACTION_CHOICE -> new CardActionChoiceAction(l[0], decision, gs).withProbe(probe(gs, decision, l[0], player));
                     case CARD_SELECTION -> gs.getCurrentPhase() == Phase.SKIRMISH
                             ? new CardSelectionAssignedAction(l[0], decision, gs)
-                            : new CardSelectionAction(l[0], decision, gs);
+                            : withOptions(new CardSelectionAction(l[0], decision, gs), gs, decision, l[0], player);
                     case ASSIGN_MINIONS -> new AssignMinionsAction(l[0], decision, gs, fp);
                     case ACTION_CHOICE -> throw new IllegalStateException();
                 };
@@ -146,6 +147,15 @@ final class TrainingSteps implements HumanReplay.StepSink {
             return EffectProbe.pass(gs, player);
         double[] f = EffectProbe.probe(gs, player, answer, bots);
         return f != null ? f : EffectProbe.none();
+    }
+
+    /** At reconcile, the options -- keep everything, each card -- with what ReconcileChoiceTrainer compares them on. */
+    private static CardSelectionAction withOptions(CardSelectionAction action, GameState gs, AwaitingDecision decision,
+                                                   String answer, String player) {
+        if (!ReconcileChoiceTrainer.applies(decision))
+            return action;
+        var o = ReconcileChoiceTrainer.options(gs, decision, player);
+        return action.withOptions(o.blueprints(), o.extras(), ReconcileChoiceTrainer.chosen(decision, answer));
     }
 
     /** Rejected assignments written per human one. */

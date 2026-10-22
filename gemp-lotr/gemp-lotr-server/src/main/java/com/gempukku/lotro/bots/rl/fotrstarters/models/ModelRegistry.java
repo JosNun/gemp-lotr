@@ -43,6 +43,28 @@ public class ModelRegistry {
         this.probeContexts = probeContexts;
     }
 
+    /** ReconcileChoiceTrainer fit with only its keep-everything number: a "reconcile-plain" file. */
+    private boolean reconcilePlain;
+
+    public boolean isReconcilePlain() {
+        return reconcilePlain;
+    }
+
+    public void setReconcilePlain(boolean reconcilePlain) {
+        this.reconcilePlain = reconcilePlain;
+    }
+
+    /** Card actions pass only if passing outweighs every play together: a "pass-by-mass" file. */
+    private boolean passByMass;
+
+    public boolean isPassByMass() {
+        return passByMass;
+    }
+
+    public void setPassByMass(boolean passByMass) {
+        this.passByMass = passByMass;
+    }
+
     public boolean isSkirmishProbe() {
         return skirmishProbe;
     }

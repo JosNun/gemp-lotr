@@ -925,6 +925,39 @@ does not turn on the rest, as far as 6,336 games can tell. Where hand management
 which card to discard before drawing up -- and there the bot agrees with people 18.9% of the time (July, 1,827 asked;
 -0.5 +- 0.9 a disagreement, -7.2 summed).
 
+## Reconcile: keeping the hand is an option (2026-10-22)
+
+**The bot always discarded.** At reconcile a player may discard one card, then draws up to the hand size
+(`PlayerReconcilesAction`). `ReconcileTrainer`, like every card-selection answerer, returned its `max` best-scored
+cards -- one -- so the bot cycled a card every time, never keeping its hand. People keep it 48% of the time (54,045 of
+112,648 reconciles in ten months of 2022's Movie Block games): 13% discard with one card in hand, 43% with four, 67%
+with eight; 6,907 of their discards (12%) were dead cards.
+
+**`ReconcileChoiceTrainer`**: "keep everything" beside each card, fit listwise on people's reconciles, with numbers
+only the live game gives, written with the label (`CardSelectionAction`'s options): the card's other copies in hand,
+whether it is dead (unique, with a copy already in play or in the dead pile), how many cards the answer draws, the
+draw deck's Free Peoples and Shadow cards left, and the hand's after. Optional in a model directory; ten months (July
+held out), 112,648 decisions, 33 minutes.
+
+**Taking the likeliest single option keeps too much.** Played that way (`sel10-rec`): 45.8% +- 1.2 against
+`sel10-probe`. On July's reconciles it kept 84% of the time where people kept 53% -- keeping is one option against seven
+cards that share the rest, so it out-scored each card even when discarding something was likelier. Kept only when
+keeping outweighs all the discards together (the options' softmax shares, from the listwise model's logistic
+outputs): **50.9% +- 1.2**, then 50.3% +- 0.9 over twice the games -- level with always discarding. Against people, on
+July (half the reconciles, the same decisions for both):
+
+| | `sel10-probe` (always discards) | `sel10-rec` |
+|---|---|---|
+| agrees with the human | 19.7% | **49.6%** |
+| keeps the hand | 0% | 45.3% (people 53.4%) |
+| disagreements, bot - human | -0.9 +- 0.6 | +0.1 +- 0.7 |
+
+As strong against the bot, closer to people and level with them where it differs: `sel10-rec` is the bot to use.
+
+**The same rule for card actions does nothing.** Pass only if passing outweighs every play together (`pass-by-mass` in
+the model directory), over `sel10-probe`: 49.1% +- 1.2; with the reconcile model too, 49.7%. Pass, unlike keeping, is
+chosen in proportion already: the skirmish passivity is in the scores, not in how one is picked from them.
+
 ## Human Movie Block games, and assignments learned from them (2026-10-19)
 
 **2022 replays.** October and November 2022 (`GEMP-LOTR-Replays_2022-1{0,1}.zip`, ~340 MB
