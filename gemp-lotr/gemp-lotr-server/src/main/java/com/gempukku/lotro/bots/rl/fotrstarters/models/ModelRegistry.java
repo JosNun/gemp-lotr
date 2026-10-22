@@ -24,6 +24,17 @@ public class ModelRegistry {
     /** Card-action contexts whose options carry all of EffectProbe's numbers: a "probe-contexts" file lists them. */
     private java.util.Set<String> probeContexts = java.util.Set.of();
 
+    /** How many of EffectProbe's numbers those contexts were fit on: "length=N" in the file, else 22. */
+    private int probeLength = 22;
+
+    public int getProbeLength() {
+        return probeLength;
+    }
+
+    public void setProbeLength(int probeLength) {
+        this.probeLength = probeLength;
+    }
+
     public java.util.Set<String> getProbeContexts() {
         return probeContexts;
     }

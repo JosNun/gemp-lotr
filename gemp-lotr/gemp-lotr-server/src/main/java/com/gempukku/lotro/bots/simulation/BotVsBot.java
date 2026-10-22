@@ -626,9 +626,14 @@ public class BotVsBot {
         registry.setAnyPhaseFirst(Files.exists(dir.resolve("any-phase-first")));
         registry.setAnyPhaseRich(Files.exists(dir.resolve("any-phase-rich")));
         registry.setSkirmishProbe(Files.exists(dir.resolve("skirmish-probe")));
-        if (Files.exists(dir.resolve("probe-contexts")))
+        if (Files.exists(dir.resolve("probe-contexts"))) {
+            String list = Files.readString(dir.resolve("probe-contexts"));
+            var length = java.util.regex.Pattern.compile("length=(\\d+)").matcher(list);
+            registry.setProbeLength(length.find() ? Integer.parseInt(length.group(1))
+                    : com.gempukku.lotro.bots.rl.fotrstarters.EffectProbe.LENGTH_WITHOUT_HAND);
             registry.setProbeContexts(com.gempukku.lotro.bots.rl.fotrstarters.models.cardaction.AnyPhaseCardActionTrainer
-                    .names(Files.readString(dir.resolve("probe-contexts"))));
+                    .names(list.replaceAll("length=\\d+", "")));
+        }
         return registry;
     }
 
