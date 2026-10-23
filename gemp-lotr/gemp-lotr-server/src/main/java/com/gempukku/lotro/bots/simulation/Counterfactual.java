@@ -101,6 +101,20 @@ final class Counterfactual {
         return false;
     }
 
+    /** At an assignment: the Ring-bearer's id, then the free characters' ids ("rb;id id id"); empty otherwise. */
+    private static String assignmentContext(GameState gs, AwaitingDecision d) {
+        if (d.getDecisionType() != AwaitingDecisionType.ASSIGN_MINIONS)
+            return "";
+        try {
+            var bearer = gs.getRingBearer(gs.getCurrentPlayerId());
+            String[] free = d.getDecisionParameters().get("freeCharacters");
+            return (bearer == null ? "" : String.valueOf(bearer.getCardId())) + ";"
+                    + (free == null ? "" : String.join(" ", free));
+        } catch (RuntimeException e) {
+            return "";
+        }
+    }
+
     /** Whether {@code player} wins after giving {@code answer} on a copy, the bot playing on for both; null on error. */
     private static Boolean playOut(DefaultLotroGame live, GameCopier copier, BotVsBot.Context ctx, List<String> players,
                                    String player, String answer, long seed) {
@@ -201,7 +215,7 @@ final class Counterfactual {
     /**
      * One row: game, player, bucket, type, the two raw answers, the wins and rollouts; then the side, what each answer
      * did (card and action text for card actions, the cards for selections), and in a skirmish the deciding player's
-     * strength margin; then the turn and phase. Agreed: n is 0; differed but not played out (--cf-rollouts 0): n is -1.
+     * strength margin; then the turn and phase, and at an assignment the Ring-bearer and the free characters. Agreed: n is 0; differed but not played out (--cf-rollouts 0): n is -1.
      */
     private static void write(GameState gs, String game, String player, String bucket, AwaitingDecision d, String human,
                               String bot, int humanWins, int botWins, int n) {
@@ -224,7 +238,7 @@ final class Counterfactual {
             out.println(String.join("\t", game, player, bucket, d.getDecisionType().name(), human.replace('\t', ' '),
                     bot.replace('\t', ' '), String.valueOf(humanWins), String.valueOf(botWins), String.valueOf(n),
                     side, humanDid.replace('\t', ' '), botDid.replace('\t', ' '), margin,
-                    String.valueOf(gs.getTurnNumber()), String.valueOf(gs.getCurrentPhase())));
+                    String.valueOf(gs.getTurnNumber()), String.valueOf(gs.getCurrentPhase()), assignmentContext(gs, d)));
             out.flush();
         }
     }
