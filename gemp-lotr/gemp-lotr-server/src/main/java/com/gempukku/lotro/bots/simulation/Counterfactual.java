@@ -31,6 +31,8 @@ final class Counterfactual {
     static volatile PrintWriter OUT;
     /** --cf-only: test only the decisions whose bucket matches (e.g. "play or Pass" for skirmishes); null for all. */
     static volatile java.util.regex.Pattern ONLY;
+    /** --cf-offer: test only card-action decisions with an option whose text matches (e.g. "The One Ring"). */
+    static volatile java.util.regex.Pattern OFFER;
     static final AtomicLong asked = new AtomicLong(), agreed = new AtomicLong(), compared = new AtomicLong();
 
     private Counterfactual() {
@@ -44,6 +46,8 @@ final class Counterfactual {
             return;
         GameState gs = live.getGameState();
         if (ONLY != null && !ONLY.matcher(bucket(gs, decision, player)).find())
+            return;
+        if (OFFER != null && !offers(decision, OFFER))
             return;
         if (sampler.nextDouble() >= RATE)
             return;
@@ -85,6 +89,16 @@ final class Counterfactual {
             return;
         compared.incrementAndGet();
         write(gs, gameName, player, bucket, decision, humanAnswer, botAnswer, humanWins, botWins, n);
+    }
+
+    private static boolean offers(AwaitingDecision d, java.util.regex.Pattern p) {
+        String[] texts = d.getDecisionParameters().get("actionText");
+        if (d.getDecisionType() != AwaitingDecisionType.CARD_ACTION_CHOICE || texts == null)
+            return false;
+        for (String t : texts)
+            if (t != null && p.matcher(t).find())
+                return true;
+        return false;
     }
 
     /** Whether {@code player} wins after giving {@code answer} on a copy, the bot playing on for both; null on error. */

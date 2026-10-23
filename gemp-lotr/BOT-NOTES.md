@@ -1101,6 +1101,19 @@ Not flaws, checked: the arbitrary-card answerers never pass, but people do not e
 "press DONE" with a character still affordable 106 times in 80,118, deck searches and discard picks take the most
 allowed nearly always.
 
+**Trigger order does not matter either.** `--trigger-order-teach-rate 1` from `sel10-e`, 1,000 games: 2,260 "Required
+responses" orderings (2 a game), every order scored the same in 94%, best against worst 0.002 on average, none 0.25
+apart. Left at random -- the last random answer, and like deck order, nothing in it.
+
+**Card by card, the gaps are not losses.** The card-use audit (`sel10-e` against itself on the Movie Block test decks,
+against people in October and November) has the bot using The One Ring (9_1) on 0.2% of offers to people's 5.2%, and
+Saved From the Fire -- a companion to the dead pile for three cards of its culture -- on 0.5% to 33.5%; and playing
+fewer Free Peoples cards overall (companions 20.6% to 26.6%, events 21.1% to 30.5%). Every July decision offering one of
+the two (`--cf-offer <regex>`, all of them): with the Ring, 11,138 asked, no loss anywhere -- where the human used it and
+the bot did not, -0.5 +- 3.3; Saved From the Fire, 324 asked, where the human played it the bot's other answer did
+**+6.8 +- 5.3** better (88). Bot games and people's differ in where a card is offered; what matters is what an answer
+does from the same position, and there these do not cost games.
+
 ## Human Movie Block games, and assignments learned from them (2026-10-19)
 
 **2022 replays.** October and November 2022 (`GEMP-LOTR-Replays_2022-1{0,1}.zip`, ~340 MB
