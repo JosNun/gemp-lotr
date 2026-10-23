@@ -19,10 +19,11 @@ import java.util.jar.JarFile;
  * Copies a live game at a decision point, so a lookahead rollout can play on from a copy instead of replaying the game
  * from its seed (BotTeach --clone). Everything the game owns is copied; everything every game in the JVM shares is not:
  * the card library and formats (every blueprint and all that hangs off them), whatever the engine's classes hold in
- * static fields, and the decks the harness passed in. That line is drawn by identity, not by type -- the shared objects
- * are found once by walking from those roots -- because a game's actions and modifiers point straight at pieces of
- * blueprints (filters, effect appenders), and a copied piece would no longer be the object a blueprint compares
- * against. It is exactly what a replay shares too: every replayed game gets the same library and the same statics.
+ * static fields, the decks the harness passed in, and the pack opener the server gives every game. That line is drawn
+ * by identity, not by type -- the shared objects are found once by walking from those roots -- because a game's
+ * actions and modifiers point straight at pieces of blueprints (filters, effect appenders), and a copied piece would
+ * no longer be the object a blueprint compares against. It is exactly what a replay shares too: every replayed game
+ * gets the same library and the same statics.
  * <p>
  * How each object is copied:
  * <ul>
@@ -112,6 +113,20 @@ public final class GameCopier {
         }
     }
 
+    /**
+     * As {@link #share}, for a root already shared whose contents were replaced in place: the card library after a
+     * reload keeps its maps and swaps the blueprints in them. {@link #share} stops at the first object it has seen,
+     * the library itself, and would find none of the new blueprints. What was shared before stays shared.
+     */
+    public void reshare(Object root) {
+        frozenLock.writeLock().lock();
+        try {
+            freeze(root, Collections.newSetFromMap(new IdentityHashMap<>()));
+        } finally {
+            frozenLock.writeLock().unlock();
+        }
+    }
+
     private static List<Class<?>> classesBesides(Class<?> anchor) {
         List<Class<?>> out = new ArrayList<>();
         try {
@@ -196,13 +211,19 @@ public final class GameCopier {
 
     /** Marks everything reachable from root as shared. Call with the write lock held. */
     private void freeze(Object root) {
+        freeze(root, frozen);
+    }
+
+    /** As above, walking on through everything not in {@code seen}. Call with the write lock held. */
+    private void freeze(Object root, Set<Object> seen) {
         ArrayDeque<Object> stack = new ArrayDeque<>();
         if (root != null)
             stack.push(root);
         while (!stack.isEmpty()) {
             Object o = stack.pop();
-            if (o == null || LEAF.get(o.getClass()) || !frozen.add(o))
+            if (o == null || LEAF.get(o.getClass()) || !seen.add(o))
                 continue;
+            frozen.add(o);
             Class<?> c = o.getClass();
             frozenClasses.put(c, Boolean.TRUE);
             try {
@@ -250,6 +271,7 @@ public final class GameCopier {
      * are dropped.
      */
     public DefaultLotroGame copy(DefaultLotroGame game) {
+        sharePackOpener(game);
         if (anyNewlyInitialised()) {
             frozenLock.writeLock().lock();
             try {
@@ -290,6 +312,26 @@ public final class GameCopier {
         } finally {
             frozenLock.readLock().unlock();
         }
+    }
+
+    /**
+     * The server hands every game the one pack opener over its ProductLibrary, which the harness never sets. It is
+     * shared like the card library, not copied: the ProductLibrary holds a Semaphore, which nothing copies, so every
+     * copy of a server game failed on it and EffectProbe, which takes a failed copy as "cannot tell", gave every
+     * option zeros. Frozen the first time a game brings it, as the decks are.
+     */
+    private void sharePackOpener(DefaultLotroGame game) {
+        Object opener = game.getPackOpener();
+        if (opener == null)
+            return;
+        frozenLock.readLock().lock();
+        try {
+            if (frozen.contains(opener))
+                return;
+        } finally {
+            frozenLock.readLock().unlock();
+        }
+        share(opener);
     }
 
     private static GameState state(DefaultLotroGame game) {

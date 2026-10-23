@@ -24,6 +24,7 @@ import com.gempukku.lotro.bots.simulation.FotrStartersSimulation;
 import com.gempukku.lotro.bots.simulation.SimpleBatchSimulationRunner;
 import com.gempukku.lotro.bots.simulation.SimulationRunner;
 import com.gempukku.lotro.bots.simulation.SimulationStats;
+import com.gempukku.lotro.common.AppConfig;
 import com.gempukku.lotro.common.DateUtils;
 import com.gempukku.lotro.db.DeckSerialization;
 import com.gempukku.lotro.db.LoginInvalidException;
@@ -34,13 +35,35 @@ import com.gempukku.lotro.game.formats.LotroFormatLibrary;
 import com.gempukku.lotro.logic.vo.LotroDeck;
 import smile.classification.SoftClassifier;
 
+import java.io.IOException;
+import java.io.UncheckedIOException;
+import java.nio.file.Files;
+import java.nio.file.Path;
 import java.time.Duration;
 import java.time.ZonedDateTime;
 import java.util.*;
 
+/**
+ * The bots people play on the server: ~bot, which plays any deck, and the starter bots offered per format.
+ * <p>
+ * By default they are the FotR starters bot on the models shipped in bot-models/, read relative to the working
+ * directory. Started with {@code -Dbot.models=<model directory>} they are instead the bot BotVsBot calls
+ * {@code general@<model directory>}: FotrStarterBot with its extensions on, on that directory's models, read through
+ * {@link ModelDirectory} exactly as the harness reads them, markers and all. For example
+ * <pre>
+ *   java -Dbot.models=/srv/gemp/bot-models-exp/sel10-d -jar web.jar
+ * </pre>
+ * A directory that is missing a required model, or does not exist, stops the server at startup rather than playing a
+ * bot that answers every decision of that kind with the fallback.
+ * <p>
+ * Only one model directory per process: EffectProbe's value model and copier are process-wide (see ModelDirectory).
+ */
 public class BotService {
     private static final boolean START_SIMULATIONS_AT_STARTUP = false;
     private static final boolean LOAD_MODELS_FROM_FILES = true;
+
+    /** The system property naming a model directory to play instead of bot-models/; see the class comment. */
+    public static final String MODELS_PROPERTY = "bot.models";
 
     public static final String GENERAL_BOT_NAME = "~bot";
 
@@ -52,18 +75,32 @@ public class BotService {
     private final Map<String, List<BotWithDeck>> formatBotsMap = new HashMap<>();
 
     private final ReplayBuffer replayBuffer = new ReplayBuffer(100_000);
-    private final ModelRegistry modelRegistry = new ModelRegistry();
+    private final ModelRegistry modelRegistry;
+    /** The -Dbot.models directory the bots play from, or null for the shipped bot-models/. */
+    private final Path modelDirectory;
 
     public BotService(LotroCardBlueprintLibrary library, LotroFormatLibrary formatLibrary, PlayerDAO playerDAO) {
+        this(library, formatLibrary, playerDAO, configuredModelDirectory());
+    }
+
+    /** {@code modelDirectory} as -Dbot.models would give it; null plays the shipped bot-models/. */
+    public BotService(LotroCardBlueprintLibrary library, LotroFormatLibrary formatLibrary, PlayerDAO playerDAO,
+                      Path modelDirectory) {
         this.library = library;
         CardFeatures.init(library);
         this.formatLibrary = formatLibrary;
         this.playerDAO = playerDAO;
+        this.modelDirectory = modelDirectory;
+        // before the bots are made: each holds the registry it was given
+        this.modelRegistry = modelDirectory == null ? new ModelRegistry() : loadModelDirectory(library, formatLibrary,
+                modelDirectory);
 
         fillBotParticipantList();
 
 
-        if (START_SIMULATIONS_AT_STARTUP) {
+        if (modelDirectory != null) {
+            System.out.println("Bot decision models ready, from " + modelDirectory.toAbsolutePath());
+        } else if (START_SIMULATIONS_AT_STARTUP) {
             runSelfPlayTrainingLoop(5, 10000);
         } else {
             System.out.println("Loading bot models");
@@ -88,6 +125,50 @@ public class BotService {
 
             System.out.println("Bot decision models ready");
         }
+    }
+
+    private static Path configuredModelDirectory() {
+        String dir = System.getProperty(MODELS_PROPERTY);
+        return dir == null || dir.isBlank() ? null : Path.of(dir.trim());
+    }
+
+    private static ModelRegistry loadModelDirectory(LotroCardBlueprintLibrary library, LotroFormatLibrary formatLibrary,
+                                                    Path dir) {
+        if (!Files.isDirectory(dir))
+            throw new IllegalStateException("-D" + MODELS_PROPERTY + "=" + dir + ": no such directory");
+        System.out.println("Loading bot models from " + dir.toAbsolutePath());
+        // Without this the skirmish probe has no copier and gives every option zeros, and a set-3 directory reads
+        // zeros where card abilities go: the bot plays, just not the bot the directory was measured as.
+        ModelDirectory.prepare(library, formatLibrary, AppConfig.getCardsPath());
+        ModelRegistry registry;
+        try {
+            registry = ModelDirectory.load(dir);
+        } catch (IOException e) {
+            throw new UncheckedIOException("Cannot load bot models from " + dir.toAbsolutePath(), e);
+        }
+        System.out.println("Bot models: feature set " + registry.getFeatureVersion() + ", "
+                + registry.getRegisteredTrainerTypes().size() + " models"
+                + (registry.isAnyPhaseFirst() ? ", any-phase-first" : "")
+                + (registry.isAnyPhaseRich() ? ", any-phase-rich" : "")
+                + (registry.isSkirmishProbe() ? ", skirmish-probe" : "")
+                + (registry.isReconcilePlain() ? ", reconcile-plain" : "")
+                + (registry.isPassByMass() ? ", pass-by-mass" : "")
+                + (registry.isNoSkirmishRule() ? ", no-skirmish-rule" : "")
+                + (registry.isNumberBid() ? ", number-bid" : "")
+                + (registry.getAssignProbe().isEmpty() ? "" : ", assign-probe " + registry.getAssignProbe())
+                + (registry.getProbeContexts().isEmpty() ? "" : ", probe-contexts " + registry.getProbeContexts()
+                + " length " + registry.getProbeLength()));
+        return registry;
+    }
+
+    /**
+     * A bot named {@code name}: the FotR starters bot on bot-models/, or with -Dbot.models what BotVsBot's
+     * general@ kind builds, extensions on.
+     */
+    private FotrStarterBot newBot(String name) {
+        if (modelDirectory == null)
+            return new FotrStarterBot(new FotrStartersRLGameStateFeatures(), name, modelRegistry, null);
+        return new FotrStarterBot(new FotrStartersRLGameStateFeatures(), name, modelRegistry, null, 0.0, true);
     }
 
     /**
@@ -213,7 +294,12 @@ public class BotService {
         if (botList == null || botList.isEmpty()) {
             return null;
         }
-        return botList.get(random.nextInt(botList.size()));
+        BotWithDeck bot = botList.get(random.nextInt(botList.size()));
+        // The listed bots are shared by every game they play, and FotrStarterBot keeps loop-detection state across
+        // decisions; BotVsBot, whose numbers a model directory comes with, plays every game with a fresh one.
+        if (modelDirectory != null)
+            return new BotWithDeck(newBot(bot.getBotPlayer().getName()), bot.getLotroDeck());
+        return bot;
     }
 
     public boolean hasBotParticipant(LotroFormat format) {
@@ -223,7 +309,7 @@ public class BotService {
 
     public BotWithDeck getBotForDeck(LotroDeck deck) {
         // TODO something better than making starter bot play anything
-        return new BotWithDeck(new FotrStarterBot(new FotrStartersRLGameStateFeatures(), GENERAL_BOT_NAME, modelRegistry, null), deck);
+        return new BotWithDeck(newBot(GENERAL_BOT_NAME), deck);
     }
 
     private void fillBotParticipantList() {
@@ -235,7 +321,7 @@ public class BotService {
                         "1_311,1_116,1_116,1_116,1_117,1_117,1_117,1_121,1_121,1_121,1_133,1_133,1_141,1_141,1_145,1_150," +
                         "1_150,1_150,1_150,1_151,1_151,1_151,1_152,1_152,1_152,1_152,1_153,1_153,1_153,1_153,1_154,1_154," +
                         "1_154,1_157,1_157,1_158,1_158", "fotr_block", "Aragorn Starter");
-        fotrBots.add(new BotWithDeck(new FotrStarterBot(new FotrStartersRLGameStateFeatures(), aragornBotName, modelRegistry, null), aragornStarter));
+        fotrBots.add(new BotWithDeck(newBot(aragornBotName), aragornStarter));
 
         String gandalfBotName = "~GandalfBot";
         LotroDeck gandalfStarter = DeckSerialization.buildDeckFromContents("Gandalf Starter",
@@ -244,7 +330,7 @@ public class BotService {
                         "1_304,1_84,1_312,1_26,1_26,1_86,1_168,1_168,1_168,1_176,1_176,1_176,1_176,1_177,1_178,1_178,1_178" +
                         ",1_178,1_179,1_179,1_179,1_180,1_180,1_180,1_180,1_181,1_181,1_181,1_187,1_187,1_187,1_191," +
                         "1_191,1_191,1_196,1_196", "fotr_block", "Gandalf Starter");
-        fotrBots.add(new BotWithDeck(new FotrStarterBot(new FotrStartersRLGameStateFeatures(), gandalfBotName, modelRegistry, null), gandalfStarter));
+        fotrBots.add(new BotWithDeck(newBot(gandalfBotName), gandalfStarter));
 
         try {
             playerDAO.registerBot(GENERAL_BOT_NAME);
