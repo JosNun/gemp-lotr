@@ -1146,6 +1146,30 @@ positions where the Ring-bearer takes a minion -- 166 of the deaths with no comp
 assigning it; the 130 with a character idle are the cases to judge one by one (a search over those assignments would
 say whether the idle companion was the better choice).
 
+**The idle companion was not the better choice.** `BotTeach --rb-assign-check` (from `sel10-e`, 1,500 games on the
+training decks, 16 play-outs a turn on, `value-real`): at every Free Peoples assignment where the bot put a minion on
+its Ring-bearer with another character idle (1,191), its answer against the Ring-bearer's minions moved onto each idle
+character where legal. The best alternative minus the bot's answer: **+0.004 +- 0.007** in win chance -- better by two
+play-outs in sixteen 6% of the time, worse 6%, within that 88%; flat early, mid and late. Those assignments are not a
+habit to correct.
+
+**Where the extra companions die.** Companion deaths (not a Ring-bearer) counted alike from people's recordings (the
+manifests' event streams, 19,439 Movie Block games of 2022, concessions included) and from `BotDeaths` (800 games):
+
+| per game | bots (10.0 turns) | people (8.7 turns) |
+|---|---|---|
+| companions killed | **3.25** | 2.42 |
+| in a skirmish | 1.91 | 1.25 |
+| in the fierce round | **0.92** | 0.49 |
+| maneuver / archery / Fellowship phase | 0.28 / 0.05 / 0.02 | 0.28 / 0.11 / 0.23 |
+| skirmishes, normal / fierce | 17.25 / 4.45 | 14.5 / 2.95 |
+| deaths per skirmish, normal / fierce | **0.112 / 0.216** | 0.086 / 0.166 |
+
+As many skirmishes a turn (1.73 to 1.67), a few more of them fierce (0.45 to 0.34 a turn), and each about 30% deadlier
+for the Free Peoples -- normal and fierce alike. People's Fellowship-phase deaths are their own sacrifices (Saved From
+the Fire and the like), which the bots all but never make. Both seats are the bot, so this does not say which side is
+off: a Free Peoples side losing skirmishes it should hold, or a Shadow side making them deadlier than people's do.
+
 ## Human Movie Block games, and assignments learned from them (2026-10-19)
 
 **2022 replays.** October and November 2022 (`GEMP-LOTR-Replays_2022-1{0,1}.zip`, ~340 MB

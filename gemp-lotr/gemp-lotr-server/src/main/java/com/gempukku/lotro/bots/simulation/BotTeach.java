@@ -54,7 +54,7 @@ public class BotTeach {
     private static final AtomicInteger taught = new AtomicInteger(), labelled = new AtomicInteger(),
             rolloutsRun = new AtomicInteger(), diverged = new AtomicInteger(), cutOff = new AtomicInteger(),
             choicesSearched = new AtomicInteger(), assignmentsSearched = new AtomicInteger(),
-            movesSearched = new AtomicInteger(), movesTaken = new AtomicInteger(), assignmentsTaught = new AtomicInteger();
+            movesSearched = new AtomicInteger(), movesTaken = new AtomicInteger(), assignmentsTaught = new AtomicInteger(), rbChecked = new AtomicInteger();
     /** Scores a rollout's position when --depth stops it early: P(win) for the player whose state it is. */
     static volatile SoftClassifier<double[]> valueModel;
     /** 3 if the value model reads feature set 2 with KnowledgeFeatures appended (value-features.txt). */
@@ -125,6 +125,14 @@ public class BotTeach {
      * resolves first, answered at random -- branched to measure it: values only (-Dteach.pickValues), no labels yet.
      */
     static volatile double triggerOrderTeachRate = 0;
+    /**
+     * --rb-assign-check: at a Free Peoples assignment where the bot's own answer puts a minion on its Ring-bearer while
+     * another character is left idle, branch the answer against the Ring-bearer's minions moved onto each idle
+     * character (where legal). Bot-against-bot Ring-bearer deaths in a skirmish follow the bot's own assignment in 88%
+     * of cases, a third of them with a character idle. Values to -Dteach.pickValues, labels (with AssignmentProbe's
+     * numbers) to the steps file.
+     */
+    static volatile boolean rbAssignCheck = false;
     static final java.util.regex.Pattern DECK_ORDER = java.util.regex.Pattern.compile("on top of deck|beneath draw deck");
     private static final PrintWriter PICK_VALUES;
     static {
@@ -617,6 +625,14 @@ public class BotTeach {
                 if (search)
                     return best != null ? best : mine;
             }
+            if (!search && rbAssignCheck && decision.getDecisionType() == AwaitingDecisionType.ASSIGN_MINIONS
+                    && getName().equals(gameState.getCurrentPlayerId())) {
+                String mine = inner.chooseAction(gameState, decision);
+                List<String> options = rbAlternatives(gameState, decision, mine);
+                if (options.size() > 1)
+                    teachAssignment(gameState, decision, options);
+                return mine;
+            }
             if (!search && opts.assign() && decision.getDecisionType() == AwaitingDecisionType.ASSIGN_MINIONS
                     && starter() instanceof com.gempukku.lotro.bots.rl.fotrstarters.FotrStarterBot bot
                     && ThreadLocalRandom.current().nextDouble() < (assignTeachRate >= 0 ? assignTeachRate : opts.teachRate())) {
@@ -840,6 +856,42 @@ public class BotTeach {
             }
         }
 
+        /**
+         * The bot's answer first, then the same with the Ring-bearer's minions moved onto each idle character, where the
+         * rules allow; just the answer if it puts nothing on the Ring-bearer or leaves no one idle.
+         */
+        private List<String> rbAlternatives(GameState gs, AwaitingDecision decision, String mine) {
+            List<String> options = new ArrayList<>();
+            options.add(mine == null ? "" : mine);
+            try {
+                var bearer = gs.getRingBearer(getName());
+                String[] free = decision.getDecisionParameters().get("freeCharacters");
+                String[] minions = decision.getDecisionParameters().get("minions");
+                if (bearer == null || free == null)
+                    return options;
+                String rb = String.valueOf(bearer.getCardId());
+                var answer = com.gempukku.lotro.bots.rl.fotrstarters.models.assignment.AssignmentProbe.parse(mine);
+                List<String> onRb = answer.getOrDefault(rb, List.of());
+                if (onRb.isEmpty())
+                    return options;
+                var legality = new com.gempukku.lotro.bots.AssignmentLegality(gs.getGame());
+                for (String c : free) {
+                    if (c.equals(rb) || !answer.getOrDefault(c, List.of()).isEmpty())
+                        continue;
+                    Map<String, List<String>> alt = new LinkedHashMap<>();
+                    answer.forEach((k, v) -> alt.put(k, new ArrayList<>(v)));
+                    alt.remove(rb);
+                    alt.put(c, new ArrayList<>(onRb));
+                    if (legality.isLegal(com.gempukku.lotro.common.Side.FREE_PEOPLE, free, minions, alt))
+                        options.add(com.gempukku.lotro.bots.AssignmentLegality.format(alt));
+                }
+            } catch (RuntimeException ignored) {
+            }
+            if (options.size() > 1)
+                rbChecked.incrementAndGet();
+            return options;
+        }
+
         private void teachAssignment(GameState gameState, AwaitingDecision decision, List<String> options) {
             List<BotGame.Step> prefix = List.copyOf(branch.steps());
             long[] worlds = new SplittableRandom().longs(opts.rollouts()).toArray();
@@ -849,6 +901,14 @@ public class BotTeach {
                 value[i] = branch.value(prefix, getName(), options.get(i), worlds, gameState);
                 best = Math.max(best, value[i]);
             }
+            if (PICK_VALUES != null && rbAssignCheck)
+                synchronized (PICK_VALUES) {
+                    StringBuilder v = new StringBuilder();
+                    for (double x : value)
+                        v.append(x).append(' ');
+                    PICK_VALUES.println("rb-assign\t" + options.size() + "\t" + v.toString().trim() + "\t"
+                            + gameState.getTurnNumber() + "\t" + opts.rollouts());
+                }
             if (Arrays.stream(value).allMatch(v -> v == value[0]))
                 return;
             assignmentsTaught.incrementAndGet();
@@ -862,7 +922,9 @@ public class BotTeach {
                 try {
                     LearningStep step = new LearningStep(state,
                             new com.gempukku.lotro.bots.rl.semanticaction.AssignMinionsAction(options.get(i), decision,
-                                    gameState, fp), fp, decision);
+                                    gameState, fp).withProbe(com.gempukku.lotro.bots.rl.fotrstarters.models.assignment
+                                    .AssignmentProbe.features(gameState, decision, com.gempukku.lotro.bots.rl.fotrstarters
+                                    .models.assignment.AssignmentProbe.parse(options.get(i)))), fp, decision);
                     step.reward = label == 1 ? 10.0 : 0.0;
                     lines.append(step.toJson()).append('\n');
                     labelled.incrementAndGet();
@@ -959,6 +1021,7 @@ public class BotTeach {
                 case "--assign-teach-rate" -> assignTeachRate = Double.parseDouble(args[++i]);
                 case "--deck-order-teach-rate" -> deckOrderTeachRate = Double.parseDouble(args[++i]);
                 case "--trigger-order-teach-rate" -> triggerOrderTeachRate = Double.parseDouble(args[++i]);
+                case "--rb-assign-check" -> rbAssignCheck = true;
                 case "--move-depth" -> moveDepth = Integer.parseInt(args[++i]);
                 case "--corruption-weight" -> corruptionWeight = Double.parseDouble(args[++i]);
                 case "--progress-weight" -> progressWeight = Double.parseDouble(args[++i]);
