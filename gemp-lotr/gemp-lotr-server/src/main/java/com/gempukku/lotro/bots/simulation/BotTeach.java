@@ -120,6 +120,11 @@ public class BotTeach {
      * not record. Each option's value goes to -Dteach.pickValues=&lt;file&gt; too: whether the order matters at all.
      */
     static volatile double deckOrderTeachRate = 0;
+    /**
+     * --trigger-order-teach-rate: share of ACTION_CHOICE decisions -- which of several simultaneous required triggers
+     * resolves first, answered at random -- branched to measure it: values only (-Dteach.pickValues), no labels yet.
+     */
+    static volatile double triggerOrderTeachRate = 0;
     static final java.util.regex.Pattern DECK_ORDER = java.util.regex.Pattern.compile("on top of deck|beneath draw deck");
     private static final PrintWriter PICK_VALUES;
     static {
@@ -640,6 +645,12 @@ public class BotTeach {
                         teachPick(gameState, decision, options);
                 }
             }
+            if (!search && triggerOrderTeachRate > 0 && decision.getDecisionType() == AwaitingDecisionType.ACTION_CHOICE
+                    && ThreadLocalRandom.current().nextDouble() < triggerOrderTeachRate) {
+                String[] ids = decision.getDecisionParameters().get("actionId");
+                if (ids != null && ids.length > 1)
+                    teachPick(gameState, decision, Arrays.asList(ids));
+            }
             if (search && opts.assign() && decision.getDecisionType() == AwaitingDecisionType.ASSIGN_MINIONS
                     && starter() instanceof com.gempukku.lotro.bots.rl.fotrstarters.FotrStarterBot bot) {
                 // Who skirmishes whom decides most games here: 94% end with a Ring-bearer killed, usually in a
@@ -802,8 +813,9 @@ public class BotTeach {
                     PICK_VALUES.println(decision.getText().replace('\t', ' ') + "\t" + options.size() + "\t" + best + "\t"
                             + worst + "\t" + opts.rollouts());
                 }
-            if (Arrays.stream(value).allMatch(v -> v == value[0]))
-                return;
+            if (Arrays.stream(value).allMatch(v -> v == value[0])
+                    || decision.getDecisionType() != AwaitingDecisionType.ARBITRARY_CARDS)
+                return; // trigger order: measured only, no semantic action to write it with yet
             double[] state = record.extractFeatures(gameState, decision, getName());
             boolean fp = getName().equals(gameState.getCurrentPlayerId());
             StringBuilder lines = new StringBuilder();
@@ -946,6 +958,7 @@ public class BotTeach {
                 case "--no-card-search" -> cardSearch = false;
                 case "--assign-teach-rate" -> assignTeachRate = Double.parseDouble(args[++i]);
                 case "--deck-order-teach-rate" -> deckOrderTeachRate = Double.parseDouble(args[++i]);
+                case "--trigger-order-teach-rate" -> triggerOrderTeachRate = Double.parseDouble(args[++i]);
                 case "--move-depth" -> moveDepth = Integer.parseInt(args[++i]);
                 case "--corruption-weight" -> corruptionWeight = Double.parseDouble(args[++i]);
                 case "--progress-weight" -> progressWeight = Double.parseDouble(args[++i]);

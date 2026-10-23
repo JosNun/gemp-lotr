@@ -1094,6 +1094,13 @@ skirmishes). One labelling pass (31,149 skirmish orders, 51,271 character picks)
 50.3% +- 1.2, agreement 47.7% -> **60.5%**; character picks 50.6% (outside skirmishes only 50.8%), heals 63.5% ->
 **72.4%**, wounds 66.9% -> 69.9%.
 
+**`sel10-e`** = `sel10-d` with both: **51.7% +- 0.9** against `sel10-d`, **83.6% +- 1.3** against `v2-real`; agreement
+with people 67.4% (67.1%), mean over kinds 67.8% (67.0%). The best bot.
+
+Not flaws, checked: the arbitrary-card answerers never pass, but people do not either -- the starting fellowship
+"press DONE" with a character still affordable 106 times in 80,118, deck searches and discard picks take the most
+allowed nearly always.
+
 ## Human Movie Block games, and assignments learned from them (2026-10-19)
 
 **2022 replays.** October and November 2022 (`GEMP-LOTR-Replays_2022-1{0,1}.zip`, ~340 MB
