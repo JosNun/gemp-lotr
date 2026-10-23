@@ -1170,6 +1170,25 @@ for the Free Peoples -- normal and fierce alike. People's Fellowship-phase death
 the Fire and the like), which the bots all but never make. Both seats are the bot, so this does not say which side is
 off: a Free Peoples side losing skirmishes it should hold, or a Shadow side making them deadlier than people's do.
 
+**Which side: the Free Peoples.** `HumanReplay --cf-deaths --cf-phases ASSIGNMENT,SKIRMISH` (`sel10-e`, July, 60% of
+the decisions in those phases, the fierce round included): where the bot differs from the human, both answers played on
+only to the end of the turn (8 times, the bot finishing for both, the same futures), counting the Free Peoples player's
+companions killed and its Ring-bearer (`scripts/counterfactual_deaths.py`). 14,722 asked, 4,037 differing:
+
+| | differing | companions killed, bot - human | Ring-bearer |
+|---|---|---|---|
+| Free Peoples decisions | 3,313 | **+0.024 +- 0.013** | +0.002 +- 0.005 |
+| -- assignments | 1,264 | +0.027 +- 0.025 | |
+| -- skirmish plays | 992 | +0.017 +- 0.023 | |
+| -- which skirmish next | 519 | +0.025 +- 0.024 | |
+| Shadow decisions | 724 | **-0.069 +- 0.025** | -0.003 +- 0.010 |
+| -- skirmish plays | 452 | -0.073 +- 0.035 | |
+
+The bots' Free Peoples choices cost a few more companions than people's, spread over assignments, skirmish plays and
+skirmish order with none standing out; their Shadow choices kill *fewer* than people's -- the skirmish passivity again.
+Bot games are deadlier than people's because both seats are the bot: the Free Peoples side's small losses compound
+over a game, and nothing like a human Shadow player is there to show the gap the other way.
+
 ## Human Movie Block games, and assignments learned from them (2026-10-19)
 
 **2022 replays.** October and November 2022 (`GEMP-LOTR-Replays_2022-1{0,1}.zip`, ~340 MB

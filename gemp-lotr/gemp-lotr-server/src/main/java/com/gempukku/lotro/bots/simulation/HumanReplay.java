@@ -1368,6 +1368,8 @@ public class HumanReplay {
                 case "--cf-rollouts" -> Counterfactual.ROLLOUTS = Integer.parseInt(args[++i]);
                 case "--cf-only" -> Counterfactual.ONLY = java.util.regex.Pattern.compile(args[++i]);
                 case "--cf-offer" -> Counterfactual.OFFER = java.util.regex.Pattern.compile(args[++i]);
+                case "--cf-phases" -> Counterfactual.PHASES = java.util.Set.of(args[++i].toUpperCase().split(","));
+                case "--cf-deaths" -> Counterfactual.DEATHS = true;
                 case "--steps-only" -> TrainingSteps.ONLY = java.util.regex.Pattern.compile(args[++i]);
                 case "--probe-bot" -> probeBot = args[++i];
                 case "--probe-value" -> EffectProbe.VALUE = BotVsBot.readModel(Path.of(args[++i]).resolve("value.model"));
