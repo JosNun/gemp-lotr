@@ -1114,6 +1114,16 @@ the bot did not, -0.5 +- 3.3; Saved From the Fire, 324 asked, where the human pl
 **+6.8 +- 5.3** better (88). Bot games and people's differ in where a card is offered; what matters is what an answer
 does from the same position, and there these do not cost games.
 
+**How the seats win** (BotVsBot now splits the endings by whether the winner went first). People, 7,109 Movie Block
+games of 2022 not conceded (the summaries' WinReasons): surviving site 9 is won by the player who went first 67.8% of the
+time, a Ring-bearer killed 47.6%, corrupted 41.3%. `sel10-e` against itself on the Movie Block test decks, 3,200 games:
+going first won 49.8% (people 54.2%; the 47.8% earlier was on the mixed suite); site 9 65.8% by the first player, killed
+43.3%, corrupted 45.8% -- the same shape. What differs is the mix: the bots' games end with a Ring-bearer killed 60% of
+the time (people 39%), at site 9 27% (19%), corrupted 12% (18%). The bots' Shadow side kills Ring-bearers far more than
+their Free Peoples side prevents -- with the audit's fewer companions played (20.6% of offers against 26.6%) a likely
+part of it, though the counterfactual, played out by the bot itself, does not mark those plays as losses. Not
+adopted: the probe on Shadow assignments (6,788 decisions with a choice; 49.5% +- 1.2, agreement unchanged).
+
 ## Human Movie Block games, and assignments learned from them (2026-10-19)
 
 **2022 replays.** October and November 2022 (`GEMP-LOTR-Replays_2022-1{0,1}.zip`, ~340 MB
