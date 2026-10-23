@@ -364,6 +364,11 @@ public class BotVsBot {
             done.stream().collect(Collectors.groupingBy(o -> o.reason().replaceAll("\\d+", "N"), TreeMap::new,
                             Collectors.counting()))
                     .forEach((r, n) -> System.out.printf("    %5d  %s%n", n, r));
+            // going first wins 54% of people's Movie Block games and lost between the bots: how each seat wins
+            System.out.println("  how games ended, by whether the winner went first (first / second):");
+            done.stream().collect(Collectors.groupingBy(o -> o.reason().replaceAll("\\d+", "N"), TreeMap::new,
+                            Collectors.partitioningBy(o -> o.winner().equals(o.first()), Collectors.counting())))
+                    .forEach((r, n) -> System.out.printf("    %5d / %5d  %s%n", n.get(true), n.get(false), r));
         }
         if (errors > 0) {
             System.out.printf("  %d games crashed or stalled:%n", errors);
