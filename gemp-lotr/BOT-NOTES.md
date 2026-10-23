@@ -1056,6 +1056,44 @@ average, none 0.25 apart. Within a turn, and as the value model reads a hand, th
 The order of simultaneous required triggers (`ACTION_CHOICE`) is the other random answer left; neither people's
 replays (`TrainingSteps` skips them) nor the teacher label it yet.
 
+## Against people again, and the server (2026-10-23)
+
+**`sel10-d` on July 2022, played out** (10% of decisions, 8 play-outs; rows now carry the turn and phase,
+`scripts/counterfactual_turns.py`): 11,939 asked, agreed 67.7%; where it differed, -0.7 +- 0.5 points a time, about as
+`sel10` (-0.8), on far fewer disagreements. No kind is clearly behind any more -- skirmish plays -4.2 summed, archery
+-3.6, Fellowship -3.5, Free Peoples assignments -3.1, every one within about an interval of nothing. Not the early
+turns: turn 1 Free Peoples -0.0, Shadow -0.6; the most is Free Peoples decisions from turn 5 on (-10.6, -1.2 +- 1.1).
+
+**Going first: people win with it, the bots lose with it.** In 10,606 people's 2022 Movie Block games (not conceded)
+the player going first won **54.2%**; between the bots, 47.8%. The race is the likely reason -- going first is moving
+first, and people end 37% of their decided games surviving site 9 to the bots' 22%.
+
+**"Move again?" against people: moving looks better either way.** July's 4,166 move decisions, all of them (`--cf-only
+"another move" --cf-rate 1`): where the human moved and the bot would have stopped, the bot's answer did 11.1 +- 3.0
+points worse (turns 1-2, 303); where the human stopped and the bot would have moved, 12.9 +- 2.9 better (232) -- moving
+won by 10-13 points whoever chose it. **But not between the bots.** A `move-threshold` file sets where
+`AnotherMoveTrainer` says yes (0.5 by default): 0.35 -> 50.4% +- 1.2 against `sel10-d`, 0.2 -> **47.6%**. The play-outs
+are the bot's, for both sides; a Shadow side that does not punish a fellowship moving on makes moving look good. The
+counterfactual's verdicts are only as good as the bot finishing the games.
+
+**The server plays a model directory as the harness does** (a subagent, in a worktree): `-Dbot.models=<dir>` makes
+`BotService` build every bot as `general@<dir>`, read by `ModelDirectory.load` (shared with `BotVsBot.loadModels`:
+same flags, contexts, models, byte for byte, over eleven directories). Setting `EffectProbe.FORK` was not enough:
+every copy of a real server game failed -- `LotroGameMediator` gives each game a `ProductLibraryPackOpener`, whose
+Semaphore the copier would not copy -- so every probe came back zeros; `GameCopier` now shares the pack opener, and
+re-shares the library after an admin card reload (843 of 843 copies failed before). In 150 real mediator games:
+21,420 copies, none failed (383 us), 7,302 probes all non-zero, the longest bot decision 464 ms.
+
+**Skirmish order and character picks, seen as the board stands.** `SkirmishOrderTrainer` saw printed strengths and
+learned from the chosen skirmish alone -- from people's decisions all chosen, nothing to tell the options apart (it
+agreed with people 47.7%, below the self-play bot's 53.6%). `SkirmishOrderChoiceTrainer` compares every skirmish still
+to fight, listwise: live strengths, margin, won, overwhelmed, who would die, the Ring-bearer, vitality, damage.
+`CharacterChoiceTrainer` takes one-of archery-wound, wound and heal picks with the exert model's character numbers,
+the prompt, and vitality after; asked before the skirmish rule (with a `character-outside-skirmish` file, only outside
+skirmishes). One labelling pass (31,149 skirmish orders, 51,271 character picks). Against `sel10-d`: skirmish order
+50.3% +- 1.2, agreement 47.7% -> **60.5%**; character picks 50.6% (outside skirmishes only 50.8%), heals 63.5% ->
+**72.4%**, wounds 66.9% -> 69.9%.
+
 ## Human Movie Block games, and assignments learned from them (2026-10-19)
 
 **2022 replays.** October and November 2022 (`GEMP-LOTR-Replays_2022-1{0,1}.zip`, ~340 MB
