@@ -1,13 +1,11 @@
 package com.gempukku.lotro.bots.simulation;
 
 import com.gempukku.lotro.bots.BotPlayer;
-import com.gempukku.lotro.bots.BotService;
+import com.gempukku.lotro.bots.ModelDirectory;
 import com.gempukku.lotro.bots.random.RandomDecisionBot;
-import com.gempukku.lotro.bots.rl.fotrstarters.CardFeatures;
 import com.gempukku.lotro.bots.rl.fotrstarters.FotrStarterBot;
 import com.gempukku.lotro.bots.rl.fotrstarters.FotrStartersRLGameStateFeatures;
 import com.gempukku.lotro.bots.rl.fotrstarters.models.ModelRegistry;
-import com.gempukku.lotro.bots.rl.fotrstarters.models.Trainer;
 import com.gempukku.lotro.common.CardType;
 import com.gempukku.lotro.common.SitesBlock;
 import com.gempukku.lotro.db.DeckSerialization;
@@ -19,7 +17,6 @@ import com.gempukku.lotro.game.LotroFormat;
 import com.gempukku.lotro.game.formats.LotroFormatLibrary;
 import com.gempukku.lotro.logic.vo.LotroDeck;
 import com.gempukku.lotro.packs.ProductLibrary;
-import smile.classification.SoftClassifier;
 
 import java.io.*;
 import java.nio.charset.StandardCharsets;
@@ -166,13 +163,8 @@ public class BotVsBot {
     }
 
     /** A serialised model file. */
-    @SuppressWarnings("unchecked")
     static smile.classification.SoftClassifier<double[]> readModel(Path file) throws IOException {
-        try (var in = new java.io.ObjectInputStream(Files.newInputStream(file))) {
-            return (smile.classification.SoftClassifier<double[]>) in.readObject();
-        } catch (ClassNotFoundException e) {
-            throw new IOException(e);
-        }
+        return ModelDirectory.readModel(file);
     }
 
     /** The card and format libraries, read straight from gemp-lotr-cards with no server configuration. */
@@ -184,10 +176,7 @@ public class BotVsBot {
                 res.resolve("rarities").toFile());
         LotroFormatLibrary formats = new LotroFormatLibrary(new DefaultAdventureLibrary(), library,
                 res.resolve("lotrFormats.hjson").toFile(), res.resolve("sealed").toFile());
-        CardFeatures.init(library);
-        com.gempukku.lotro.bots.rl.fotrstarters.AbilityFeatures.init(res.resolve("cards").toFile(), library);
-        if (com.gempukku.lotro.bots.rl.fotrstarters.EffectProbe.FORK == null)
-            com.gempukku.lotro.bots.rl.fotrstarters.EffectProbe.FORK = new GameCopier(library, formats)::copy;
+        ModelDirectory.prepare(library, formats, res.resolve("cards").toFile());
         return new Context(library, formats, res, modelDir, new ConcurrentHashMap<>());
     }
 
@@ -612,55 +601,19 @@ public class BotVsBot {
         return checked(deck, ctx.library());
     }
 
-    @SuppressWarnings("unchecked")
+    /** A model directory, read as the server reads one (ModelDirectory); a directory missing a model ends the run. */
     static ModelRegistry loadModels(Path dir) throws IOException, ClassNotFoundException {
-        ModelRegistry registry = new ModelRegistry();
-        List<String> missing = new ArrayList<>();
-        List<Trainer> required = BotService.allTrainers();
-        for (Trainer trainer : BotService.extendedTrainers()) {
-            File file = dir.resolve(trainer.getClass().getSimpleName() + ".model").toFile();
-            if (!file.exists()) {
-                // the extended bot's own models are optional: without one it answers those decisions as before
-                if (required.stream().anyMatch(t -> t.getClass() == trainer.getClass()))
-                    missing.add(file.getName());
-                continue;
-            }
-            try (ObjectInputStream in = new ObjectInputStream(new FileInputStream(file))) {
-                registry.registerModel(trainer.getClass(), (SoftClassifier<double[]>) in.readObject());
-            }
+        try {
+            return ModelDirectory.load(dir);
+        } catch (ModelDirectory.MissingModels e) {
+            die(e.getMessage());
+            throw e; // not reached: die exits
         }
-        // BotService registers a missing model as null, which turns into an NPE the first time it is asked.
-        if (!missing.isEmpty())
-            die("Missing from " + dir.toAbsolutePath() + ": " + String.join(", ", missing));
-        registry.setFeatureVersion(featureVersion(dir));
-        registry.setAnyPhaseFirst(Files.exists(dir.resolve("any-phase-first")));
-        registry.setAnyPhaseRich(Files.exists(dir.resolve("any-phase-rich")));
-        registry.setSkirmishProbe(Files.exists(dir.resolve("skirmish-probe")));
-        registry.setReconcilePlain(Files.exists(dir.resolve("reconcile-plain")));
-        registry.setPassByMass(Files.exists(dir.resolve("pass-by-mass")));
-        registry.setNoSkirmishRule(Files.exists(dir.resolve("no-skirmish-rule")));
-        registry.setNumberBid(Files.exists(dir.resolve("number-bid")));
-        // the probe's value numbers: the model directory carries the value model it was fit with
-        if (Files.exists(dir.resolve("probe-value.model")))
-            com.gempukku.lotro.bots.rl.fotrstarters.EffectProbe.VALUE = readModel(dir.resolve("probe-value.model"));
-        if (Files.exists(dir.resolve("assign-probe")))
-            registry.setAssignProbe(java.util.Set.of(Files.readString(dir.resolve("assign-probe")).trim().toLowerCase()
-                    .split("[,\\s]+")));
-        if (Files.exists(dir.resolve("probe-contexts"))) {
-            String list = Files.readString(dir.resolve("probe-contexts"));
-            var length = java.util.regex.Pattern.compile("length=(\\d+)").matcher(list);
-            registry.setProbeLength(length.find() ? Integer.parseInt(length.group(1))
-                    : com.gempukku.lotro.bots.rl.fotrstarters.EffectProbe.LENGTH_WITHOUT_HAND);
-            registry.setProbeContexts(com.gempukku.lotro.bots.rl.fotrstarters.models.cardaction.AnyPhaseCardActionTrainer
-                    .names(list.replaceAll("length=\\d+", "")));
-        }
-        return registry;
     }
 
     /** The feature set a model directory was trained on: what its features.txt says, or 1 without one. */
     static int featureVersion(Path dir) throws IOException {
-        Path marker = dir.resolve("features.txt");
-        return Files.exists(marker) ? Integer.parseInt(Files.readString(marker).trim()) : 1;
+        return ModelDirectory.featureVersion(dir);
     }
 
     // ---- command line ----
