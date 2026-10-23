@@ -1208,6 +1208,27 @@ Fellowship 52.5% (Movie Block 63.0%) and Shadow 54.4% (58.2%); the decisions fit
 plays 81.8%, skirmish order 63.9%, wounds 70.3%, Elrond's heal count 98.4% -- carry over. What was learned holds outside
 the format it was learned in; Fellowship-block replays would be the place to add data if that format matters.
 
+## A teacher for the Shadow side's skirmishes: companions killed (2026-10-23)
+
+The bots' Shadow skirmish answers killed 0.069 fewer Free Peoples companions than people's where they differed, mostly
+by passing. `HumanReplay --deaths-teach <file>`: at every Shadow skirmish action prompt of people's games, each option
+(pass and every play) played to the end of the turn 4 times by `sel10-e`, scored by the companions it killed and a
+Ring-bearer five times over; the best labelled good, those a companion or more worse labelled bad, with the skirmish
+probe's numbers (`--probe-bot`). Ten months (July held out), ~6 minutes a month: 5,369 decisions where the options
+differed, 13,609 labels -- playing was best 3 times as often as passing. The skirmish context of `sel10-e` refit on
+people's 574,617 skirmish labels plus these W times (`-DanyPhase.refitContexts=none`):
+
+| | vs `sel10-e` | Shadow skirmish plays on July: companions killed, bot - human | Shadow agreement | all decisions |
+|---|---|---|---|---|
+| `sel10-e` | | -0.073 +- 0.035 (451) | 76% | 67.4% |
+| W = 10 (`sel10-f`) | 50.5% +- 1.2 | **-0.016 +- 0.035** (455) | 76% | 67.3% |
+| W = 30 | 50.7% +- 1.2 | -0.001 +- 0.030 (552) | 71% | 67.1% |
+
+(The July runs are the same decisions: `--cf-phases SKIRMISH --cf-only "play or Pass" --cf-deaths`, 60%.) Ten times
+over closes most of the gap with people and keeps choosing as they do; thirty closes it and chooses less like them.
+Between the bots it changes nothing -- the opponent is the bot's own Free Peoples side -- but against a person the
+Shadow side is no longer soft in a skirmish. `sel10-f` (W = 10) is the bot to use.
+
 ## Human Movie Block games, and assignments learned from them (2026-10-19)
 
 **2022 replays.** October and November 2022 (`GEMP-LOTR-Replays_2022-1{0,1}.zip`, ~340 MB
