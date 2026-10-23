@@ -33,6 +33,16 @@ final class Counterfactual {
     static volatile java.util.regex.Pattern ONLY;
     /** --cf-offer: test only card-action decisions with an option whose text matches (e.g. "The One Ring"). */
     static volatile java.util.regex.Pattern OFFER;
+    /** --cf-phases ASSIGNMENT,SKIRMISH: test only decisions asked in these phases (the fierce round is in them too). */
+    static volatile Set<String> PHASES;
+    /**
+     * --cf-deaths: where the bot differs, play each answer on only to the end of the turn and count the Free Peoples
+     * player's companions killed and whether its Ring-bearer died -- what a skirmish decision costs in companions, the
+     * bots losing 30% more per skirmish than people. Rows: game, player, bucket, type, human, bot, companions killed
+     * after the human's answer and after the bot's (summed over the play-outs), play-outs, side, Ring-bearers killed
+     * after each, phase, turn.
+     */
+    static volatile boolean DEATHS;
     static final AtomicLong asked = new AtomicLong(), agreed = new AtomicLong(), compared = new AtomicLong();
 
     private Counterfactual() {
@@ -48,6 +58,8 @@ final class Counterfactual {
         if (ONLY != null && !ONLY.matcher(bucket(gs, decision, player)).find())
             return;
         if (OFFER != null && !offers(decision, OFFER))
+            return;
+        if (PHASES != null && !PHASES.contains(String.valueOf(gs.getCurrentPhase())))
             return;
         if (sampler.nextDouble() >= RATE)
             return;
@@ -65,6 +77,37 @@ final class Counterfactual {
         if (same(gs, decision, humanAnswer, botAnswer)) {
             agreed.incrementAndGet();
             write(gs, gameName, player, bucket, decision, humanAnswer, botAnswer, -1, -1, 0);
+            return;
+        }
+        if (DEATHS) {
+            int[] h = new int[2], b = new int[2];
+            int n = 0;
+            long base = sampler.nextLong();
+            for (int r = 0; r < ROLLOUTS; r++) {
+                long seed = base + r * 0x9E3779B97F4A7C15L;
+                int[] dh = turnDeaths(live, copier, ctx, players, player, humanAnswer, seed);
+                int[] db = turnDeaths(live, copier, ctx, players, player, botAnswer, seed);
+                if (dh == null || db == null)
+                    continue;
+                n++;
+                h[0] += dh[0];
+                h[1] += dh[1];
+                b[0] += db[0];
+                b[1] += db[1];
+            }
+            if (n == 0)
+                return;
+            compared.incrementAndGet();
+            PrintWriter out = OUT;
+            if (out != null)
+                synchronized (Counterfactual.class) {
+                    out.println(String.join("\t", gameName, player, bucket, decision.getDecisionType().name(),
+                            humanAnswer.replace('\t', ' '), botAnswer.replace('\t', ' '), String.valueOf(h[0]),
+                            String.valueOf(b[0]), String.valueOf(n),
+                            player.equals(gs.getCurrentPlayerId()) ? "FP" : "Shadow", String.valueOf(h[1]),
+                            String.valueOf(b[1]), String.valueOf(gs.getCurrentPhase()), String.valueOf(gs.getTurnNumber())));
+                    out.flush();
+                }
             return;
         }
         if (ROLLOUTS == 0) {
@@ -113,6 +156,66 @@ final class Counterfactual {
         } catch (RuntimeException e) {
             return "";
         }
+    }
+
+    /**
+     * {@code answer} given on a copy and the turn played out by the bot for both players: the Free Peoples player's
+     * companions killed (not its Ring-bearer), and 1 if its Ring-bearer died; null if it cannot be told.
+     */
+    private static int[] turnDeaths(DefaultLotroGame live, GameCopier copier, BotVsBot.Context ctx, List<String> players,
+                                    String player, String answer, long seed) {
+        try {
+            DefaultLotroGame copy = copier.copy(live);
+            GameState gs = copy.getGameState();
+            gs.setDeckShuffler(null);
+            gs.setRandomSeed(seed);
+            for (String p : players)
+                gs.shuffleDeck(p);
+            String fp = gs.getCurrentPlayerId();
+            var bearer = gs.getRingBearer(fp);
+            int before = companionsDead(gs, fp, bearer);
+            int turn = gs.getTurnNumber();
+            var feedback = GameCopier.feedback(copy);
+            AwaitingDecision pending = feedback.getAwaitingDecision(player);
+            if (pending == null)
+                return null;
+            feedback.participantDecided(player);
+            BotDecisionFallback.decide(copy, player, pending, answer);
+            copy.carryOutPendingActionsUntilDecisionNeeded();
+            Map<String, BotPlayer> bots = new HashMap<>();
+            for (String p : players)
+                bots.put(p, BotVsBot.bot(KIND, p, ctx));
+            com.gempukku.lotro.bots.BotRandom.current().setSeed(seed ^ 0x5DEECE66DL);
+            for (int step = 0; step < 3000 && !copy.isFinished() && copy.getGameState().getTurnNumber() == turn; step++) {
+                String who = null;
+                AwaitingDecision d = null;
+                for (String p : players)
+                    if ((d = feedback.getAwaitingDecision(p)) != null) {
+                        who = p;
+                        break;
+                    }
+                if (d == null)
+                    return null;
+                String a = bots.get(who).chooseAction(copy.getGameState(), d);
+                feedback.participantDecided(who);
+                BotDecisionFallback.decide(copy, who, d, a);
+                copy.carryOutPendingActionsUntilDecisionNeeded();
+            }
+            GameState after = copy.getGameState();
+            boolean rbDead = bearer != null && after.getDeadPile(fp).stream().anyMatch(c -> c.getCardId() == bearer.getCardId());
+            return new int[]{companionsDead(after, fp, bearer) - before, rbDead ? 1 : 0};
+        } catch (Exception e) {
+            return null;
+        }
+    }
+
+    private static int companionsDead(GameState gs, String fp, PhysicalCard bearer) {
+        int n = 0;
+        for (PhysicalCard c : gs.getDeadPile(fp))
+            if (c.getBlueprint().getCardType() == com.gempukku.lotro.common.CardType.COMPANION
+                    && (bearer == null || c.getCardId() != bearer.getCardId()))
+                n++;
+        return n;
     }
 
     /** Whether {@code player} wins after giving {@code answer} on a copy, the bot playing on for both; null on error. */
