@@ -43,6 +43,17 @@ final class Counterfactual {
      * after each, phase, turn.
      */
     static volatile boolean DEATHS;
+    /**
+     * --deaths-teach &lt;file&gt;: at every Shadow skirmish action prompt of the re-created games, each option played on
+     * to the end of the turn {@link #DEATHS_ROLLOUTS} times by the bot ({@code --counterfactual} names it) and scored
+     * by the Free Peoples companions killed, a dead Ring-bearer counted {@link #BEARER_WEIGHT} times; the best labelled
+     * good, those a companion or more worse labelled bad, written as steps with the skirmish probe's numbers. The bots'
+     * Shadow skirmish answers killed 0.069 fewer companions than people's where they differed: a teacher for that.
+     */
+    static volatile PrintWriter DEATHS_TEACH;
+    static volatile int DEATHS_ROLLOUTS = 6;
+    static final int BEARER_WEIGHT = 5;
+    static final java.util.concurrent.atomic.AtomicLong deathsTaught = new java.util.concurrent.atomic.AtomicLong();
     static final AtomicLong asked = new AtomicLong(), agreed = new AtomicLong(), compared = new AtomicLong();
 
     private Counterfactual() {
@@ -155,6 +166,56 @@ final class Counterfactual {
                     + (free == null ? "" : String.join(" ", free));
         } catch (RuntimeException e) {
             return "";
+        }
+    }
+
+    /** {@link #DEATHS_TEACH}'s labels for one decision; nothing if it is not a Shadow skirmish prompt. */
+    static void teachByDeaths(DefaultLotroGame live, GameCopier copier, BotVsBot.Context ctx, List<String> players,
+                              String player, AwaitingDecision decision, double[] state, Random sampler) {
+        PrintWriter out = DEATHS_TEACH;
+        GameState gs = live.getGameState();
+        if (out == null || state == null || player.equals(gs.getCurrentPlayerId())
+                || !com.gempukku.lotro.bots.rl.fotrstarters.EffectProbe.applies(decision))
+            return;
+        String[] ids = decision.getDecisionParameters().get("actionId");
+        if (ids == null || ids.length == 0)
+            return;
+        List<String> options = new ArrayList<>(List.of(ids));
+        options.add("");
+        double[] score = new double[options.size()];
+        long base = sampler.nextLong();
+        for (int i = 0; i < options.size(); i++) {
+            int n = 0;
+            for (int r = 0; r < DEATHS_ROLLOUTS; r++) {
+                int[] d = turnDeaths(live, copier, ctx, players, player, options.get(i), base + r * 0x9E3779B97F4A7C15L);
+                if (d == null)
+                    continue;
+                n++;
+                score[i] += d[0] + BEARER_WEIGHT * d[1];
+            }
+            if (n == 0)
+                return;
+            score[i] /= n;
+        }
+        double best = Arrays.stream(score).max().orElse(0);
+        if (Arrays.stream(score).allMatch(v -> v == score[0]))
+            return;
+        StringBuilder lines = new StringBuilder();
+        for (int i = 0; i < options.size(); i++) {
+            int label = score[i] >= best - 1e-9 ? 1 : score[i] <= best - 1 ? 0 : -1;
+            if (label < 0)
+                continue;
+            String o = options.get(i);
+            var action = new com.gempukku.lotro.bots.rl.semanticaction.CardActionChoiceAction(o, decision, gs)
+                    .withProbe(TrainingSteps.probe(gs, decision, o, player));
+            var step = new com.gempukku.lotro.bots.rl.LearningStep(state, action, false, decision);
+            step.reward = label == 1 ? 10 : 0;
+            lines.append(step.toJson()).append('\n');
+        }
+        deathsTaught.incrementAndGet();
+        synchronized (Counterfactual.class) {
+            out.print(lines);
+            out.flush();
         }
     }
 

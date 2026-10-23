@@ -841,6 +841,9 @@ public class HumanReplay {
                             t.error != null ? t.error : lastQuestion + " candidates " + cands);
                 if (t.match.full() && !t.ambiguous && !engineOnly(decision))
                     Counterfactual.consider(game, copier, ctx, m.name(), m.players(), p, decision, t.answer, cfSampler);
+                if (t.match.full() && !t.ambiguous && !engineOnly(decision) && Counterfactual.DEATHS_TEACH != null)
+                    Counterfactual.teachByDeaths(game, copier, ctx, m.players(), p, decision,
+                            state != null ? state : TrainingSteps.stateOf(game, decision, p), cfSampler);
                 // the board as the human saw it; not when another answer fit the recording as well
                 if (t.match.full() && !t.ambiguous && sink != null && state != null)
                     sink.write(state, decision, t.answer, p, game);
@@ -1370,6 +1373,8 @@ public class HumanReplay {
                 case "--cf-offer" -> Counterfactual.OFFER = java.util.regex.Pattern.compile(args[++i]);
                 case "--cf-phases" -> Counterfactual.PHASES = java.util.Set.of(args[++i].toUpperCase().split(","));
                 case "--cf-deaths" -> Counterfactual.DEATHS = true;
+                case "--deaths-teach" -> Counterfactual.DEATHS_TEACH = new PrintWriter(Files.newBufferedWriter(Path.of(args[++i]), StandardCharsets.UTF_8));
+                case "--deaths-rollouts" -> Counterfactual.DEATHS_ROLLOUTS = Integer.parseInt(args[++i]);
                 case "--steps-only" -> TrainingSteps.ONLY = java.util.regex.Pattern.compile(args[++i]);
                 case "--probe-bot" -> probeBot = args[++i];
                 case "--probe-value" -> EffectProbe.VALUE = BotVsBot.readModel(Path.of(args[++i]).resolve("value.model"));
@@ -1435,6 +1440,10 @@ public class HumanReplay {
         }
         if (VALUES != null)
             VALUES.close();
+        if (Counterfactual.DEATHS_TEACH != null) {
+            out.printf("deaths teacher: %d Shadow skirmish decisions labelled%n", Counterfactual.deathsTaught.get());
+            Counterfactual.DEATHS_TEACH.close();
+        }
         if (Counterfactual.KIND != null) {
             out.printf("counterfactual: %d decisions asked, bot agreed with the human on %d, %d played out%n",
                     Counterfactual.asked.get(), Counterfactual.agreed.get(), Counterfactual.compared.get());
