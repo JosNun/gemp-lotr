@@ -187,7 +187,7 @@ final class Counterfactual {
     /**
      * One row: game, player, bucket, type, the two raw answers, the wins and rollouts; then the side, what each answer
      * did (card and action text for card actions, the cards for selections), and in a skirmish the deciding player's
-     * strength margin. Agreed: n is 0; differed but not played out (--cf-rollouts 0): n is -1.
+     * strength margin; then the turn and phase. Agreed: n is 0; differed but not played out (--cf-rollouts 0): n is -1.
      */
     private static void write(GameState gs, String game, String player, String bucket, AwaitingDecision d, String human,
                               String bot, int humanWins, int botWins, int n) {
@@ -209,7 +209,8 @@ final class Counterfactual {
         synchronized (Counterfactual.class) {
             out.println(String.join("\t", game, player, bucket, d.getDecisionType().name(), human.replace('\t', ' '),
                     bot.replace('\t', ' '), String.valueOf(humanWins), String.valueOf(botWins), String.valueOf(n),
-                    side, humanDid.replace('\t', ' '), botDid.replace('\t', ' '), margin));
+                    side, humanDid.replace('\t', ' '), botDid.replace('\t', ' '), margin,
+                    String.valueOf(gs.getTurnNumber()), String.valueOf(gs.getCurrentPhase())));
             out.flush();
         }
     }

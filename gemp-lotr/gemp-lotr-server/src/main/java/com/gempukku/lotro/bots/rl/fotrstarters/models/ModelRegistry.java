@@ -98,6 +98,28 @@ public class ModelRegistry {
         this.numberBid = numberBid;
     }
 
+    /** CharacterChoiceTrainer only outside a skirmish, the fixed rule inside: a "character-outside-skirmish" file. */
+    private boolean characterOutsideSkirmish;
+
+    public boolean isCharacterOutsideSkirmish() {
+        return characterOutsideSkirmish;
+    }
+
+    public void setCharacterOutsideSkirmish(boolean characterOutsideSkirmish) {
+        this.characterOutsideSkirmish = characterOutsideSkirmish;
+    }
+
+    /** AnotherMoveTrainer moves above this: the number in a "move-threshold" file, else 0.5. */
+    private double moveThreshold = 0.5;
+
+    public double getMoveThreshold() {
+        return moveThreshold;
+    }
+
+    public void setMoveThreshold(double moveThreshold) {
+        this.moveThreshold = moveThreshold;
+    }
+
     public boolean isSkirmishProbe() {
         return skirmishProbe;
     }

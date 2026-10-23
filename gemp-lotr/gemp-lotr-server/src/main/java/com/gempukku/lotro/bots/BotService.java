@@ -183,6 +183,8 @@ public class BotService {
         trainers.add(new com.gempukku.lotro.bots.rl.fotrstarters.models.cardselection.ReconcileChoiceTrainer());
         trainers.add(new com.gempukku.lotro.bots.rl.fotrstarters.models.cardselection.ExertChoiceTrainer());
         trainers.add(new com.gempukku.lotro.bots.rl.fotrstarters.models.integerchoice.NumberChoiceTrainer());
+        trainers.add(new com.gempukku.lotro.bots.rl.fotrstarters.models.cardselection.SkirmishOrderChoiceTrainer());
+        trainers.add(new com.gempukku.lotro.bots.rl.fotrstarters.models.cardselection.CharacterChoiceTrainer());
         return trainers;
     }
 

@@ -103,6 +103,8 @@ public class FotrStarterBot extends RandomDecisionBot implements LearningBotPlay
     private final ReconcileChoiceTrainer reconcileChoice = new ReconcileChoiceTrainer();
     /** One-of exerts, compared with each character's vitality and fights, where the model directory has the model. */
     private final ExertChoiceTrainer exertChoice = new ExertChoiceTrainer();
+    private final SkirmishOrderChoiceTrainer skirmishOrderChoice = new SkirmishOrderChoiceTrainer();
+    private final CharacterChoiceTrainer characterChoice = new CharacterChoiceTrainer();
     /** "How many?" prompts, where the model directory has the model. */
     private final NumberChoiceTrainer numberChoice = new NumberChoiceTrainer();
 
@@ -348,6 +350,19 @@ public class FotrStarterBot extends RandomDecisionBot implements LearningBotPlay
 
         if (extended && modelRegistry.hasModel(ExertChoiceTrainer.class) && ExertChoiceTrainer.applies(decision)) {
             String answer = exertChoice.getAnswer(gameState, decision, getName(), features, modelRegistry);
+            if (answer != null)
+                return answer;
+        }
+        // which skirmish next, and which character takes a wound or heal: compared as the board stands, where the
+        // model directory has the models -- before "the one fighting", which is not the question here
+        if (extended && modelRegistry.hasModel(SkirmishOrderChoiceTrainer.class) && SkirmishOrderChoiceTrainer.applies(decision)) {
+            String answer = skirmishOrderChoice.getAnswer(gameState, decision, getName(), features, modelRegistry);
+            if (answer != null)
+                return answer;
+        }
+        if (extended && modelRegistry.hasModel(CharacterChoiceTrainer.class) && CharacterChoiceTrainer.applies(decision)
+                && !(modelRegistry.isCharacterOutsideSkirmish() && gameState.getSkirmish() != null)) {
+            String answer = characterChoice.getAnswer(gameState, decision, getName(), features, modelRegistry);
             if (answer != null)
                 return answer;
         }

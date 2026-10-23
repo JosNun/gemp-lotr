@@ -30,8 +30,9 @@ import java.util.regex.Pattern;
  * Markers are read off the directory, not configured, because a model is only right when fed what it was fit on:
  * <ul>
  * <li>features.txt -- the card feature set (CardFeatures.version()); 1 without one.</li>
- * <li>any-phase-first, any-phase-rich, skirmish-probe, reconcile-plain, pass-by-mass, no-skirmish-rule, number-bid --
+ * <li>any-phase-first, any-phase-rich, skirmish-probe, reconcile-plain, pass-by-mass, no-skirmish-rule, number-bid, character-outside-skirmish --
  *     empty files switching on the {@link ModelRegistry} flag of the same name.</li>
+ * <li>move-threshold -- a number: AnotherMoveTrainer moves above it (0.5 without the file).</li>
  * <li>assign-probe -- the sides ("fp", "shadow") whose assignment model reads AssignmentProbe.</li>
  * <li>probe-contexts -- the card-action contexts fed all of EffectProbe's numbers, with an optional length=N.</li>
  * <li>probe-value.model -- the value model EffectProbe's last numbers come from; process-wide, see {@link #load}.</li>
@@ -81,6 +82,9 @@ public final class ModelDirectory {
         registry.setPassByMass(Files.exists(dir.resolve("pass-by-mass")));
         registry.setNoSkirmishRule(Files.exists(dir.resolve("no-skirmish-rule")));
         registry.setNumberBid(Files.exists(dir.resolve("number-bid")));
+        registry.setCharacterOutsideSkirmish(Files.exists(dir.resolve("character-outside-skirmish")));
+        if (Files.exists(dir.resolve("move-threshold")))
+            registry.setMoveThreshold(Double.parseDouble(Files.readString(dir.resolve("move-threshold")).trim()));
         // the probe's value numbers: the model directory carries the value model it was fit with
         if (Files.exists(dir.resolve("probe-value.model")))
             EffectProbe.VALUE = readModel(dir.resolve("probe-value.model"));

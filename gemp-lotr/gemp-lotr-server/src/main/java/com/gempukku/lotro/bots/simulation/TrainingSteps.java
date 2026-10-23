@@ -166,6 +166,14 @@ final class TrainingSteps implements HumanReplay.StepSink {
             var o = ExertChoiceTrainer.options(gs, decision, player);
             return action.withOptions(o.blueprints(), o.extras(), ExertChoiceTrainer.chosen(decision, answer));
         }
+        if (com.gempukku.lotro.bots.rl.fotrstarters.models.cardselection.SkirmishOrderChoiceTrainer.applies(decision)) {
+            var o = com.gempukku.lotro.bots.rl.fotrstarters.models.cardselection.SkirmishOrderChoiceTrainer.options(gs, decision, player);
+            return action.withOptions(o.blueprints(), o.extras(), ExertChoiceTrainer.chosen(decision, answer));
+        }
+        if (com.gempukku.lotro.bots.rl.fotrstarters.models.cardselection.CharacterChoiceTrainer.applies(decision)) {
+            var o = com.gempukku.lotro.bots.rl.fotrstarters.models.cardselection.CharacterChoiceTrainer.options(gs, decision, player);
+            return action.withOptions(o.blueprints(), o.extras(), ExertChoiceTrainer.chosen(decision, answer));
+        }
         return action;
     }
 
