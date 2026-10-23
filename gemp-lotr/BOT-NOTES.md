@@ -1128,6 +1128,24 @@ companion and the bot passed 12 times (-2.1 +- 12.7), and played a companion whe
 audit's gap is in the games the bots get into, not in passing companions up. Why bot Ring-bearers die so much more
 often than people's is the open question.
 
+**Who puts the minions on the Ring-bearer** (`BotDeaths` now records every assignment answered and every defender
+action offered). `sel10-e` against itself on the Movie Block test decks, 800 games, 450 lost to a dead Ring-bearer, 377
+of them in a skirmish (101 in the fierce round):
+
+- the Free Peoples bot assigned the minions it died to itself in 237, the Shadow player in 47, both in 93;
+- at that turn's Free Peoples assignment, other characters were left with no minion in 130 (one in 38, two in 36,
+  three or more in 56) -- the minion could have gone elsewhere -- and every character already had one, with no minion
+  left over, in 126: the Ring-bearer had to take one;
+- a card action granting defender was offered to the Free Peoples player that turn in 36 (used in 21).
+
+Against people, at the same positions -- July 2022's 4,401 Free Peoples assignments with the Ring-bearer and another
+character free (counterfactual rows now carry the Ring-bearer and the free characters): people put a minion on their
+Ring-bearer 9.6% of the time, 6.6% with another character idle; `sel10-e` 6.9% and 3.7% -- more careful than people where
+people stood. In its own games it does so 14.4% and 8.3% (10,112 assignments). So the bot's own games keep reaching
+positions where the Ring-bearer takes a minion -- 166 of the deaths with no companion left at all -- more than a habit of
+assigning it; the 130 with a character idle are the cases to judge one by one (a search over those assignments would
+say whether the idle companion was the better choice).
+
 ## Human Movie Block games, and assignments learned from them (2026-10-19)
 
 **2022 replays.** October and November 2022 (`GEMP-LOTR-Replays_2022-1{0,1}.zip`, ~340 MB
