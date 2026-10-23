@@ -1123,6 +1123,10 @@ the time (people 39%), at site 9 27% (19%), corrupted 12% (18%). The bots' Shado
 their Free Peoples side prevents -- with the audit's fewer companions played (20.6% of offers against 26.6%) a likely
 part of it, though the counterfactual, played out by the bot itself, does not mark those plays as losses. Not
 adopted: the probe on Shadow assignments (6,788 decisions with a choice; 49.5% +- 1.2, agreement unchanged).
+From the same positions it does not hold companions back: in July's Fellowship decisions the human played a
+companion and the bot passed 12 times (-2.1 +- 12.7), and played a companion where the human did in 293 more -- the
+audit's gap is in the games the bots get into, not in passing companions up. Why bot Ring-bearers die so much more
+often than people's is the open question.
 
 ## Human Movie Block games, and assignments learned from them (2026-10-19)
 
