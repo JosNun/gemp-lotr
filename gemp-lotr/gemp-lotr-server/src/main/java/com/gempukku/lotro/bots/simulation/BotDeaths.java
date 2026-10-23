@@ -37,6 +37,7 @@ public class BotDeaths {
         final Map<Integer, Integer> assignedBy = new HashMap<>(); // fp card id -> minions assigned to it
         /** At each Shadow phase: "companions in play / companions in the Free Peoples player's hand". */
         final List<String> atShadow = new ArrayList<>();
+        int firstKillTurn = -1;
         /** Companions in play each time the Free Peoples player chose to move again. */
         final List<Integer> movedAgainWith = new ArrayList<>();
         Set<PhysicalCard> skirmishMinionCards = Set.of();
@@ -49,6 +50,15 @@ public class BotDeaths {
     record Assign(int turn, boolean fp, List<String> free, List<String> minions, Map<String, List<String>> answer,
                   String bearer, String phase) {
     }
+
+    /** Companions killed (not a Ring-bearer), in every game: by phase, by turn, and each game's first; games, turns. */
+    static final Map<String, Integer> KILLED_BY_PHASE = new java.util.concurrent.ConcurrentHashMap<>();
+    static final Map<Integer, Integer> KILLED_BY_TURN = new java.util.concurrent.ConcurrentHashMap<>();
+    static final Map<String, Integer> FIRST_KILL_TURN = new java.util.concurrent.ConcurrentHashMap<>();
+    static final long[] GAMES_TURNS = new long[2];
+    /** Skirmishes resolved, and overwhelms, by phase, in every game: people's are counted the same way. */
+    static final Map<String, Integer> SKIRMISHES = new java.util.concurrent.ConcurrentHashMap<>(),
+            OVERWHELMS = new java.util.concurrent.ConcurrentHashMap<>();
 
     /** Every game's Free Peoples assignments: [count, a minion on the Ring-bearer, ...while another was idle]. */
     static final long[] ALL_FP_ASSIGNS = new long[3];
@@ -150,6 +160,12 @@ public class BotDeaths {
                             Map.of("~a", swap ? d2 : d1, "~b", swap ? d1 : d2), 1000);
                     BotGame.ON_START.remove();
                     ALL_AT_SHADOW.addAll(log.atShadow);
+                    FIRST_KILL_TURN.merge(log.firstKillTurn < 0 ? "none" : String.valueOf(Math.min(log.firstKillTurn, 9)), 1,
+                            Integer::sum);
+                    synchronized (GAMES_TURNS) {
+                        GAMES_TURNS[0]++;
+                        GAMES_TURNS[1] += holder[0].getGameState().getTurnNumber();
+                    }
                     for (Assign as : log.assigns)
                         if (as.fp() && as.free().contains(as.bearer()) && as.free().size() > 1) {
                             boolean onBearer = !as.answer().getOrDefault(as.bearer(), List.of()).isEmpty();
@@ -184,6 +200,19 @@ public class BotDeaths {
         }
         pool.shutdown();
         out.printf("%d games, %d lost to a dead Ring-bearer%n", total, deaths.size());
+        long played = Math.max(1, GAMES_TURNS[0]);
+        out.printf("  %d games, %.1f turns a game; companions killed (not a Ring-bearer) per game: %.2f%n", GAMES_TURNS[0],
+                GAMES_TURNS[1] / (double) played, KILLED_BY_PHASE.values().stream().mapToInt(i -> i).sum() / (double) played);
+        out.println("    by phase, per game: " + KILLED_BY_PHASE.entrySet().stream()
+                .sorted(Map.Entry.<String, Integer>comparingByValue().reversed())
+                .map(e -> e.getKey() + " " + String.format("%.2f", e.getValue() / (double) played)).toList());
+        out.println("    by turn, per game: " + new TreeMap<>(KILLED_BY_TURN).entrySet().stream()
+                .map(e -> e.getKey() + ": " + String.format("%.2f", e.getValue() / (double) played)).toList());
+        out.println("    turn of the first companion death: " + new TreeMap<>(FIRST_KILL_TURN));
+        out.println("  skirmishes per game: " + new TreeMap<>(SKIRMISHES).entrySet().stream()
+                .map(e -> e.getKey() + " " + String.format("%.2f", e.getValue() / (double) played)).toList()
+                + "; overwhelms per game: " + new TreeMap<>(OVERWHELMS).entrySet().stream()
+                .map(e -> e.getKey() + " " + String.format("%.2f", e.getValue() / (double) played)).toList());
         out.printf("  every game's Free Peoples assignments with the Ring-bearer and another free: %d; a minion on the "
                         + "Ring-bearer %.1f%%, while another was idle %.1f%% (people at July's: 9.6%%, 6.6%%)%n",
                 ALL_FP_ASSIGNS[0], 100.0 * ALL_FP_ASSIGNS[1] / Math.max(1, ALL_FP_ASSIGNS[0]),
@@ -270,7 +299,15 @@ public class BotDeaths {
                 new Class<?>[]{GameStateListener.class}, (proxy, method, args) -> {
                     switch (method.getName()) {
                         case "sendMessage" -> {
-                            String line = strip((String) args[0]);
+                            String raw = (String) args[0];
+                            if (raw.contains("gets killed"))
+                                countKill(log, game, raw);
+                            if (raw.contains("Skirmish resolved")) {
+                                SKIRMISHES.merge(log.phase, 1, Integer::sum);
+                                if (raw.contains("overwhelm"))
+                                    OVERWHELMS.merge(log.phase, 1, Integer::sum);
+                            }
+                            String line = strip(raw);
                             log.lines.add("[" + log.phase + "] " + line);
                             if (line.contains("decides to move again"))
                                 log.movedAgainWith.add(companions(game, false));
@@ -312,6 +349,28 @@ public class BotDeaths {
                     }
                     return null;
                 });
+    }
+
+    /** A companion's death, other than a Ring-bearer's, counted as people's are counted from their recordings. */
+    private static void countKill(Log log, DefaultLotroGame game, String message) {
+        var m = java.util.regex.Pattern.compile("value='([^']+)'").matcher(message);
+        if (!m.find())
+            return;
+        try {
+            var gs = game.getGameState();
+            var bp = game.getLotroCardBlueprintLibrary().getLotroCardBlueprint(m.group(1));
+            if (bp.getCardType() != com.gempukku.lotro.common.CardType.COMPANION)
+                return;
+            for (String p : gs.getPlayerNames())
+                if (bp.getId() != null && gs.getLotroDeck(p) != null && m.group(1).equals(gs.getLotroDeck(p).getRingBearer()))
+                    return;
+            int turn = gs.getTurnNumber();
+            KILLED_BY_PHASE.merge(log.phase, 1, Integer::sum);
+            KILLED_BY_TURN.merge(Math.min(turn, 9), 1, Integer::sum);
+            if (log.firstKillTurn < 0)
+                log.firstKillTurn = turn;
+        } catch (Exception ignored) {
+        }
     }
 
     /** The current (Free Peoples) player's companions, in play or in hand; capped buckets are done by the caller. */
