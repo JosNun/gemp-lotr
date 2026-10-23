@@ -61,6 +61,19 @@ final class TrainingSteps implements HumanReplay.StepSink {
         }
     }
 
+    /** The state as {@link #state} writes it, for a decision no steps file is written for. */
+    static double[] stateOf(DefaultLotroGame game, AwaitingDecision decision, String player) {
+        int previous = CardFeatures.version();
+        try {
+            CardFeatures.setVersion(GeneralStateFeatures.VERSION);
+            return new GeneralStateFeatures().extractFeatures(game.getGameState(), decision, player);
+        } catch (RuntimeException e) {
+            return null;
+        } finally {
+            CardFeatures.setVersion(previous);
+        }
+    }
+
     /** {@code before} is the game as the decision was asked: the semantic actions read the board as it was. */
     @Override
     public void write(double[] state, AwaitingDecision decision, String answer, String player, DefaultLotroGame before) {
@@ -142,7 +155,7 @@ final class TrainingSteps implements HumanReplay.StepSink {
     }
 
     /** What {@code answer} did on a copy, at a card-action prompt with --probe-bot; null otherwise. */
-    private static double[] probe(GameState gs, AwaitingDecision decision, String answer, String player) {
+    static double[] probe(GameState gs, AwaitingDecision decision, String answer, String player) {
         var bots = PROBE_BOTS;
         if (bots == null || decision.getDecisionType() != com.gempukku.lotro.logic.decisions.AwaitingDecisionType.CARD_ACTION_CHOICE)
             return null;

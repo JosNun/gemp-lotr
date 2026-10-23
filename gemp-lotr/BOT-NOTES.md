@@ -1189,6 +1189,25 @@ skirmish order with none standing out; their Shadow choices kill *fewer* than pe
 Bot games are deadlier than people's because both seats are the bot: the Free Peoples side's small losses compound
 over a game, and nothing like a human Shadow player is there to show the gap the other way.
 
+## Beyond Movie Block (2026-10-23)
+
+Everything since the 2022 replays was fit and judged on Movie Block (with Expanded in the match suites). By format,
+`suite-all-test.txt` split (`suite-by-<format>.txt`), `sel10-e` against `v2-real`:
+
+| format | `sel10-e` vs `v2-real` | random answers a game, `sel10-e` / `v2-real` |
+|---|---|---|
+| Movie Block | **89.2% +- 2.0** | 1.5 / 2.3 |
+| King block | 83.4% +- 4.1 | 1.6 / 2.2 |
+| Towers block | 82.4% +- 3.2 | 0.2 / 1.0 |
+| Expanded | 77.7% +- 3.2 | 0.9 / 2.2 |
+| Fellowship block | 77.1% +- 2.4 | 0.2 / 0.7 |
+
+Against people, on March 2020's Fellowship block games (30% of decisions, 50,005): `sel10-e` agrees 61.7% (`v2-real`
+45.8%), 63.6% as the mean over kinds -- against 67.4% / 67.8% on July 2022's Movie Block. The gap is in the phase plays,
+Fellowship 52.5% (Movie Block 63.0%) and Shadow 54.4% (58.2%); the decisions fit with game-state numbers -- skirmish
+plays 81.8%, skirmish order 63.9%, wounds 70.3%, Elrond's heal count 98.4% -- carry over. What was learned holds outside
+the format it was learned in; Fellowship-block replays would be the place to add data if that format matters.
+
 ## Human Movie Block games, and assignments learned from them (2026-10-19)
 
 **2022 replays.** October and November 2022 (`GEMP-LOTR-Replays_2022-1{0,1}.zip`, ~340 MB
