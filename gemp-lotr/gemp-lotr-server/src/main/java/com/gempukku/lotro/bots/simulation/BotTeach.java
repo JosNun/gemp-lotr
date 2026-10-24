@@ -433,6 +433,9 @@ public class BotTeach {
                 base.registerModel(t.getClass(), fits.get(i).get());
             } catch (ExecutionException e) { // say so: System.out is muted, and the exit in main hid an OOM here
                 out.println("  " + t.getClass().getSimpleName() + " failed: " + e.getCause());
+                // and what is under it: a refit's own wrapper said only "anyPhase.refitContexts"
+                for (Throwable c = e.getCause().getCause(); c != null; c = c.getCause())
+                    out.println("    caused by " + c);
                 pool.shutdownNow();
                 throw e;
             }

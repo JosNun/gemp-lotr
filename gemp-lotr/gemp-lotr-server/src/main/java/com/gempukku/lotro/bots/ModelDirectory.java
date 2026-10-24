@@ -80,6 +80,9 @@ public final class ModelDirectory {
         registry.setAnyPhaseRich(Files.exists(dir.resolve("any-phase-rich")));
         if (Files.exists(dir.resolve("card-text")))
             registry.setCardText(CardTextFeatures.vocabulary(dir.resolve("card-text")));
+        if (Files.exists(dir.resolve("card-text-selections")))
+            registry.setCardTextSelections(Set.of(Files.readString(dir.resolve("card-text-selections")).trim()
+                    .split("[,\\s]+")));
         registry.setSkirmishProbe(Files.exists(dir.resolve("skirmish-probe")));
         registry.setReconcilePlain(Files.exists(dir.resolve("reconcile-plain")));
         registry.setPassByMass(Files.exists(dir.resolve("pass-by-mass")));

@@ -274,6 +274,41 @@ public final class CardTextFeatures {
         return s == null ? null : s.toLowerCase();
     }
 
+    /**
+     * The selection models given card text: -DcardText.selections=DiscardFromHandTrainer,... with the vocabulary from
+     * -DanyPhase.cardText (training), or a "card-text-selections" file listing them beside a "card-text" (play).
+     */
+    private static final Set<String> TRAINING_SELECTIONS = new HashSet<>(Arrays.asList(
+            System.getProperty("cardText.selections", "").split("[,\\s]+")));
+    private static volatile List<String> trainingVocab;
+
+    /** The vocabulary a selection model is being fit with, or null if it is fit without card text. */
+    public static List<String> trainingSelectionText(Class<?> trainer) {
+        String file = System.getProperty("anyPhase.cardText");
+        if (file == null || !TRAINING_SELECTIONS.contains(trainer.getSimpleName()))
+            return null;
+        if (trainingVocab == null)
+            synchronized (CardTextFeatures.class) {
+                if (trainingVocab == null)
+                    try {
+                        trainingVocab = vocabulary(Path.of(file));
+                    } catch (IOException e) {
+                        throw new IllegalStateException("anyPhase.cardText " + file, e);
+                    }
+            }
+        return trainingVocab;
+    }
+
+    /** A selection option's card vector with what the card brings when played appended; unchanged for null. */
+    public static double[] withText(double[] card, List<String> vocab, String blueprintId) {
+        if (vocab == null)
+            return card;
+        double[] text = of(vocab, blueprintId, "Play", "none");
+        double[] out = Arrays.copyOf(card, card.length + text.length);
+        System.arraycopy(text, 0, out, card.length, text.length);
+        return out;
+    }
+
     /** Prints the vocabulary's size and a few cards' tokens: {@code <cardsDir> <blueprint>|<action text>|<phase>...}. */
     public static void main(String[] args) throws IOException {
         init(new File(args[0]), null);
