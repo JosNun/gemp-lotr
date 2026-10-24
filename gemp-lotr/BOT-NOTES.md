@@ -1287,6 +1287,28 @@ Expanded, 52.5% +- 2.0 in Fellowship block; against `v2-real` 89.6% +- 1.4 in Mo
 
 `sel10-gr` is the bot to use: as strong as `sel10-f` or a little stronger, and the most human-like yet.
 
+## Going first, as people do (2026-10-24)
+
+`GoFirstTrainer` refit on people's 17,931 seat choices over `sel10-gr` -> `sel10-gf`: it goes first every time (people
+90.8% of July's; agreement on the decision 9% -> 90.8%, on all of July 68.6 -> **69.6%**, the largest single gain in
+agreement so far). Between the bots it costs a point: **48.8% +- 0.6** against `sel10-gr` (32 games a matchup; Movie
+Block decks 48.9% +- 1.6). `sel10-gr` always takes the second seat and `sel10-gf` the first, so `sel10-gf` went first
+in every game whoever won the bid: the loss is the seat, not the bid that comes with it. Adopted anyway, at the user's
+call: the bot is for playing people, who go first and win 54.2% from that seat; the bots' 49% is a weakness of their
+play, not of the choice.
+
+**Depending on the deck?** Over ten months' 10,549 games with a bid winner (the manifests' bids and first player), the
+winner went second 4.2% of the time -- 56% of those by eight players, one of them 120 games out of 120 -- and 1.6%
+without them. No deck goes second most of the time (Shire/Isengard the most, 17.9% without those players). A model
+that could see the deck would still go first with every deck.
+
+**Where the first seat loses** (from the endings by seat above). The first player wins 54.2% of people's games and
+49.8% of the bots'. With the bots' endings mix (site 9 27%, killed 60%, corrupted 12%) and people's win rates within
+each (67.8 / 47.6 / 41.3%), 51.9%; with people's mix (37 / 44 / 18%) and the bots' rates within each (65.8 / 43.3 /
+45.8%), 51.6%. About half the gap is the race -- fewer games reach site 9, where the first seat wins two in three --
+and half the kill races, which the first player loses more often than people do (43.3 against 47.6%): its fellowship
+is a site further along and dies there.
+
 ## Human Movie Block games, and assignments learned from them (2026-10-19)
 
 **2022 replays.** October and November 2022 (`GEMP-LOTR-Replays_2022-1{0,1}.zip`, ~340 MB
