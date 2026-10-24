@@ -96,7 +96,7 @@ public class ReconcileChoiceTrainer extends AbstractTrainer {
      */
     public static final boolean PLAIN_TRAINING = Boolean.getBoolean("reconcile.plain");
 
-    private static double[] vector(double[] state, String blueprint, double[] extra, boolean plain)
+    private static double[] vector(double[] state, String blueprint, double[] extra, boolean plain, List<String> text)
             throws CardNotFoundException {
         if (plain) {
             extra = extra.clone();
@@ -106,7 +106,9 @@ public class ReconcileChoiceTrainer extends AbstractTrainer {
         double[] card = CardFeatures.getCardFeatures(bp, 0);
         double[] option = Arrays.copyOf(card, card.length + extra.length);
         System.arraycopy(extra, 0, option, card.length, extra.length);
-        return CardFeatures.join(state, option, bp);
+        // card text at the very end, where a model fit without it never looks
+        return com.gempukku.lotro.bots.rl.fotrstarters.CardTextFeatures.withText(CardFeatures.join(state, option, bp),
+                text, bp);
     }
 
     @Override
@@ -128,6 +130,7 @@ public class ReconcileChoiceTrainer extends AbstractTrainer {
         String[] cardIds = decision.getDecisionParameters().get("cardId");
         double[] state = features.extractFeatures(gameState, decision, playerName);
         Options o = options(gameState, decision, playerName);
+        List<String> text = modelRegistry.selectionText(getClass());
         // Keep the hand only if keeping is likelier than discarding any card at all. Taking the likeliest single
         // option kept it 84% of the time on July's reconciles (people: 53%) -- keeping is one option against seven
         // cards that share the rest -- and lost 45.8% against the bot that always discarded.
@@ -136,7 +139,7 @@ public class ReconcileChoiceTrainer extends AbstractTrainer {
         for (int i = 0; i < o.blueprints().length; i++) {
             try {
                 double[] p = new double[2];
-                model.predict(vector(state, o.blueprints()[i], o.extras()[i], modelRegistry.isReconcilePlain()), p);
+                model.predict(vector(state, o.blueprints()[i], o.extras()[i], modelRegistry.isReconcilePlain(), text), p);
                 score[i] = logit(p[1]);
             } catch (CardNotFoundException ignored) {
                 // a card the features cannot describe is not discarded
@@ -175,6 +178,7 @@ public class ReconcileChoiceTrainer extends AbstractTrainer {
     protected List<LabeledPoint> extractTrainingData(List<LearningStep> steps) {
         List<LabeledPoint> data = new ArrayList<>();
         int group = 0;
+        List<String> text = com.gempukku.lotro.bots.rl.fotrstarters.CardTextFeatures.trainingSelectionText(getClass());
         for (LearningStep step : steps) {
             if (!isStepRelevant(step))
                 continue;
@@ -183,7 +187,8 @@ public class ReconcileChoiceTrainer extends AbstractTrainer {
             for (int i = 0; i < a.getOptionBlueprints().length; i++) {
                 try {
                     data.add(new LabeledPoint(i == a.getOptionChosen() ? 1 : 0,
-                            vector(step.state, a.getOptionBlueprints()[i], a.getOptionExtras()[i], PLAIN_TRAINING), group));
+                            vector(step.state, a.getOptionBlueprints()[i], a.getOptionExtras()[i], PLAIN_TRAINING, text),
+                            group));
                 } catch (CardNotFoundException ignored) {
                 }
             }

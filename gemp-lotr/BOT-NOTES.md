@@ -1270,7 +1270,22 @@ play, card from deck, from discard, play from hand) refit on people's ten months
 75.9 -> **81.4%** (5,152 decisions), cards to discard 66.8 -> 71.6%, cards from deck 53.2 -> 57.4%, discard down to
 21.4 -> 28.2%, from hand 35.0 -> 36.2%.
 
-`sel10-gs` is the bot to use: as strong as `sel10-f` or a little stronger, and the most human-like yet.
+**Reconcile.** The reconcile model (keep the hand or discard one card) refit on people's 112,648 reconciles as
+`sel10-rec`'s was, with card text on each card option (108 minutes), over `sel10-gs` -> `sel10-gr`: 50.2% +- 0.9
+against `sel10-gs`; reconcile agreement 49.7 -> 51.3% of 8,821, 68.6% of all July (keeps the hand 44.7%, people
+52.7%).
+
+**Skirmishes: nothing to add.** The skirmish slot refit as `sel10-f`'s was (people's skirmish labels plus the deaths
+labels x10, with the probe) and card text after the probe (710,707 rows, 100 minutes) -> `sel10-gk`: 49.6% +- 0.9
+against `sel10-gs`; skirmish agreement Free Peoples 82.0 -> 82.4%, Shadow 75.6 -> 75.8%, misjudged skirmish plays
+1,461 -> 1,449 (Úlairë Enquëa 18 -> 28%, people 97%). The probe already shows what a skirmish card does, and the
+skirmish prompt carried a tenth of the misjudged plays to begin with. Not kept.
+
+**Beyond Movie Block** (the vocabulary is counted over sets 1-10): `sel10-gs` against `sel10-f` 53.4% +- 2.7 in
+Expanded, 52.5% +- 2.0 in Fellowship block; against `v2-real` 89.6% +- 1.4 in Movie Block (`sel10-e` 89.2%). On March
+2020's Fellowship block games it agrees with people 62.4% (`sel10-f` 61.8%; 30% of the decisions).
+
+`sel10-gr` is the bot to use: as strong as `sel10-f` or a little stronger, and the most human-like yet.
 
 ## Human Movie Block games, and assignments learned from them (2026-10-19)
 
