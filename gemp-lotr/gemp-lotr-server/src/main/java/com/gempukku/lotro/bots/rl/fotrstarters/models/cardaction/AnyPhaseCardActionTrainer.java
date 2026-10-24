@@ -3,6 +3,7 @@ package com.gempukku.lotro.bots.rl.fotrstarters.models.cardaction;
 import com.gempukku.lotro.bots.rl.LearningStep;
 import com.gempukku.lotro.bots.rl.RLGameStateFeatures;
 import com.gempukku.lotro.bots.rl.fotrstarters.CardFeatures;
+import com.gempukku.lotro.bots.rl.fotrstarters.CardTextFeatures;
 import com.gempukku.lotro.bots.rl.fotrstarters.EffectProbe;
 import com.gempukku.lotro.bots.rl.fotrstarters.FotrStarterBot;
 import com.gempukku.lotro.bots.rl.fotrstarters.models.AbstractTrainer;
@@ -74,6 +75,29 @@ public class AnyPhaseCardActionTrainer extends AbstractTrainer {
     private static final java.util.Set<String> REFIT_CONTEXTS = System.getProperty("anyPhase.refitContexts") != null
             ? names(System.getProperty("anyPhase.refitContexts")) : java.util.Set.of("none");
 
+    /**
+     * -DanyPhase.cardText=&lt;vocabulary file&gt; (training) / a "card-text" file in the model directory (play): every
+     * option ends with what its card's definition says it does ({@link CardTextFeatures}), after the probe's numbers so
+     * a context fit without them reads the same vector as before. The file is built from the definitions if missing.
+     */
+    private static final String CARD_TEXT = System.getProperty("anyPhase.cardText");
+    private static volatile List<String> cardTextVocab;
+
+    static List<String> trainingCardText() {
+        if (CARD_TEXT == null)
+            return null;
+        if (cardTextVocab == null)
+            synchronized (AnyPhaseCardActionTrainer.class) {
+                if (cardTextVocab == null)
+                    try {
+                        cardTextVocab = CardTextFeatures.vocabulary(java.nio.file.Path.of(CARD_TEXT));
+                    } catch (java.io.IOException e) {
+                        throw new IllegalStateException("anyPhase.cardText " + CARD_TEXT, e);
+                    }
+            }
+        return cardTextVocab;
+    }
+
     /** Context names from a comma or line separated list; empty for null. */
     public static java.util.Set<String> names(String list) {
         java.util.Set<String> out = new java.util.LinkedHashSet<>();
@@ -128,6 +152,8 @@ public class AnyPhaseCardActionTrainer extends AbstractTrainer {
                 ? modelRegistry.getProbeLength()
                 : modelRegistry.isSkirmishProbe() && EffectProbe.applies(decision) ? EffectProbe.SKIRMISH_LENGTH : 0;
         boolean probe = probeLength > 0;
+        List<String> text = modelRegistry.getCardText();
+        String contextName = contextName(decision.getText());
         double[] state = features.extractFeatures(gameState, decision, playerName);
         double[] context = context(decision.getText());
         String[] cardIds = decision.getDecisionParameters().get("cardId");
@@ -142,7 +168,8 @@ public class AnyPhaseCardActionTrainer extends AbstractTrainer {
         Arrays.fill(scores, Double.NEGATIVE_INFINITY);
         try {
             passScore = bestScore = score(model, state, context, null, CardFeatures.PASS, 0, rich ? new double[EXTRA] : null,
-                    probe ? EffectProbe.fit(EffectProbe.pass(gameState, playerName), probeLength) : null);
+                    probe ? EffectProbe.fit(EffectProbe.pass(gameState, playerName), probeLength) : null,
+                    text == null ? null : new double[text.size()]);
         } catch (CardNotFoundException e) {
             return null; // cannot happen: PASS is all zeros
         }
@@ -159,7 +186,8 @@ public class AnyPhaseCardActionTrainer extends AbstractTrainer {
                     did = EffectProbe.fit(EffectProbe.probe(gameState, playerName, actionIds[i], bots), probeLength);
                 }
                 double s = score(model, state, context, actionTexts[i], bp, wounds,
-                        rich ? liveExtra(gameState, cardId, bp) : null, did);
+                        rich ? liveExtra(gameState, cardId, bp) : null, did,
+                        text == null ? null : CardTextFeatures.of(text, bp, actionTexts[i], contextName));
                 scores[i] = s;
                 if (s > bestScore) {
                     bestScore = s;
@@ -197,9 +225,10 @@ public class AnyPhaseCardActionTrainer extends AbstractTrainer {
     }
 
     private double score(SoftClassifier<double[]> model, double[] state, double[] context, String actionText,
-                         String blueprintId, int wounds, double[] extra, double[] probe) throws CardNotFoundException {
+                         String blueprintId, int wounds, double[] extra, double[] probe, double[] text)
+            throws CardNotFoundException {
         double[] probs = new double[2];
-        model.predict(append(vector(state, context, actionText, blueprintId, wounds, extra), probe), probs);
+        model.predict(append(append(vector(state, context, actionText, blueprintId, wounds, extra), probe), text), probs);
         return probs[1];
     }
 
@@ -273,6 +302,10 @@ public class AnyPhaseCardActionTrainer extends AbstractTrainer {
             x = append(x, EffectProbe.fit(action.getProbe(), PROBE_LENGTH));
         else if (PROBE_TRAINING && EffectProbe.applies(step.decision))
             x = append(x, EffectProbe.fit(action.getProbe(), EffectProbe.SKIRMISH_LENGTH));
+        List<String> text = trainingCardText();
+        if (text != null)
+            x = append(x, CardTextFeatures.of(text, action.getSourceBlueprint(),
+                    action.getSourceBlueprint() != null ? action.getActionText() : null, contextName(step.decision.getText())));
         return x;
     }
 
