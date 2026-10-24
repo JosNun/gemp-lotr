@@ -1309,6 +1309,49 @@ each (67.8 / 47.6 / 41.3%), 51.9%; with people's mix (37 / 44 / 18%) and the bot
 and half the kill races, which the first player loses more often than people do (43.3 against 47.6%): its fellowship
 is a site further along and dies there.
 
+## The race, priced as people's results price it (2026-10-24)
+
+**What a site is worth.** `scripts/race_positions.py` reads every turn of people's games from the manifests' event
+streams -- each fellowship's site (PP), companions into and out of play (PCIP/RCFP), burden tokens -- 183,630 positions
+at the start of a turn from 9,802 games of ten months; `scripts/race_value.py` fits a logistic win model on both
+fellowships' sites (linear and cubed), companions in play and Ring-bearer resistance. Held out on July: AUC 0.639
+(the same features on `HumanReplay --values` positions, half of them from turns 1-3 because a game is re-created only
+to its first unmatched decision: 0.622). In companions: one more site is worth 0.3 at site 3, 1.1 at 5, 2.3 at 7,
+3.0 at 8; a point of resistance 0.16. Late in the game a site of lead is worth losing a companion or two, as players
+say.
+
+**A teacher for "move again?"** `HumanReplay --move-teach` plays both answers at every move decision of people's games
+through the opponent's next turn (8 times each, `sel10-gf` for both sides) and labels the answer that model scores 0.02
+or more higher. Four months: 18,727 decisions, 9,801 labelled; it agrees with people 62.6% and moves 38% of the time
+(people 21%) -- less on the first two turns, half the time from turn 5. Over `sel10-gf`:
+
+| move model | moves (July) | agreement on moves | vs `sel10-gf` |
+|---|---|---|---|
+| people's 105,500 moves (`sel10-gf`) | 19.3% | 81.0% | |
+| + teacher x3 | 19.1% | 80.9% | 50.4% +- 0.9 |
+| + teacher x10 | 19.8% | 78.9% | 50.0% +- 0.9 |
+| teacher alone | 29.1% | 62.6% | **45.6% +- 0.9** |
+
+Moving as the teacher says loses, the third time moving more has (the threshold, the search, now this). The teacher
+prices a site at what it is worth to people; the bots cannot cash it in -- their fellowship does not survive the later
+sites as people's does. The race waits on the Free Peoples side surviving, not on the move decision.
+
+**The Free Peoples side's skirmishes, by companions lost: no.** `HumanReplay --deaths-sides fp` labels the Free Peoples
+skirmish prompts as the Shadow ones were (each option to the end of the turn 4 times by `sel10-gf`, scored by its own
+companions lost, a Ring-bearer five times over): ten months, 121,392 labels, a play the better answer 85% of the time.
+The bots pass at the Free Peoples skirmish prompt 76.7% of the time, people 67.5%. The skirmish slot refit as
+`sel10-f`'s plus these labels W times:
+
+| W | vs `sel10-gf` | Free Peoples skirmish agreement | passes |
+|---|---|---|---|
+| 0 (`sel10-gf`) | | 82.0% | 76.7% |
+| 1 | 50.6% +- 0.9 | 81.5% | 76.1% |
+| 3 | **47.0% +- 0.9** | 79.8% | 74.6% |
+
+A turn's companions lost leaves out what the cards cost: the labels teach spending them to save a companion, and the
+bot pays for it later. For the Shadow side the same score worked (its cards are spent to kill, which is the point).
+
+
 ## Human Movie Block games, and assignments learned from them (2026-10-19)
 
 **2022 replays.** October and November 2022 (`GEMP-LOTR-Replays_2022-1{0,1}.zip`, ~340 MB
