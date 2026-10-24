@@ -1229,6 +1229,49 @@ over closes most of the gap with people and keeps choosing as they do; thirty cl
 Between the bots it changes nothing -- the opponent is the bot's own Free Peoples side -- but against a person the
 Shadow side is no longer soft in a skirmish. `sel10-f` (W = 10) is the bot to use.
 
+## What a card does, read from its definition (2026-10-24)
+
+The models saw a card as its printed numbers, keywords, culture and race -- nothing of its game text. Feature set 3
+(`AbilityFeatures`) counted cost and effect types and added nothing in play. Over all of held-out July with `sel10-f`
+(121,003 decisions; `--cf-rollouts 0`, the rows now list every option offered at a card action, and
+`scripts/card_gaps.py` ranks cards by |bot plays - people's plays|), the cards misjudged most were abilities the
+features cannot see: Rohirrim Road (a site) used 14.9% of the times offered against people's 23.8%, Dunharrow Plateau
+15.8% against 35.6%, Saved From the Fire played 0.6% against 37.6%, Úlairë Enquëa's skirmish ability 18% against 97%.
+Over every card the plays the bot got wrong summed to 14,599.
+
+**`CardTextFeatures`** reads each card's HJSON definition into tokens: the ability and its phase
+(`ab:activated@regroup`), cost and who pays (`cost:exert`, `cost>self`), effect and who it lands on (`effect:heal`,
+`effect>companion`), trigger (`trig:losesskirmish`), requirement (`req:canspot`, `req>dwarf`), static and granted
+modifiers (`static:modifycost`, `effectmod:modifycost`), summed amounts (`effect:modifystrength#`). The vocabulary is
+the 541 tokens on 5+ cards of sets 1-10 (over all 3,997 definitions a 15-card floor kept 461 and lost the kill in Saved
+From the Fire's cost). Playing a card brings all its abilities, using one the activated abilities of the current
+phase, an optional trigger its triggers. A `card-text` file (the vocabulary) beside the models turns it on for the
+card-action model, after the probe's numbers so slots fit without it read the same vector; `card-text-selections`
+names the selection models that get it too.
+
+**Card actions.** The eight non-skirmish slots of `sel10-f`'s card-action model refit with and without card text on
+the same rows. On people's four months alone (1,031,812 rows) both lose to `sel10-f` (45.0%: its slots carry the
+search's labels) and tie each other (50.5% +- 1.2). On people's four months plus the surviving teacher rounds x3
+(1,606,408 rows; round 2-3's Fellowship labels were not kept, so this only approximates `sel10-f`'s recipe):
+
+| | vs `sel10-f` | vs control | all of July | Fellowship | Shadow | Maneuver | plays wrong |
+|---|---|---|---|---|---|---|---|
+| `sel10-f` | | | 67.4% | 62.8% | 58.0% | 81.3% | 14,599 |
+| control (`sel10-ctc2`) | 50.5% +- 1.2 | | 67.6% | 64.1% | 58.3% | 81.2% | 14,153 |
+| card text (`sel10-ctt2`) | **51.6% +- 0.9** | **51.4% +- 0.9** | **68.2%** | **65.2%** | **59.9%** | **84.2%** | **13,606** |
+
+Rohirrim Road 20.2% (people 23.8%), Hate 44.5% on the people-only pair (people 44.8%, `sel10-f` 72.6%), Aragorn
+Elessar Telcontar 65% (people 37%, `sel10-f` 85%). Dunharrow Plateau overshoots: 50% against 36%. The 541 numbers on
+1.6 M rows ran out of 27 GB with two contexts fit side by side; one at a time took 194 minutes.
+
+**Selections.** The six selection models where the card is the question (starting fellowship, discard from hand, from
+play, card from deck, from discard, play from hand) refit on people's ten months as `sel10`'s were, with card text
+(27 minutes), over `sel10-ctt2` -> `sel10-gs`: 50.4% +- 0.9 against `sel10-ctt2`, 68.5% of July. Starting fellowship
+75.9 -> **81.4%** (5,152 decisions), cards to discard 66.8 -> 71.6%, cards from deck 53.2 -> 57.4%, discard down to
+21.4 -> 28.2%, from hand 35.0 -> 36.2%.
+
+`sel10-gs` is the bot to use: as strong as `sel10-f` or a little stronger, and the most human-like yet.
+
 ## Human Movie Block games, and assignments learned from them (2026-10-19)
 
 **2022 replays.** October and November 2022 (`GEMP-LOTR-Replays_2022-1{0,1}.zip`, ~340 MB
