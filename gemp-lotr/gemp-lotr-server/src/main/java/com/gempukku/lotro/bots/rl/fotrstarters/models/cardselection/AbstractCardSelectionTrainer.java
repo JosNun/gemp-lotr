@@ -3,6 +3,7 @@ package com.gempukku.lotro.bots.rl.fotrstarters.models.cardselection;
 import com.gempukku.lotro.bots.rl.LearningStep;
 import com.gempukku.lotro.bots.rl.RLGameStateFeatures;
 import com.gempukku.lotro.bots.rl.fotrstarters.CardFeatures;
+import com.gempukku.lotro.bots.rl.fotrstarters.CardTextFeatures;
 import com.gempukku.lotro.bots.rl.fotrstarters.models.AbstractTrainer;
 import com.gempukku.lotro.bots.rl.fotrstarters.models.LabeledPoint;
 import com.gempukku.lotro.bots.rl.fotrstarters.models.ModelRegistry;
@@ -67,6 +68,7 @@ public abstract class AbstractCardSelectionTrainer extends AbstractTrainer {
         List<String> cardIds = Arrays.stream(decision.getDecisionParameters().get("cardId")).toList();
 
         SoftClassifier<double[]> model = modelRegistry.getModel(getClass());
+        List<String> text = modelRegistry.selectionText(getClass());
         double[] stateVector = features.extractFeatures(gameState, decision, playerName);
         List<ScoredCard> scoredCards = new ArrayList<>();
 
@@ -79,7 +81,7 @@ public abstract class AbstractCardSelectionTrainer extends AbstractTrainer {
                         wounds = gameState.getWounds(physicalCard);
                     }
                 }
-                double[] cardVector = getCardVector(blueprintId, wounds);
+                double[] cardVector = CardTextFeatures.withText(getCardVector(blueprintId, wounds), text, blueprintId);
                 double[] extended = CardFeatures.join(stateVector, cardVector, blueprintId);
 
                 double[] probs = new double[2];
@@ -150,9 +152,11 @@ public abstract class AbstractCardSelectionTrainer extends AbstractTrainer {
 
     protected void addLabeledPoints(List<LabeledPoint> data, List<String> blueprintIds, List<Integer> wounds,
                                   double[] state, int label) {
+        List<String> text = CardTextFeatures.trainingSelectionText(getClass());
         for (int i = 0; i < blueprintIds.size(); i++) {
             try {
-                double[] cardVector = getCardVector(blueprintIds.get(i), wounds.get(i));
+                double[] cardVector = CardTextFeatures.withText(getCardVector(blueprintIds.get(i), wounds.get(i)), text,
+                        blueprintIds.get(i));
                 data.add(new LabeledPoint(label, CardFeatures.join(state, cardVector, blueprintIds.get(i))));
             } catch (CardNotFoundException ignore) {
             }

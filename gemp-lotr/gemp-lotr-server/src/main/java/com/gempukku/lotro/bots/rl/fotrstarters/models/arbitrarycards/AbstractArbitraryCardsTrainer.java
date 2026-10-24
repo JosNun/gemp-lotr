@@ -3,6 +3,7 @@ package com.gempukku.lotro.bots.rl.fotrstarters.models.arbitrarycards;
 import com.gempukku.lotro.bots.rl.LearningStep;
 import com.gempukku.lotro.bots.rl.RLGameStateFeatures;
 import com.gempukku.lotro.bots.rl.fotrstarters.CardFeatures;
+import com.gempukku.lotro.bots.rl.fotrstarters.CardTextFeatures;
 import com.gempukku.lotro.bots.rl.fotrstarters.models.AbstractTrainer;
 import com.gempukku.lotro.bots.rl.fotrstarters.models.LabeledPoint;
 import com.gempukku.lotro.bots.rl.fotrstarters.models.ModelRegistry;
@@ -53,13 +54,14 @@ public abstract class AbstractArbitraryCardsTrainer extends AbstractTrainer {
         }
 
         SoftClassifier<double[]> model = modelRegistry.getModel(getClass());
+        List<String> text = modelRegistry.selectionText(getClass());
         double[] stateVector = features.extractFeatures(gameState, decision, playerName);
         List<ScoredCard> scoredCards = new ArrayList<>();
 
         for (int i = 0; i < selectableBlueprints.size(); i++) {
             try {
                 String blueprintId = selectableBlueprints.get(i);
-                double[] cardVector = getCardVector(blueprintId);
+                double[] cardVector = CardTextFeatures.withText(getCardVector(blueprintId), text, blueprintId);
                 double[] extended = CardFeatures.join(stateVector, cardVector, blueprintId);
 
                 double[] probs = new double[2];
@@ -118,9 +120,10 @@ public abstract class AbstractArbitraryCardsTrainer extends AbstractTrainer {
 
     protected void addLabeledPoints(List<LabeledPoint> data, List<String> blueprintIds,
                                     double[] state, int label) {
+        List<String> text = CardTextFeatures.trainingSelectionText(getClass());
         for (String blueprintId : blueprintIds) {
             try {
-                double[] cardVector = getCardVector(blueprintId);
+                double[] cardVector = CardTextFeatures.withText(getCardVector(blueprintId), text, blueprintId);
                 data.add(new LabeledPoint(label, CardFeatures.join(state, cardVector, blueprintId)));
             } catch (CardNotFoundException ignore) {
                 System.out.println(ignore.getMessage());

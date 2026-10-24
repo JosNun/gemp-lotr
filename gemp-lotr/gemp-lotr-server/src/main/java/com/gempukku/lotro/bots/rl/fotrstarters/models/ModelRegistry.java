@@ -131,6 +131,18 @@ public class ModelRegistry {
     /** The card-text vocabulary the card-action model was fit with ("card-text" in the model directory); null if none. */
     private java.util.List<String> cardText;
 
+    /** Selection models fit with card text ("card-text-selections"): trainer simple names. */
+    private java.util.Set<String> cardTextSelections = java.util.Set.of();
+
+    public void setCardTextSelections(java.util.Set<String> names) {
+        this.cardTextSelections = names;
+    }
+
+    /** The card-text vocabulary for this selection trainer, or null if it was fit without. */
+    public java.util.List<String> selectionText(Class<?> trainer) {
+        return cardText != null && cardTextSelections.contains(trainer.getSimpleName()) ? cardText : null;
+    }
+
     public java.util.List<String> getCardText() {
         return cardText;
     }
