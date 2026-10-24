@@ -841,6 +841,9 @@ public class HumanReplay {
                             t.error != null ? t.error : lastQuestion + " candidates " + cands);
                 if (t.match.full() && !t.ambiguous && !engineOnly(decision))
                     Counterfactual.consider(game, copier, ctx, m.name(), m.players(), p, decision, t.answer, cfSampler);
+                if (t.match.full() && !t.ambiguous && !engineOnly(decision) && Counterfactual.MOVE_TEACH != null)
+                    Counterfactual.teachMove(game, copier, ctx, m.players(), p, decision,
+                            state != null ? state : TrainingSteps.stateOf(game, decision, p), t.answer, cfSampler);
                 if (t.match.full() && !t.ambiguous && !engineOnly(decision) && Counterfactual.DEATHS_TEACH != null)
                     Counterfactual.teachByDeaths(game, copier, ctx, m.players(), p, decision,
                             state != null ? state : TrainingSteps.stateOf(game, decision, p), cfSampler);
@@ -1375,6 +1378,13 @@ public class HumanReplay {
                 case "--cf-deaths" -> Counterfactual.DEATHS = true;
                 case "--deaths-teach" -> Counterfactual.DEATHS_TEACH = new PrintWriter(Files.newBufferedWriter(Path.of(args[++i]), StandardCharsets.UTF_8));
                 case "--deaths-rollouts" -> Counterfactual.DEATHS_ROLLOUTS = Integer.parseInt(args[++i]);
+                case "--move-teach" -> {
+                    Counterfactual.MOVE_TEACH = new PrintWriter(Files.newBufferedWriter(Path.of(args[++i]), StandardCharsets.UTF_8));
+                    Counterfactual.MOVE_LOG = new PrintWriter(Files.newBufferedWriter(Path.of(args[i] + ".tsv"), StandardCharsets.UTF_8));
+                }
+                case "--move-value" -> Counterfactual.loadMoveValue(Path.of(args[++i]));
+                case "--move-rollouts" -> Counterfactual.MOVE_ROLLOUTS = Integer.parseInt(args[++i]);
+                case "--deaths-sides" -> Counterfactual.DEATHS_SIDES = java.util.Set.of(args[++i].toLowerCase().split(","));
                 case "--steps-only" -> TrainingSteps.ONLY = java.util.regex.Pattern.compile(args[++i]);
                 case "--probe-bot" -> probeBot = args[++i];
                 case "--probe-value" -> EffectProbe.VALUE = BotVsBot.readModel(Path.of(args[++i]).resolve("value.model"));
@@ -1440,8 +1450,14 @@ public class HumanReplay {
         }
         if (VALUES != null)
             VALUES.close();
+        if (Counterfactual.MOVE_TEACH != null) {
+            out.printf("move teacher: %d move decisions scored, %d labelled%n", Counterfactual.movesScored.get(),
+                    Counterfactual.movesTaught.get());
+            Counterfactual.MOVE_TEACH.close();
+            Counterfactual.MOVE_LOG.close();
+        }
         if (Counterfactual.DEATHS_TEACH != null) {
-            out.printf("deaths teacher: %d Shadow skirmish decisions labelled%n", Counterfactual.deathsTaught.get());
+            out.printf("deaths teacher: %d skirmish decisions labelled (%s)%n", Counterfactual.deathsTaught.get(), String.join(",", Counterfactual.DEATHS_SIDES));
             Counterfactual.DEATHS_TEACH.close();
         }
         if (Counterfactual.KIND != null) {

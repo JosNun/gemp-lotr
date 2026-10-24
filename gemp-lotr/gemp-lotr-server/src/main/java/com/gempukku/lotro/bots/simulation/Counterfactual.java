@@ -9,6 +9,7 @@ import com.gempukku.lotro.logic.decisions.AwaitingDecisionType;
 import com.gempukku.lotro.logic.timing.DefaultLotroGame;
 
 import java.io.PrintWriter;
+import java.nio.file.Path;
 import java.util.*;
 import java.util.concurrent.atomic.AtomicLong;
 
@@ -53,6 +54,11 @@ final class Counterfactual {
     static volatile PrintWriter DEATHS_TEACH;
     static volatile int DEATHS_ROLLOUTS = 6;
     static final int BEARER_WEIGHT = 5;
+    /**
+     * --deaths-sides shadow,fp: whose skirmish prompts the deaths teacher labels. The Shadow side's (the default)
+     * maximise the companions killed; the Free Peoples side's minimise the same score, their own companions lost.
+     */
+    static volatile java.util.Set<String> DEATHS_SIDES = java.util.Set.of("shadow");
     static final java.util.concurrent.atomic.AtomicLong deathsTaught = new java.util.concurrent.atomic.AtomicLong();
     static final AtomicLong asked = new AtomicLong(), agreed = new AtomicLong(), compared = new AtomicLong();
 
@@ -169,14 +175,170 @@ final class Counterfactual {
         }
     }
 
-    /** {@link #DEATHS_TEACH}'s labels for one decision; nothing if it is not a Shadow skirmish prompt. */
+    /**
+     * --move-teach &lt;file&gt;: at every "another move?" decision of the re-created games, each answer played on a copy
+     * through the end of the opponent's next turn {@link #MOVE_ROLLOUTS} times by the bot, and the position scored by
+     * a small win model fit on people's games ({@code --move-value}, scripts/race_value.py: "name weight" lines,
+     * "cube9:name weight" for (name / 9)^3, and "intercept b", over set-2 state features from the deciding player's side); a finished game scores 1 or 0. Deaths and the race are weighed
+     * as people's results weigh them, and the opponent's turn shows whether moving on forced a double move. The better
+     * answer is labelled where it scores {@link #MOVE_MARGIN} more; every decision's scores go to &lt;file&gt;.tsv.
+     */
+    static volatile PrintWriter MOVE_TEACH, MOVE_LOG;
+    static volatile int MOVE_ROLLOUTS = 8;
+    static volatile double MOVE_MARGIN = 0.02;
+    static volatile int[] MOVE_VALUE_INDEX;
+    static volatile double[] MOVE_VALUE_WEIGHT;
+    static volatile double MOVE_VALUE_INTERCEPT;
+    static final java.util.concurrent.atomic.AtomicLong movesTaught = new java.util.concurrent.atomic.AtomicLong(),
+            movesScored = new java.util.concurrent.atomic.AtomicLong();
+
+    static void loadMoveValue(Path file) throws java.io.IOException {
+        List<Integer> index = new ArrayList<>();
+        List<Double> weight = new ArrayList<>();
+        for (String line : java.nio.file.Files.readAllLines(file)) {
+            String[] f = line.trim().split("\\s+");
+            if (f.length != 2)
+                continue;
+            if (f[0].equals("intercept")) {
+                MOVE_VALUE_INTERCEPT = Double.parseDouble(f[1]);
+                continue;
+            }
+            // "cube9:name" is (name / 9)^3: a site's worth grows along the path (people's games: a site at 3 is worth 0.2
+            // of a companion, at 8 2.6); stored as a negative index
+            boolean cube = f[0].startsWith("cube9:");
+            int i = com.gempukku.lotro.bots.rl.fotrstarters.GeneralStateFeatures.index(cube ? f[0].substring(6) : f[0]);
+            index.add(cube ? -1 - i : i);
+            weight.add(Double.parseDouble(f[1]));
+        }
+        MOVE_VALUE_INDEX = index.stream().mapToInt(Integer::intValue).toArray();
+        MOVE_VALUE_WEIGHT = weight.stream().mapToDouble(Double::doubleValue).toArray();
+    }
+
+    static void teachMove(DefaultLotroGame live, GameCopier copier, BotVsBot.Context ctx, List<String> players,
+                          String player, AwaitingDecision decision, double[] state, String humanAnswer, Random sampler) {
+        PrintWriter out = MOVE_TEACH;
+        if (out == null || state == null || decision.getDecisionType() != AwaitingDecisionType.MULTIPLE_CHOICE
+                || decision.getText() == null || !decision.getText().toLowerCase().contains("another move"))
+            return;
+        String[] results = decision.getDecisionParameters().get("results");
+        if (results == null || results.length < 2)
+            return;
+        double[] value = new double[results.length];
+        long base = sampler.nextLong();
+        for (int i = 0; i < results.length; i++) {
+            int n = 0;
+            for (int r = 0; r < MOVE_ROLLOUTS; r++) {
+                Double v = roundValue(live, copier, ctx, players, player, String.valueOf(i), base + r * 0x9E3779B97F4A7C15L);
+                if (v == null)
+                    continue;
+                n++;
+                value[i] += v;
+            }
+            if (n == 0)
+                return;
+            value[i] /= n;
+        }
+        movesScored.incrementAndGet();
+        int best = 0, worst = 0;
+        for (int i = 1; i < value.length; i++) {
+            if (value[i] > value[best])
+                best = i;
+            if (value[i] < value[worst])
+                worst = i;
+        }
+        GameState gs = live.getGameState();
+        StringBuilder log = new StringBuilder(String.valueOf(gs.getTurnNumber())).append('\t').append(humanAnswer);
+        for (int i = 0; i < results.length; i++)
+            log.append('\t').append(results[i]).append('=').append(String.format("%.4f", value[i]));
+        String line = null;
+        if (value[best] - value[worst] >= MOVE_MARGIN) {
+            var step = new com.gempukku.lotro.bots.rl.LearningStep(state,
+                    new com.gempukku.lotro.bots.rl.semanticaction.MultipleChoiceAction(results[best]), true, decision);
+            step.reward = 10;
+            line = step.toJson().toString();
+            movesTaught.incrementAndGet();
+        }
+        synchronized (Counterfactual.class) {
+            if (line != null) {
+                out.println(line);
+                out.flush();
+            }
+            if (MOVE_LOG != null) {
+                MOVE_LOG.println(log);
+                MOVE_LOG.flush();
+            }
+        }
+    }
+
+    /** {@code answer} given on a copy, played through the opponent's next turn; the win model's score for {@code player}. */
+    private static Double roundValue(DefaultLotroGame live, GameCopier copier, BotVsBot.Context ctx, List<String> players,
+                                     String player, String answer, long seed) {
+        try {
+            DefaultLotroGame copy = copier.copy(live);
+            GameState gs = copy.getGameState();
+            gs.setDeckShuffler(null);
+            gs.setRandomSeed(seed);
+            for (String p : players)
+                gs.shuffleDeck(p);
+            int turn = gs.getTurnNumber();
+            var feedback = GameCopier.feedback(copy);
+            AwaitingDecision pending = feedback.getAwaitingDecision(player);
+            if (pending == null)
+                return null;
+            feedback.participantDecided(player);
+            BotDecisionFallback.decide(copy, player, pending, answer);
+            copy.carryOutPendingActionsUntilDecisionNeeded();
+            Map<String, BotPlayer> bots = new HashMap<>();
+            for (String p : players)
+                bots.put(p, BotVsBot.bot(KIND, p, ctx));
+            com.gempukku.lotro.bots.BotRandom.current().setSeed(seed ^ 0x5DEECE66DL);
+            AwaitingDecision last = null;
+            for (int step = 0; step < 6000 && !copy.isFinished() && copy.getGameState().getTurnNumber() <= turn + 1; step++) {
+                String who = null;
+                AwaitingDecision d = null;
+                for (String p : players)
+                    if ((d = feedback.getAwaitingDecision(p)) != null) {
+                        who = p;
+                        break;
+                    }
+                if (d == null)
+                    return null;
+                last = d;
+                String a = bots.get(who).chooseAction(copy.getGameState(), d);
+                feedback.participantDecided(who);
+                BotDecisionFallback.decide(copy, who, d, a);
+                copy.carryOutPendingActionsUntilDecisionNeeded();
+            }
+            if (copy.isFinished())
+                return player.equals(copy.getWinnerPlayerId()) ? 1.0 : 0.0;
+            AwaitingDecision now = null;
+            for (String p : players)
+                if ((now = feedback.getAwaitingDecision(p)) != null)
+                    break;
+            double[] x = HumanReplay.valueState(copy, now != null ? now : last, player);
+            if (x == null)
+                return null;
+            double z = MOVE_VALUE_INTERCEPT;
+            for (int k = 0; k < MOVE_VALUE_INDEX.length; k++) {
+                int i = MOVE_VALUE_INDEX[k];
+                z += MOVE_VALUE_WEIGHT[k] * (i >= 0 ? x[i] : Math.pow(x[-1 - i] / 9, 3));
+            }
+            return 1 / (1 + Math.exp(-z));
+        } catch (Exception e) {
+            return null;
+        }
+    }
+
+    /** {@link #DEATHS_TEACH}'s labels for one decision; nothing if it is not a skirmish prompt of a side in {@link #DEATHS_SIDES}. */
     static void teachByDeaths(DefaultLotroGame live, GameCopier copier, BotVsBot.Context ctx, List<String> players,
                               String player, AwaitingDecision decision, double[] state, Random sampler) {
         PrintWriter out = DEATHS_TEACH;
         GameState gs = live.getGameState();
-        if (out == null || state == null || player.equals(gs.getCurrentPlayerId())
+        boolean fp = player.equals(gs.getCurrentPlayerId());
+        if (out == null || state == null || !DEATHS_SIDES.contains(fp ? "fp" : "shadow")
                 || !com.gempukku.lotro.bots.rl.fotrstarters.EffectProbe.applies(decision))
             return;
+        int sign = fp ? -1 : 1;
         String[] ids = decision.getDecisionParameters().get("actionId");
         if (ids == null || ids.length == 0)
             return;
@@ -191,7 +353,7 @@ final class Counterfactual {
                 if (d == null)
                     continue;
                 n++;
-                score[i] += d[0] + BEARER_WEIGHT * d[1];
+                score[i] += sign * (d[0] + BEARER_WEIGHT * d[1]);
             }
             if (n == 0)
                 return;
