@@ -128,6 +128,17 @@ public class ModelRegistry {
         this.skirmishProbe = skirmishProbe;
     }
 
+    /** The card-text vocabulary the card-action model was fit with ("card-text" in the model directory); null if none. */
+    private java.util.List<String> cardText;
+
+    public java.util.List<String> getCardText() {
+        return cardText;
+    }
+
+    public void setCardText(java.util.List<String> cardText) {
+        this.cardText = cardText;
+    }
+
     public boolean isAnyPhaseRich() {
         return anyPhaseRich;
     }

@@ -379,7 +379,8 @@ final class Counterfactual {
     /**
      * One row: game, player, bucket, type, the two raw answers, the wins and rollouts; then the side, what each answer
      * did (card and action text for card actions, the cards for selections), and in a skirmish the deciding player's
-     * strength margin; then the turn and phase, and at an assignment the Ring-bearer and the free characters. Agreed: n is 0; differed but not played out (--cf-rollouts 0): n is -1.
+     * strength margin; then the turn and phase, at an assignment the Ring-bearer and the free characters, and at a
+     * card action every option offered. Agreed: n is 0; differed but not played out (--cf-rollouts 0): n is -1.
      */
     private static void write(GameState gs, String game, String player, String bucket, AwaitingDecision d, String human,
                               String bot, int humanWins, int botWins, int n) {
@@ -402,8 +403,18 @@ final class Counterfactual {
             out.println(String.join("\t", game, player, bucket, d.getDecisionType().name(), human.replace('\t', ' '),
                     bot.replace('\t', ' '), String.valueOf(humanWins), String.valueOf(botWins), String.valueOf(n),
                     side, humanDid.replace('\t', ' '), botDid.replace('\t', ' '), margin,
-                    String.valueOf(gs.getTurnNumber()), String.valueOf(gs.getCurrentPhase()), assignmentContext(gs, d)));
+                    String.valueOf(gs.getTurnNumber()), String.valueOf(gs.getCurrentPhase()), assignmentContext(gs, d),
+                    actions ? offered(gs, d) : ""));
             out.flush();
         }
+    }
+
+    /** At a card action: every option, as describeAction gives them, joined by " ;; " -- which cards were on offer. */
+    private static String offered(GameState gs, AwaitingDecision d) {
+        String[] ids = d.getDecisionParameters().get("actionId");
+        List<String> out = new ArrayList<>();
+        for (int i = 0; ids != null && i < ids.length; i++)
+            out.add(describeAction(gs, d, ids[i]).replace('\t', ' '));
+        return String.join(" ;; ", out);
     }
 }

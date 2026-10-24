@@ -1,6 +1,7 @@
 package com.gempukku.lotro.bots;
 
 import com.gempukku.lotro.bots.rl.fotrstarters.AbilityFeatures;
+import com.gempukku.lotro.bots.rl.fotrstarters.CardTextFeatures;
 import com.gempukku.lotro.bots.rl.fotrstarters.CardFeatures;
 import com.gempukku.lotro.bots.rl.fotrstarters.EffectProbe;
 import com.gempukku.lotro.bots.rl.fotrstarters.models.ModelRegistry;
@@ -77,6 +78,8 @@ public final class ModelDirectory {
         registry.setFeatureVersion(featureVersion(dir));
         registry.setAnyPhaseFirst(Files.exists(dir.resolve("any-phase-first")));
         registry.setAnyPhaseRich(Files.exists(dir.resolve("any-phase-rich")));
+        if (Files.exists(dir.resolve("card-text")))
+            registry.setCardText(CardTextFeatures.vocabulary(dir.resolve("card-text")));
         registry.setSkirmishProbe(Files.exists(dir.resolve("skirmish-probe")));
         registry.setReconcilePlain(Files.exists(dir.resolve("reconcile-plain")));
         registry.setPassByMass(Files.exists(dir.resolve("pass-by-mass")));
@@ -128,6 +131,7 @@ public final class ModelDirectory {
                                             File cardsDir) {
         CardFeatures.init(library);
         AbilityFeatures.init(cardsDir, library);
+        CardTextFeatures.init(cardsDir, library);
         if (EffectProbe.FORK == null) {
             GameCopier copier = new GameCopier(library, formats);
             // An admin's card reload swaps in new blueprints, which the copier has not seen as shared: every copy of a
