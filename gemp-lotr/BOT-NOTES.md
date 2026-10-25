@@ -1364,6 +1364,14 @@ skirmishes by the position -- and none moves the first seat. Its losses are not 
 assignments (where the Free Peoples bot put the killing minion itself in 88% of its skirmish deaths) and the weight of
 the bots' own Shadow side in a mirror are what is left.
 
+**Free Peoples assignments scored by the whole position: no.** `HumanReplay --assign-teach` at every Free Peoples
+assignment of people's games: the human's answer, the bot's four best and assigning nothing, each played through the
+opponent's next turn 4 times by `sel10-gf` and scored by the win model, labelled both ways with AssignmentProbe's
+numbers. Four months: 19,464 assignments, 87,941 labels. `FpAssignmentTrainer` refit on people's ten months of
+assignments plus these W times, over `sel10-gf` (agreement on July's 4,436 Free Peoples assignments 54.3%): W = 1
+49.7% +- 0.9 (53.4%), W = 3 50.0% +- 0.9 (53.7%). Four teachers, all at a turn and a half's horizon with the bot
+playing out both sides, and none moves the bots' play.
+
 
 ## Human Movie Block games, and assignments learned from them (2026-10-19)
 
