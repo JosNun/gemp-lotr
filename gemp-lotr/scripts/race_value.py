@@ -5,7 +5,8 @@ against a site of the race.
 usage: race_value.py out.weights train.csv... --test test.csv
 
 Each row is won/lost from one player's side at the start of a turn, then turn, whether it is that player's turn,
-both fellowships' sites, companions in play on each side and each Ring-bearer's resistance left. Logistic regression by
+both fellowships' sites, companions in play on each side, each Ring-bearer's resistance left, cards in hand and
+in the draw deck on each side, and wounds on each side's companions. Logistic regression by
 Newton's method on a few named features; prints the weights, held-out AUC, and the exchange rates. The weights file
 ("name weight" lines, "intercept b") is what HumanReplay --move-value reads.
 """
@@ -13,8 +14,11 @@ import re, sys
 import numpy as np
 
 COLUMNS = ['turn', 'iAmFp', 'myPosition', 'oppPosition', 'myCompanions', 'oppCompanions', 'myRbResistance',
-           'oppRbResistance']
-FEATURES = COLUMNS[1:] + ['cube9:myPosition', 'cube9:oppPosition']
+           'oppRbResistance', 'myHand', 'oppHand', 'myDeck', 'oppDeck', 'myWounds', 'oppWounds']
+# Hand size is 8 at the start of every turn (reconcile refills it); deck size comes out backwards (-0.05 of a companion
+# per card left: decks that draw and cycle win), so neither prices a card spent and both are left out.
+FEATURES = ['iAmFp', 'myPosition', 'oppPosition', 'myCompanions', 'oppCompanions', 'myRbResistance',
+            'oppRbResistance', 'myWounds', 'oppWounds', 'cube9:myPosition', 'cube9:oppPosition']
 
 def load(paths):
     rows = [np.loadtxt(p, delimiter=',', ndmin=2) for p in paths]
@@ -60,7 +64,7 @@ ix = {n: 1 + FEATURES.index(n) for n in FEATURES}
 def site(p):  # what one more site is worth at site p, in companions of mine
     return (w[ix['myPosition']] + w[ix['cube9:myPosition']] * ((p + 1) ** 3 - p ** 3) / 729) / c
 print('in companions of mine: one more site at ' + ', '.join(f'{p} {site(p):+.2f}' for p in range(1, 9))
-      + f'; one of their companions {w[ix["oppCompanions"]] / c:+.2f}; a point of my resistance '
+      + f'; one of their companions {w[ix["oppCompanions"]] / c:+.2f}; a wound on mine {w[ix["myWounds"]] / c:+.2f}; a point of my resistance '
       f'{w[ix["myRbResistance"]] / c:+.2f}; my turn {w[ix["iAmFp"]] / c:+.2f}')
 with open(out, 'w') as f:
     f.write(f'intercept {w[0]}\n')

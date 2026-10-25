@@ -59,6 +59,14 @@ final class Counterfactual {
      * maximise the companions killed; the Free Peoples side's minimise the same score, their own companions lost.
      */
     static volatile java.util.Set<String> DEATHS_SIDES = java.util.Set.of("shadow");
+    /**
+     * --deaths-value &lt;weights&gt;: score each option by the win model ({@code --move-value}'s format) at the start of
+     * the deciding player's next turn, through the opponent's turn, instead of by companions killed this turn; the
+     * best labelled good, those {@link #DEATHS_VALUE_MARGIN} or more below it bad. Companions lost alone leave out what
+     * a skirmish play costs -- exertions above all -- and labelled one way: Free Peoples labels by them lost (47.0%).
+     */
+    static volatile boolean DEATHS_BY_VALUE = false;
+    static volatile double DEATHS_VALUE_MARGIN = 0.02;
     static final java.util.concurrent.atomic.AtomicLong deathsTaught = new java.util.concurrent.atomic.AtomicLong();
     static final AtomicLong asked = new AtomicLong(), agreed = new AtomicLong(), compared = new AtomicLong();
 
@@ -349,7 +357,16 @@ final class Counterfactual {
         for (int i = 0; i < options.size(); i++) {
             int n = 0;
             for (int r = 0; r < DEATHS_ROLLOUTS; r++) {
-                int[] d = turnDeaths(live, copier, ctx, players, player, options.get(i), base + r * 0x9E3779B97F4A7C15L);
+                long seed = base + r * 0x9E3779B97F4A7C15L;
+                if (DEATHS_BY_VALUE) {
+                    Double v = roundValue(live, copier, ctx, players, player, options.get(i), seed);
+                    if (v == null)
+                        continue;
+                    n++;
+                    score[i] += v;
+                    continue;
+                }
+                int[] d = turnDeaths(live, copier, ctx, players, player, options.get(i), seed);
                 if (d == null)
                     continue;
                 n++;
@@ -364,7 +381,8 @@ final class Counterfactual {
             return;
         StringBuilder lines = new StringBuilder();
         for (int i = 0; i < options.size(); i++) {
-            int label = score[i] >= best - 1e-9 ? 1 : score[i] <= best - 1 ? 0 : -1;
+            double margin = DEATHS_BY_VALUE ? DEATHS_VALUE_MARGIN : 1;
+            int label = score[i] >= best - 1e-9 ? 1 : score[i] <= best - margin ? 0 : -1;
             if (label < 0)
                 continue;
             String o = options.get(i);
