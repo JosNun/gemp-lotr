@@ -66,6 +66,12 @@ final class Counterfactual {
      * a skirmish play costs -- exertions above all -- and labelled one way: Free Peoples labels by them lost (47.0%).
      */
     static volatile boolean DEATHS_BY_VALUE = false;
+    /**
+     * --deaths-prompts &lt;regex&gt;: the card-action prompts the deaths teacher labels, instead of the skirmish's
+     * ("Choose action to play or Pass"). Against people's positions the bots' Free Peoples archery answers lost 0.08 of a
+     * companion more than people's where they differed, the largest gap of any kind of decision.
+     */
+    static volatile java.util.regex.Pattern DEATHS_PROMPTS;
     static volatile double DEATHS_VALUE_MARGIN = 0.02;
     static final java.util.concurrent.atomic.AtomicLong deathsTaught = new java.util.concurrent.atomic.AtomicLong();
     static final AtomicLong asked = new AtomicLong(), agreed = new AtomicLong(), compared = new AtomicLong();
@@ -418,8 +424,11 @@ final class Counterfactual {
         PrintWriter out = DEATHS_TEACH;
         GameState gs = live.getGameState();
         boolean fp = player.equals(gs.getCurrentPlayerId());
-        if (out == null || state == null || !DEATHS_SIDES.contains(fp ? "fp" : "shadow")
-                || !com.gempukku.lotro.bots.rl.fotrstarters.EffectProbe.applies(decision))
+        boolean prompt = DEATHS_PROMPTS != null
+                ? decision.getDecisionType() == AwaitingDecisionType.CARD_ACTION_CHOICE && decision.getText() != null
+                && DEATHS_PROMPTS.matcher(decision.getText()).find()
+                : com.gempukku.lotro.bots.rl.fotrstarters.EffectProbe.applies(decision);
+        if (out == null || state == null || !DEATHS_SIDES.contains(fp ? "fp" : "shadow") || !prompt)
             return;
         int sign = fp ? -1 : 1;
         String[] ids = decision.getDecisionParameters().get("actionId");

@@ -1390,6 +1390,7 @@ public class HumanReplay {
                     Counterfactual.loadMoveValue(Path.of(args[++i]));
                     Counterfactual.DEATHS_BY_VALUE = true;
                 }
+                case "--deaths-prompts" -> Counterfactual.DEATHS_PROMPTS = java.util.regex.Pattern.compile(args[++i]);
                 case "--assign-teach" -> Counterfactual.ASSIGN_TEACH = new PrintWriter(Files.newBufferedWriter(Path.of(args[++i]), StandardCharsets.UTF_8));
                 case "--move-rollouts" -> Counterfactual.MOVE_ROLLOUTS = Integer.parseInt(args[++i]);
                 case "--deaths-sides" -> Counterfactual.DEATHS_SIDES = java.util.Set.of(args[++i].toLowerCase().split(","));
