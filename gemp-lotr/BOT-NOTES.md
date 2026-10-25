@@ -1351,6 +1351,19 @@ The bots pass at the Free Peoples skirmish prompt 76.7% of the time, people 67.5
 A turn's companions lost leaves out what the cards cost: the labels teach spending them to save a companion, and the
 bot pays for it later. For the Shadow side the same score worked (its cards are spent to kill, which is the point).
 
+**Scored by the whole position: no harm, no gain.** The win model with wounds added (a wound on a companion costs
+0.12 of one; hand size is 8 at every turn's start and deck size comes out backwards, -0.05 of a companion per card
+left, so neither can price a spent card) scores each Free Peoples skirmish option at the deciding player's next turn,
+through the opponent's turn (`--deaths-value scripts/race-value.weights`, 4 play-outs each), the best labelled good and
+those 0.02 or more below it bad: four months, 38,804 decisions, 105,732 labels, pass the better answer in 40% of the
+good ones. Over `sel10-gf`: W = 1 50.4% +- 0.9 (Free Peoples skirmish agreement 82.0%, passes 75.8%); W = 3 50.6% +-
+0.9 (81.1%, 74.7%); the first seat won 48.3% in the W = 3 games. Not kept.
+
+Three teachers for the Free Peoples side of the race -- the move decision, its skirmishes by companions lost, its
+skirmishes by the position -- and none moves the first seat. Its losses are not in those answers alone; the
+assignments (where the Free Peoples bot put the killing minion itself in 88% of its skirmish deaths) and the weight of
+the bots' own Shadow side in a mirror are what is left.
+
 
 ## Human Movie Block games, and assignments learned from them (2026-10-19)
 
