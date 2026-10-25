@@ -1372,6 +1372,16 @@ assignments plus these W times, over `sel10-gf` (agreement on July's 4,436 Free 
 49.7% +- 0.9 (53.4%), W = 3 50.0% +- 0.9 (53.7%). Four teachers, all at a turn and a half's horizon with the bot
 playing out both sides, and none moves the bots' play.
 
+**Against people's positions the first seat is not weaker.** `--cf-deaths` over all of July (`sel10-gf`, 4 play-outs
+of the turn after every answer that differs from the human's: 36,655 decisions), split by whether the deciding player
+went first (`scripts/counterfactual_seats.py`). Free Peoples answers, the bot's minus the human's companions lost:
+going first **+0.004 +- 0.006** a differing decision, going second +0.009 +- 0.006 -- the bot loses its companions as
+people do from either seat, and the first-seat weakness is a mirror's, or lies past the turn. What does stand out,
+in both seats: Free Peoples **archery** answers +0.077 +- 0.041 and +0.084 +- 0.044 (76 companions over July's
+reproduced games, the largest sum of any kind), assignments +0.025 / +0.047; moving again -0.08 (the bot moves less,
+so loses less this turn). Shadow: the first seat's Shadow-phase plays kill fewer than people's, -0.023 +- 0.012 (sum
+-65), the second seat's as many (+0.001).
+
 
 ## Human Movie Block games, and assignments learned from them (2026-10-19)
 
