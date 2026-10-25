@@ -337,6 +337,81 @@ final class Counterfactual {
         }
     }
 
+    /**
+     * --assign-teach &lt;file&gt; (with --deaths-value): at every Free Peoples assignment of the re-created games, the
+     * human's answer, the bot's {@link #ASSIGN_CANDIDATES} best and assigning nothing, each played through the
+     * opponent's next turn {@link #DEATHS_ROLLOUTS} times and scored by the win model; labelled as the deaths teacher
+     * labels by value, with AssignmentProbe's numbers. In the bots' own games the Free Peoples bot put the killing
+     * minion on the victim itself in 88% of its skirmish deaths.
+     */
+    static volatile PrintWriter ASSIGN_TEACH;
+    static volatile int ASSIGN_CANDIDATES = 4;
+    static final java.util.concurrent.atomic.AtomicLong assignsTaught = new java.util.concurrent.atomic.AtomicLong();
+
+    static void teachAssignment(DefaultLotroGame live, GameCopier copier, BotVsBot.Context ctx, List<String> players,
+                                String player, AwaitingDecision decision, double[] state, String humanAnswer,
+                                Random sampler) {
+        PrintWriter out = ASSIGN_TEACH;
+        GameState gs = live.getGameState();
+        if (out == null || state == null || decision.getDecisionType() != AwaitingDecisionType.ASSIGN_MINIONS
+                || !player.equals(gs.getCurrentPlayerId()) || MOVE_VALUE_INDEX == null)
+            return;
+        List<String> options = new ArrayList<>();
+        options.add(humanAnswer == null ? "" : humanAnswer);
+        try {
+            if (BotVsBot.bot(KIND, player, ctx) instanceof com.gempukku.lotro.bots.rl.fotrstarters.FotrStarterBot bot)
+                for (String c : bot.assignmentCandidates(gs, decision, ASSIGN_CANDIDATES))
+                    if (!options.contains(c))
+                        options.add(c);
+        } catch (RuntimeException ignored) {
+            // no candidates: the human's answer and nothing
+        }
+        if (!options.contains(""))
+            options.add("");
+        if (options.size() < 2)
+            return;
+        double[] score = new double[options.size()];
+        long base = sampler.nextLong();
+        for (int i = 0; i < options.size(); i++) {
+            int n = 0;
+            for (int r = 0; r < DEATHS_ROLLOUTS; r++) {
+                Double v = roundValue(live, copier, ctx, players, player, options.get(i), base + r * 0x9E3779B97F4A7C15L);
+                if (v == null)
+                    continue;
+                n++;
+                score[i] += v;
+            }
+            if (n == 0)
+                return;
+            score[i] /= n;
+        }
+        double best = Arrays.stream(score).max().orElse(0);
+        if (Arrays.stream(score).allMatch(v -> v == score[0]))
+            return;
+        StringBuilder lines = new StringBuilder();
+        for (int i = 0; i < options.size(); i++) {
+            int label = score[i] >= best - 1e-9 ? 1 : score[i] <= best - DEATHS_VALUE_MARGIN ? 0 : -1;
+            if (label < 0)
+                continue;
+            try {
+                var action = new com.gempukku.lotro.bots.rl.semanticaction.AssignMinionsAction(options.get(i), decision, gs,
+                        true).withProbe(com.gempukku.lotro.bots.rl.fotrstarters.models.assignment.AssignmentProbe
+                        .features(gs, decision, com.gempukku.lotro.bots.rl.fotrstarters.models.assignment.AssignmentProbe
+                                .parse(options.get(i))));
+                var step = new com.gempukku.lotro.bots.rl.LearningStep(state, action, true, decision);
+                step.reward = label == 1 ? 10 : 0;
+                lines.append(step.toJson()).append('\n');
+            } catch (RuntimeException ignored) {
+                // an answer the semantic action cannot describe
+            }
+        }
+        assignsTaught.incrementAndGet();
+        synchronized (Counterfactual.class) {
+            out.print(lines);
+            out.flush();
+        }
+    }
+
     /** {@link #DEATHS_TEACH}'s labels for one decision; nothing if it is not a skirmish prompt of a side in {@link #DEATHS_SIDES}. */
     static void teachByDeaths(DefaultLotroGame live, GameCopier copier, BotVsBot.Context ctx, List<String> players,
                               String player, AwaitingDecision decision, double[] state, Random sampler) {

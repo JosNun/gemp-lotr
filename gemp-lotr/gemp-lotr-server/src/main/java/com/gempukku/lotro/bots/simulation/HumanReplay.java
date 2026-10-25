@@ -841,6 +841,9 @@ public class HumanReplay {
                             t.error != null ? t.error : lastQuestion + " candidates " + cands);
                 if (t.match.full() && !t.ambiguous && !engineOnly(decision))
                     Counterfactual.consider(game, copier, ctx, m.name(), m.players(), p, decision, t.answer, cfSampler);
+                if (t.match.full() && !t.ambiguous && !engineOnly(decision) && Counterfactual.ASSIGN_TEACH != null)
+                    Counterfactual.teachAssignment(game, copier, ctx, m.players(), p, decision,
+                            state != null ? state : TrainingSteps.stateOf(game, decision, p), t.answer, cfSampler);
                 if (t.match.full() && !t.ambiguous && !engineOnly(decision) && Counterfactual.MOVE_TEACH != null)
                     Counterfactual.teachMove(game, copier, ctx, m.players(), p, decision,
                             state != null ? state : TrainingSteps.stateOf(game, decision, p), t.answer, cfSampler);
@@ -1387,6 +1390,7 @@ public class HumanReplay {
                     Counterfactual.loadMoveValue(Path.of(args[++i]));
                     Counterfactual.DEATHS_BY_VALUE = true;
                 }
+                case "--assign-teach" -> Counterfactual.ASSIGN_TEACH = new PrintWriter(Files.newBufferedWriter(Path.of(args[++i]), StandardCharsets.UTF_8));
                 case "--move-rollouts" -> Counterfactual.MOVE_ROLLOUTS = Integer.parseInt(args[++i]);
                 case "--deaths-sides" -> Counterfactual.DEATHS_SIDES = java.util.Set.of(args[++i].toLowerCase().split(","));
                 case "--steps-only" -> TrainingSteps.ONLY = java.util.regex.Pattern.compile(args[++i]);
@@ -1454,6 +1458,10 @@ public class HumanReplay {
         }
         if (VALUES != null)
             VALUES.close();
+        if (Counterfactual.ASSIGN_TEACH != null) {
+            out.printf("assignment teacher: %d Free Peoples assignments labelled%n", Counterfactual.assignsTaught.get());
+            Counterfactual.ASSIGN_TEACH.close();
+        }
         if (Counterfactual.MOVE_TEACH != null) {
             out.printf("move teacher: %d move decisions scored, %d labelled%n", Counterfactual.movesScored.get(),
                     Counterfactual.movesTaught.get());
