@@ -193,7 +193,8 @@ final class Counterfactual {
      * --move-teach &lt;file&gt;: at every "another move?" decision of the re-created games, each answer played on a copy
      * through the end of the opponent's next turn {@link #MOVE_ROLLOUTS} times by the bot, and the position scored by
      * a small win model fit on people's games ({@code --move-value}, scripts/race_value.py: "name weight" lines,
-     * "cube9:name weight" for (name / 9)^3, and "intercept b", over set-2 state features from the deciding player's side); a finished game scores 1 or 0. Deaths and the race are weighed
+     * "cube9:name weight" for (name / 9)^3, "fpsign:name weight" for name signed by the deciding player's side,
+     * and "intercept b", over set-2 state features from the deciding player's side); a finished game scores 1 or 0. Deaths and the race are weighed
      * as people's results weigh them, and the opponent's turn shows whether moving on forced a double move. The better
      * answer is labelled where it scores {@link #MOVE_MARGIN} more; every decision's scores go to &lt;file&gt;.tsv.
      */
@@ -201,6 +202,7 @@ final class Counterfactual {
     static volatile int MOVE_ROLLOUTS = 8;
     static volatile double MOVE_MARGIN = 0.02;
     static volatile int[] MOVE_VALUE_INDEX;
+    private static final int FPSIGN = 1 << 16;
     static volatile double[] MOVE_VALUE_WEIGHT;
     static volatile double MOVE_VALUE_INTERCEPT;
     static final java.util.concurrent.atomic.AtomicLong movesTaught = new java.util.concurrent.atomic.AtomicLong(),
@@ -219,9 +221,13 @@ final class Counterfactual {
             }
             // "cube9:name" is (name / 9)^3: a site's worth grows along the path (people's games: a site at 3 is worth 0.2
             // of a companion, at 8 2.6); stored as a negative index
-            boolean cube = f[0].startsWith("cube9:");
-            int i = com.gempukku.lotro.bots.rl.fotrstarters.GeneralStateFeatures.index(cube ? f[0].substring(6) : f[0]);
-            index.add(cube ? -1 - i : i);
+            // "fpsign:name" is name if the deciding player is the Free Peoples side, else -name: the side-of-board
+            // counts (fpPossessions, shadowConditions...) describe whoever is on which side, so they only mean
+            // something for the deciding player with the sign of its seat; stored with an offset of FPSIGN
+            boolean cube = f[0].startsWith("cube9:"), fpsign = f[0].startsWith("fpsign:");
+            int i = com.gempukku.lotro.bots.rl.fotrstarters.GeneralStateFeatures.index(
+                    cube ? f[0].substring(6) : fpsign ? f[0].substring(7) : f[0]);
+            index.add(cube ? -1 - i : fpsign ? FPSIGN + i : i);
             weight.add(Double.parseDouble(f[1]));
         }
         MOVE_VALUE_INDEX = index.stream().mapToInt(Integer::intValue).toArray();
@@ -333,9 +339,10 @@ final class Counterfactual {
             if (x == null)
                 return null;
             double z = MOVE_VALUE_INTERCEPT;
+            double side = x[com.gempukku.lotro.bots.rl.fotrstarters.GeneralStateFeatures.index("iAmFp")] == 1 ? 1 : -1;
             for (int k = 0; k < MOVE_VALUE_INDEX.length; k++) {
                 int i = MOVE_VALUE_INDEX[k];
-                z += MOVE_VALUE_WEIGHT[k] * (i >= 0 ? x[i] : Math.pow(x[-1 - i] / 9, 3));
+                z += MOVE_VALUE_WEIGHT[k] * (i >= FPSIGN ? side * x[i - FPSIGN] : i >= 0 ? x[i] : Math.pow(x[-1 - i] / 9, 3));
             }
             return 1 / (1 + Math.exp(-z));
         } catch (Exception e) {
