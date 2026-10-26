@@ -1382,6 +1382,20 @@ reproduced games, the largest sum of any kind), assignments +0.025 / +0.047; mov
 so loses less this turn). Shadow: the first seat's Shadow-phase plays kill fewer than people's, -0.023 +- 0.012 (sum
 -65), the second seat's as many (+0.001).
 
+**Archery, scored by the whole position: half the gap, no change in play.** `--deaths-prompts "^Play Archery action or
+Pass$"` with the value score: ten months, 34,312 Free Peoples archery decisions, 55,973 labels. The archery slot
+refit (with card text) on people's and the teacher rounds' archery rows plus these W times, over `sel10-gf`:
+
+| W | vs `sel10-gf` | companions lost vs people, first / second seat | archery agreement |
+|---|---|---|---|
+| 0 (`sel10-gf`) | | +0.077 / +0.084 | 72.5% |
+| 1 | 50.3% +- 0.9 | +0.039 / +0.053 | 71.2% |
+| 3 | 49.7% +- 0.9 | +0.034 / +0.040 | 69.4% |
+
+The labels halve what the bot's archery answers cost against people's positions, but tie between the bots and agree
+with people a little less. Not adopted by the rule (no stronger between bots, less human-like); the measure against
+people says they help.
+
 
 ## Human Movie Block games, and assignments learned from them (2026-10-19)
 
