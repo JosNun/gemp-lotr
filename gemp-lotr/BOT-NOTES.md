@@ -1393,8 +1393,22 @@ refit (with card text) on people's and the teacher rounds' archery rows plus the
 | 3 | 49.7% +- 0.9 | +0.034 / +0.040 | 69.4% |
 
 The labels halve what the bot's archery answers cost against people's positions, but tie between the bots and agree
-with people a little less. Not adopted by the rule (no stronger between bots, less human-like); the measure against
-people says they help.
+with people a little less. By the rule not adopted (no stronger between bots, less human-like); the measure against
+people says they help, and at the user's call W = 1 is kept: **`sel10-ar1`** is the bot to use.
+
+**One score for all of it: the aggregate win model.** A subagent widened the win model from the event streams
+(allies, possessions and conditions on each side, vitality, exhausted, dead, discard, threats, culture tokens):
+held-out July AUC 0.641 -> **0.670** with 13 terms (`scripts/aggregate-value.weights`): sites cubed, companions,
+resistance, wounds, and five side-of-board counts signed by the deciding player's seat (`fpsign:`). An ally in play
+is worth 0.48 of a companion, a Free Peoples possession 0.27, a condition 0.24, the opponent's Shadow condition -0.60,
+possession -0.67; each sign holds in all eleven months, but with a control for the deck's style the board weights
+halve or more -- "decks with gear win", partly. Vitality, exhausted, dead, threats, burdens and interactions add
+nothing; deck size stays backwards. With it as the score, one pass over four months labelled the Free Peoples
+skirmish (97,176 labels) and archery prompts and the Free Peoples assignments (88,784); the skirmish slot, archery
+slot and Free Peoples assignment model refit at W = 1 over `sel10-ar1` -> `sel10-agg`: **49.9% +- 0.9**, Free Peoples
+answers against people's positions +0.004 / +0.009 companions a differing decision (unchanged), archery +0.060 /
++0.086 (back up from `sel10-ar1`'s +0.039 / +0.053 with four months of labels for ten). Not kept: a better score of
+the position does not make better labels when the bot plays out both sides.
 
 
 ## Human Movie Block games, and assignments learned from them (2026-10-19)
