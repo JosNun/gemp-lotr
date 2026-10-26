@@ -1410,6 +1410,12 @@ answers against people's positions +0.004 / +0.009 companions a differing decisi
 +0.086 (back up from `sel10-ar1`'s +0.039 / +0.053 with four months of labels for ten). Not kept: a better score of
 the position does not make better labels when the bot plays out both sides.
 
+**Bigger trees, now that the options carry card text.** The Fellowship and Shadow slots of `sel10-ar1` refit on the
+same rows (people's four months and the teacher rounds, 1,182,548) with 500 trees of 96 leaves instead of 300 of 64
+(211 minutes, two fits side by side) -> `sel10-big`: 50.1% +- 0.9 against `sel10-ar1`; Fellowship agreement 65.2 ->
+66.1%, Shadow 59.9 -> 61.1%, all of July 69.5 -> **69.9%**. With 541 more numbers an option the trees were short of
+capacity again. Adopted.
+
 
 ## Human Movie Block games, and assignments learned from them (2026-10-19)
 
