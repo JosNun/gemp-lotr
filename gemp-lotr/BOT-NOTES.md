@@ -1415,6 +1415,9 @@ same rows (people's four months and the teacher rounds, 1,182,548) with 500 tree
 (211 minutes, two fits side by side) -> `sel10-big`: 50.1% +- 0.9 against `sel10-ar1`; Fellowship agreement 65.2 ->
 66.1%, Shadow 59.9 -> 61.1%, all of July 69.5 -> **69.9%**. With 541 more numbers an option the trees were short of
 capacity again. Adopted.
+The five smaller slots (maneuver, archery with its value labels, assignment, regroup, responses; 479,833 rows, 42
+minutes) the same way -> `sel10-big2`: 49.9% +- 0.9 against `sel10-big`, 21 more agreements of 121,001 -- noise. They
+were not short of capacity. Not kept.
 
 
 ## Human Movie Block games, and assignments learned from them (2026-10-19)
