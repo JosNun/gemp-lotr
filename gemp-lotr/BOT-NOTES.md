@@ -1418,6 +1418,13 @@ capacity again. Adopted.
 The five smaller slots (maneuver, archery with its value labels, assignment, regroup, responses; 479,833 rows, 42
 minutes) the same way -> `sel10-big2`: 49.9% +- 0.9 against `sel10-big`, 21 more agreements of 121,001 -- noise. They
 were not short of capacity. Not kept.
+The skirmish slot (people's 574,617 skirmish labels plus the Shadow deaths labels x10, with the probe; 710,707 rows,
+61 minutes) the same way -> **`sel10-big3`: 51.6% +- 0.9** against `sel10-big`; skirmish agreement Free Peoples 82.0 ->
+82.5%, Shadow 75.6 -> 75.8%, all of July 69.9 -> 69.9% (+46). **`sel10-big3` is the bot to use.**
+
+(A first try at it trained on the deaths labels alone and lost 23.2%: macOS had cleaned `/tmp/skir-all.jsonl` -- and
+`sel10.jsonl` and older label files -- away overnight. People's skirmish labels were regenerated, 574,617 rows as
+before; label files now live in `~/dev/gemp-replays/labels/`. Check a refit's row count against the expected sum.)
 
 
 ## Human Movie Block games, and assignments learned from them (2026-10-19)
