@@ -131,6 +131,17 @@ public class ModelRegistry {
     /** The card-text vocabulary the card-action model was fit with ("card-text" in the model directory); null if none. */
     private java.util.List<String> cardText;
 
+    /** The card-action model's Fellowship options end with the Shadow response forecast ("response-forecast"). */
+    private boolean responseForecast;
+
+    public boolean isResponseForecast() {
+        return responseForecast;
+    }
+
+    public void setResponseForecast(boolean responseForecast) {
+        this.responseForecast = responseForecast;
+    }
+
     /** Selection models fit with card text ("card-text-selections"): trainer simple names. */
     private java.util.Set<String> cardTextSelections = java.util.Set.of();
 

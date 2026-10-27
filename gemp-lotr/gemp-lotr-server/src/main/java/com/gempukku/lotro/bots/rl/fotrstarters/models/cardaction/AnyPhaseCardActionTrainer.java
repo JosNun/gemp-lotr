@@ -98,6 +98,46 @@ public class AnyPhaseCardActionTrainer extends AbstractTrainer {
         return cardTextVocab;
     }
 
+    /**
+     * -DanyPhase.response (training) / a "response-forecast" file in the model directory (play): each Fellowship-phase
+     * option ends with what the Shadow player is likely to field after it -- the twilight it leaves them once the
+     * fellowship moves, the minion strength a model of people's Shadow phases forecasts for that twilight at the next
+     * site (scripts/shadow_response_fit.py: held-out R2 0.37; the Shadow player's hidden hand decides the rest), and
+     * that strength less the fellowship's. Every card played and every companion (a twilight a move) feeds the
+     * opponent's next Shadow phase; the options' numbers say so directly. Zeros in other contexts.
+     */
+    public static final boolean RESPONSE_TRAINING = Boolean.getBoolean("anyPhase.response");
+    static final int RESPONSE = 3;
+
+    static double[] response(double[] state, String blueprintId, String actionText, String context) {
+        double[] r = new double[RESPONSE];
+        if (!"fellowship".equals(context) || CardFeatures.version() < 2)
+            return r;
+        java.util.function.ToDoubleFunction<String> f =
+                n -> state[com.gempukku.lotro.bots.rl.fotrstarters.GeneralStateFeatures.index(n)];
+        double cost = 0, companions = f.applyAsDouble("fpCompanions"), strength = f.applyAsDouble("fpCompanionStrength");
+        if (blueprintId != null && !blueprintId.equals(CardFeatures.PASS) && actionText != null
+                && actionText.toLowerCase().startsWith("play"))
+            try {
+                var bp = CardFeatures.blueprint(blueprintId);
+                cost = Math.max(0, bp.getTwilightCost());
+                if (bp.getCardType() == com.gempukku.lotro.common.CardType.COMPANION) {
+                    companions++;
+                    strength += bp.getStrength();
+                }
+            } catch (CardNotFoundException ignored) {
+            }
+        double site = f.applyAsDouble("site") + 1;
+        // the move adds the companions and the next site's Shadow number, taken here as about its site number
+        double twilight = f.applyAsDouble("twilight") + cost + companions + site;
+        double forecast = -11.357797 + 1.121309 * twilight - 0.906065 * Math.max(0, twilight - 16) + 0.557772 * site
+                - 5.185563 - 0.205025 * companions + 1.748264 * f.applyAsDouble("oppHand");
+        r[0] = twilight;
+        r[1] = forecast;
+        r[2] = forecast - strength;
+        return r;
+    }
+
     /** Context names from a comma or line separated list; empty for null. */
     public static java.util.Set<String> names(String list) {
         java.util.Set<String> out = new java.util.LinkedHashSet<>();
@@ -154,6 +194,7 @@ public class AnyPhaseCardActionTrainer extends AbstractTrainer {
         boolean probe = probeLength > 0;
         List<String> text = modelRegistry.getCardText();
         String contextName = contextName(decision.getText());
+        boolean forecast = modelRegistry.isResponseForecast();
         double[] state = features.extractFeatures(gameState, decision, playerName);
         double[] context = context(decision.getText());
         String[] cardIds = decision.getDecisionParameters().get("cardId");
@@ -169,7 +210,8 @@ public class AnyPhaseCardActionTrainer extends AbstractTrainer {
         try {
             passScore = bestScore = score(model, state, context, null, CardFeatures.PASS, 0, rich ? new double[EXTRA] : null,
                     probe ? EffectProbe.fit(EffectProbe.pass(gameState, playerName), probeLength) : null,
-                    text == null ? null : new double[text.size()]);
+                    text == null ? null : new double[text.size()],
+                    forecast ? response(state, null, null, contextName) : null);
         } catch (CardNotFoundException e) {
             return null; // cannot happen: PASS is all zeros
         }
@@ -187,7 +229,8 @@ public class AnyPhaseCardActionTrainer extends AbstractTrainer {
                 }
                 double s = score(model, state, context, actionTexts[i], bp, wounds,
                         rich ? liveExtra(gameState, cardId, bp) : null, did,
-                        text == null ? null : CardTextFeatures.of(text, bp, actionTexts[i], contextName));
+                        text == null ? null : CardTextFeatures.of(text, bp, actionTexts[i], contextName),
+                        forecast ? response(state, bp, actionTexts[i], contextName) : null);
                 scores[i] = s;
                 if (s > bestScore) {
                     bestScore = s;
@@ -225,10 +268,11 @@ public class AnyPhaseCardActionTrainer extends AbstractTrainer {
     }
 
     private double score(SoftClassifier<double[]> model, double[] state, double[] context, String actionText,
-                         String blueprintId, int wounds, double[] extra, double[] probe, double[] text)
-            throws CardNotFoundException {
+                         String blueprintId, int wounds, double[] extra, double[] probe, double[] text,
+                         double[] response) throws CardNotFoundException {
         double[] probs = new double[2];
-        model.predict(append(append(vector(state, context, actionText, blueprintId, wounds, extra), probe), text), probs);
+        model.predict(append(append(append(vector(state, context, actionText, blueprintId, wounds, extra), probe), text),
+                response), probs);
         return probs[1];
     }
 
@@ -305,6 +349,9 @@ public class AnyPhaseCardActionTrainer extends AbstractTrainer {
         List<String> text = trainingCardText();
         if (text != null)
             x = append(x, CardTextFeatures.of(text, action.getSourceBlueprint(),
+                    action.getSourceBlueprint() != null ? action.getActionText() : null, contextName(step.decision.getText())));
+        if (RESPONSE_TRAINING)
+            x = append(x, response(step.state, action.getSourceBlueprint() != null ? action.getSourceBlueprint() : null,
                     action.getSourceBlueprint() != null ? action.getActionText() : null, contextName(step.decision.getText())));
         return x;
     }
@@ -398,8 +445,10 @@ public class AnyPhaseCardActionTrainer extends AbstractTrainer {
                 for (LabeledPoint p : points)
                     if (PerContextModel.contextOf(p.x(), offset, CONTEXTS.size(), null) == c)
                         part.add(p);
-                if (part.size() < 200)
-                    throw new IllegalStateException("anyPhase.refitContexts: " + part.size() + " rows for " + name);
+                if (part.size() < 200) { // too few to fit on (one style's games): the base's model stays
+                    System.err.printf("  keeping %-12s %8d rows%n", name, part.size());
+                    continue;
+                }
                 System.out.printf("  refitting %-12s %8d rows%n", name, part.size());
                 fits.put(name, pool.submit(() -> trainWithPoints(part)));
             }
