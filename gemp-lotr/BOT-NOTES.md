@@ -1426,6 +1426,12 @@ The skirmish slot (people's 574,617 skirmish labels plus the Shadow deaths label
 `sel10.jsonl` and older label files -- away overnight. People's skirmish labels were regenerated, 574,617 rows as
 before; label files now live in `~/dev/gemp-replays/labels/`. Check a refit's row count against the expected sum.)
 
+The Free Peoples assignment model (people's 456,272 assignments, with the probe), reconcile (112,648, card text) and
+the six card-text selection models (`sel10.jsonl` rebuilt: 634,246 rows, as before) the same way, on the data each
+was fit with (232 minutes) -> `sel10-big4`: 50.1% +- 0.9 against `sel10-big3`; all of July 69.9 -> **70.1%** (+259):
+reconcile 51.3 -> 53.3%, starting fellowship 81.4 -> 83.2%, cards from deck 57.4 -> 60.0%, Free Peoples assignment
+54.3 -> 53.8%, discard down to 28.2 -> 21.4% (of 103). **`sel10-big4` is the bot to use.**
+
 
 ## Human Movie Block games, and assignments learned from them (2026-10-19)
 
