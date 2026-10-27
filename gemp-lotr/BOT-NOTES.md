@@ -1438,6 +1438,12 @@ most 900,000 rows (216 minutes, one fit) -> `sel10-sh10`: 50.5% +- 0.9 against `
 **62.5%**. With `sel10-big4`'s other models -> **`sel10-big5`**: 49.5% +- 0.9 against `sel10-big4`, all of July **70.3%**.
 **`sel10-big5` is the bot to use.**
 
+The Fellowship slot the same way: people's ten months (1,431,284 rows) with the 52,146 surviving teacher Fellowship rows
+did not fit -- 31 of 32 GB in use, the fit thrashing after four hours; seven months (917,905 rows, 216 minutes) ->
+`sel10-fe7`: 49.2% +- 0.9 against `sel10-big5`, Fellowship agreement 66.1 -> 66.5%, +85 of 121,003. Not kept: a
+small gain, a second point estimate under 50, and the teacher rounds' share of the slot down from 9% to 5% (their
+Fellowship labels were what made the slot strong; rounds 2-3's were not kept).
+
 
 ## Human Movie Block games, and assignments learned from them (2026-10-19)
 
