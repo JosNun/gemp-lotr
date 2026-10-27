@@ -852,7 +852,8 @@ public class HumanReplay {
                             state != null ? state : TrainingSteps.stateOf(game, decision, p), cfSampler);
                 // the board as the human saw it; not when another answer fit the recording as well
                 if (t.match.full() && !t.ambiguous && sink != null && state != null)
-                    sink.write(state, decision, t.answer, p, game);
+                    if (ONLY_PLAYERS == null || ONLY_PLAYERS.contains(m.name() + "\t" + p))
+                        sink.write(state, decision, t.answer, p, game);
                 adopt(p, t);
                 if (!t.match.full())
                     return stop("events differ", t.match.channel() + ": expected " + t.match.expected()
@@ -1330,6 +1331,12 @@ public class HumanReplay {
      */
     static volatile PrintWriter VALUES;
 
+    /**
+     * --steps-players &lt;file&gt;: write training steps only for these "game&lt;TAB&gt;player" pairs (the game id is the
+     * manifest's file name without ".json") -- one style of player's decisions, for a bot that plays that style.
+     */
+    static volatile java.util.Set<String> ONLY_PLAYERS;
+
     static double[] valueState(DefaultLotroGame game, AwaitingDecision decision, String player) {
         int previous = com.gempukku.lotro.bots.rl.fotrstarters.CardFeatures.version();
         try {
@@ -1395,6 +1402,7 @@ public class HumanReplay {
                 case "--move-rollouts" -> Counterfactual.MOVE_ROLLOUTS = Integer.parseInt(args[++i]);
                 case "--deaths-sides" -> Counterfactual.DEATHS_SIDES = java.util.Set.of(args[++i].toLowerCase().split(","));
                 case "--steps-only" -> TrainingSteps.ONLY = java.util.regex.Pattern.compile(args[++i]);
+                case "--steps-players" -> ONLY_PLAYERS = new java.util.HashSet<>(Files.readAllLines(Path.of(args[++i])));
                 case "--probe-bot" -> probeBot = args[++i];
                 case "--probe-value" -> EffectProbe.VALUE = BotVsBot.readModel(Path.of(args[++i]).resolve("value.model"));
                 case "--values" -> VALUES = new PrintWriter(Files.newBufferedWriter(Path.of(args[++i]), StandardCharsets.UTF_8));
