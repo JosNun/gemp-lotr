@@ -1430,7 +1430,13 @@ The Free Peoples assignment model (people's 456,272 assignments, with the probe)
 the six card-text selection models (`sel10.jsonl` rebuilt: 634,246 rows, as before) the same way, on the data each
 was fit with (232 minutes) -> `sel10-big4`: 50.1% +- 0.9 against `sel10-big3`; all of July 69.9 -> **70.1%** (+259):
 reconcile 51.3 -> 53.3%, starting fellowship 81.4 -> 83.2%, cards from deck 57.4 -> 60.0%, Free Peoples assignment
-54.3 -> 53.8%, discard down to 28.2 -> 21.4% (of 103). **`sel10-big4` is the bot to use.**
+54.3 -> 53.8%, discard down to 28.2 -> 21.4% (of 103).
+
+**More data, now that the trees have room.** The Shadow slot refit on people's ten months of Shadow-phase card
+actions (835,754 rows; four months had 296,599) plus the teacher rounds' Shadow rows x3 (328,809), 500 x 96 trees, at
+most 900,000 rows (216 minutes, one fit) -> `sel10-sh10`: 50.5% +- 0.9 against `sel10-big3`, Shadow agreement 61.1 ->
+**62.5%**. With `sel10-big4`'s other models -> **`sel10-big5`**: 49.5% +- 0.9 against `sel10-big4`, all of July **70.3%**.
+**`sel10-big5` is the bot to use.**
 
 
 ## Human Movie Block games, and assignments learned from them (2026-10-19)
