@@ -1,0 +1,17 @@
+# Shadow response model: yStr (see scripts/shadow_response_fit.py); fit on 2022 Movie block replays except July; inputs defined in /tmp/resp/report.txt
+intercept -11.357797
+twilight 1.121309
+twilightOver16 -0.906065
+site 0.557772
+moves -5.185563
+fpCompanions -0.205025
+oppHand 1.748264
+minionStrength 0.948639
+oppSeenMinions 0.397256
+twilightCapped_x_seenShare_SAURON 0.498815
+twilightCapped_x_seenShare_WRAITH 0.262950
+twilightCapped_x_seenShare_RAIDER 0.187922
+twilightCapped_x_seenShare_ISENGARD 0.117103
+twilightCapped_x_seenShare_MORIA 0.609541
+twilightCapped_x_seenShare_GOLLUM -0.098102
+twilightCapped_x_seenShare_DUNLAND 0.274637
