@@ -284,11 +284,14 @@ public class BotVsBot {
         System.exit(0); // ends any game thread still spinning in the engine
     }
 
+    private static final boolean FIXED_DECKS = Boolean.getBoolean("bvb.fixedDecks");
+
     private static Outcome play(int matchup, int game, LotroFormat format, LotroDeck deck1, LotroDeck deck2,
                                 Options opts, Context ctx) {
-        // A takes deck 1 on even games and deck 2 on odd ones. Fresh bots every game: FotrStarterBot keeps
-        // loop-detection state and an episode log that only endEpisode() clears.
-        int aSeat = game % 2 == 0 ? 1 : 2;
+        // A takes deck 1 on even games and deck 2 on odd ones -- or always deck 1 with -Dbvb.fixedDecks, so that an
+        // opponent from the pool of styles plays the decks its style was played with. Fresh bots every game:
+        // FotrStarterBot keeps loop-detection state and an episode log that only endEpisode() clears.
+        int aSeat = FIXED_DECKS || game % 2 == 0 ? 1 : 2;
         BotPlayer a = CardUse.wrap(bot(opts.kindA(), BOT_A, ctx), "A");
         BotPlayer b = CardUse.wrap(bot(opts.kindB(), BOT_B, ctx), "B");
         Map<String, LotroDeck> decks = new HashMap<>();
