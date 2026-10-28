@@ -1445,6 +1445,42 @@ small gain, a second point estimate under 50, and the teacher rounds' share of t
 Fellowship labels were what made the slot strong; rounds 2-3's were not kept).
 
 
+## Structure from the game: the Shadow player's response, and a pool of styles (2026-10-27)
+
+**What the Shadow player does with the twilight it is given** (a subagent; `scripts/shadow_response_data.py`,
+`shadow_response_fit.py`, `scripts/shadow-response.weights`). Every Shadow phase of 2022 (206,943), read from the Free
+Peoples player's own event stream: what it could know. Held-out July R2 for the minion strength fielded: twilight,
+site, moves, companions and the Shadow player's hand size 0.335; with the cultures and minions it has revealed 0.367;
+its decklist in hindsight 0.403; its hidden hand 0.559 -- the hand decides the Shadow phase, and what has been revealed
+adds little. Strength grows 1.1-1.7 a twilight point (Moria, Sauron most, Gollum least) and levels off near 18.
+
+**The forecast on the Fellowship options: no change.** A `response-forecast` marker (`-DanyPhase.response`) ends each
+Fellowship-phase option with the twilight the Shadow player will have after it and the move (its cost, a twilight a
+companion, the next site), the strength the model forecasts for it, and that less the fellowship's strength. The
+Fellowship slot of `sel10-big5` refit on the same rows with them -> `sel10-resp`: 50.1% +- 0.9, Fellowship agreement
+66.1% (unchanged). The trees were already combining the twilight in the state with the card's cost.
+
+**Five styles of play** (a subagent; `scripts/play_styles_extract.py`, `play_styles_cluster.py`; lists in
+`~/dev/gemp-replays/labels/styles/`): racer, builder, wide fellowship, big minions, swarm-grinder -- clusters of
+player-games (k = 5, split-half ARI 0.91), 4,128-8,031 each. `HumanReplay --steps-players` writes one style's player's
+decisions only; 2,500 games a style give 358,086-443,505 rows (7 minutes each).
+
+**Style bots.** All of `sel10-big5`'s learned models refit on one style's rows alone (10-15 minutes each): 29.8-36.4%
+against `sel10-big5` -- a fifth of the data, none of the teacher rounds, too weak to learn from playing. **Pool bots**:
+`sel10-big5` with only the style's Fellowship and Shadow card-action slots, move-again and starting-fellowship models
+(`bot-models-exp/pool-<style>`):
+
+| pool bot | moves again (July) | vs `sel10-big5` |
+|---|---|---|
+| (`sel10-big5`) | 19.3% | |
+| racer | **53.9%** | 41.8% +- 1.2 |
+| builder | 23.7% | 43.8% +- 1.2 |
+| wide fellowship | 12.2% | 42.4% +- 1.2 |
+| big minions | 10.3% | 45.8% +- 1.2 |
+| swarm-grinder | 7.9% | 44.9% +- 1.2 |
+
+Distinct and competent: opponents for testing and for teachers' play-outs other than the bot itself.
+
 ## Human Movie Block games, and assignments learned from them (2026-10-19)
 
 **2022 replays.** October and November 2022 (`GEMP-LOTR-Replays_2022-1{0,1}.zip`, ~340 MB
