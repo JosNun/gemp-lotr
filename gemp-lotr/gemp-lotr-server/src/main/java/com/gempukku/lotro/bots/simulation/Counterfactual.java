@@ -27,6 +27,18 @@ import java.util.concurrent.atomic.AtomicLong;
  */
 final class Counterfactual {
     static volatile String KIND;
+    /**
+     * --cf-opponents kind,kind,...: in the teachers' play-outs the opponent is one of these, drawn by the play-out's
+     * seed, and the deciding player {@link #KIND}. With the bot on both sides every teacher tied or lost -- a Shadow
+     * side that is the bot's own decides what moving on or a skirmish play is worth -- and between varied opponents
+     * (the pool of styles) going first cost nothing where the mirror said it cost a point.
+     */
+    static volatile List<String> OPPONENTS;
+
+    static String opponent(long seed) {
+        List<String> o = OPPONENTS;
+        return o == null || o.isEmpty() ? KIND : o.get((int) Math.floorMod(seed ^ (seed >>> 29), (long) o.size()));
+    }
     static volatile double RATE = 0.1;
     static volatile int ROLLOUTS = 8;
     static volatile PrintWriter OUT;
@@ -310,7 +322,7 @@ final class Counterfactual {
             copy.carryOutPendingActionsUntilDecisionNeeded();
             Map<String, BotPlayer> bots = new HashMap<>();
             for (String p : players)
-                bots.put(p, BotVsBot.bot(KIND, p, ctx));
+                bots.put(p, BotVsBot.bot(p.equals(player) ? KIND : opponent(seed), p, ctx));
             com.gempukku.lotro.bots.BotRandom.current().setSeed(seed ^ 0x5DEECE66DL);
             AwaitingDecision last = null;
             for (int step = 0; step < 6000 && !copy.isFinished() && copy.getGameState().getTurnNumber() <= turn + 1; step++) {
@@ -516,7 +528,7 @@ final class Counterfactual {
             copy.carryOutPendingActionsUntilDecisionNeeded();
             Map<String, BotPlayer> bots = new HashMap<>();
             for (String p : players)
-                bots.put(p, BotVsBot.bot(KIND, p, ctx));
+                bots.put(p, BotVsBot.bot(p.equals(player) ? KIND : opponent(seed), p, ctx));
             com.gempukku.lotro.bots.BotRandom.current().setSeed(seed ^ 0x5DEECE66DL);
             for (int step = 0; step < 3000 && !copy.isFinished() && copy.getGameState().getTurnNumber() == turn; step++) {
                 String who = null;

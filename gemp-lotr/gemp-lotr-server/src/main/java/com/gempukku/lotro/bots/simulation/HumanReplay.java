@@ -1393,6 +1393,7 @@ public class HumanReplay {
                     Counterfactual.MOVE_LOG = new PrintWriter(Files.newBufferedWriter(Path.of(args[i] + ".tsv"), StandardCharsets.UTF_8));
                 }
                 case "--move-value" -> Counterfactual.loadMoveValue(Path.of(args[++i]));
+                case "--cf-opponents" -> Counterfactual.OPPONENTS = List.of(args[++i].split(","));
                 case "--deaths-value" -> {
                     Counterfactual.loadMoveValue(Path.of(args[++i]));
                     Counterfactual.DEATHS_BY_VALUE = true;
