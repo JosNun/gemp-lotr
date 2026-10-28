@@ -1501,6 +1501,22 @@ Against varied opponents **going first costs nothing** (44.4 -> 44.7; the mirror
 `sel10-ar1`). The means sit under 50 because the pool plays the most-played decks of its kind and the tested bot
 random test decks.
 
+**The move teacher with the pool as opponents** (`HumanReplay --cf-opponents`: in the play-outs the deciding player is
+`sel10-big5` and the opponent a pool bot drawn by the play-out's seed; scored by `scripts/aggregate-value.weights`).
+Four months: 18,727 move decisions, 12,653 labelled. The teacher now moves 27.5% of the time (people 24.8%; with the
+bot on both sides it said 38%) and agrees with people 67.1% (62.6%): the mirror's Shadow side was what made moving
+look good. In play, over `sel10-big5`:
+
+| move model | vs `sel10-big5` | pool mean | agreement on moves | moves (July) |
+|---|---|---|---|---|
+| people's moves (`sel10-big5`) | | 46.3 | 81.0% | 19.3% |
+| the teacher alone | 48.6% +- 0.9 | 44.4 | 68.7% | 19.7% |
+| people's + teacher x3 | 50.1% +- 0.9 | 46.9 | 80.6% | 16.7% |
+| people's + teacher x10 | 49.7% +- 0.9 | 45.8 | 79.4% | 14.8% |
+
+Sensible labels at last, and no gain from them: people's own move decisions already were what the teacher now
+agrees with. Not kept.
+
 **A correction to every "+- x" in these notes:** BotVsBot prints a 95% interval (1.96 standard errors), not one
 standard error. The adoption rule as applied -- "no weaker" if within the printed interval, "clearly stronger" at
 twice it -- was looser on "no weaker" (about 2 SE) and stricter on "clearly stronger" (about 4 SE) than its wording.
