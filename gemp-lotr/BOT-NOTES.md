@@ -1481,6 +1481,30 @@ against `sel10-big5` -- a fifth of the data, none of the teacher rounds, too wea
 
 Distinct and competent: opponents for testing and for teachers' play-outs other than the bot itself.
 
+**Testing against the pool, each with its style's decks.** A deck's kind is its main Free Peoples and Shadow cultures
+and its minions' mean cost; `scripts/pool_suites.py` picks the 60 most-played decks of each style's kind (racer all
+Elven, wide fellowship all Shire, builder Gondor and Gandalf, big minions cost 5.6, swarm 3.2) and pairs 50 of them
+with test-suite decks (`decks/real/pool-<style>.txt`); `-Dbvb.fixedDecks=true` keeps each bot on its deck (A on deck
+1) instead of swapping every game. 50 matchups x 16 games a style, 4,000 games a bot:
+
+| bot | racer | builder | wide fellowship | big minions | swarm | **pool mean** |
+|---|---|---|---|---|---|---|
+| `sel10-f` | 38.8 | 39.0 | 54.5 | 40.6 | 37.6 | **42.1** |
+| `sel10-gr` (second seat) | 43.6 | 43.0 | 53.6 | 39.9 | 42.0 | **44.4** |
+| `sel10-gf` (first seat) | 45.1 | 44.6 | 51.2 | 43.9 | 38.8 | **44.7** |
+| `sel10-ar1` (archery labels) | 43.1 | 44.4 | 52.3 | 39.5 | 39.8 | **43.8** |
+| `sel10-big5` | 44.9 | 43.5 | 57.1 | 43.0 | 42.9 | **46.3** |
+
+(Each style's figure +- 3.4, a pool mean +- 1.6, a difference between two bots' means about +- 2.2, all 95%.)
+Against varied opponents **going first costs nothing** (44.4 -> 44.7; the mirror said 48.8%); the archery labels tie
+(-0.9); card text through bigger trees and more data are real (`sel10-f` 42.1 -> `sel10-big5` 46.3, and +2.5 over
+`sel10-ar1`). The means sit under 50 because the pool plays the most-played decks of its kind and the tested bot
+random test decks.
+
+**A correction to every "+- x" in these notes:** BotVsBot prints a 95% interval (1.96 standard errors), not one
+standard error. The adoption rule as applied -- "no weaker" if within the printed interval, "clearly stronger" at
+twice it -- was looser on "no weaker" (about 2 SE) and stricter on "clearly stronger" (about 4 SE) than its wording.
+
 ## Human Movie Block games, and assignments learned from them (2026-10-19)
 
 **2022 replays.** October and November 2022 (`GEMP-LOTR-Replays_2022-1{0,1}.zip`, ~340 MB
