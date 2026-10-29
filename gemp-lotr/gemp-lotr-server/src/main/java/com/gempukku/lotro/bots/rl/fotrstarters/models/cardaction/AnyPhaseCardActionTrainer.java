@@ -248,10 +248,14 @@ public class AnyPhaseCardActionTrainer extends AbstractTrainer {
                 // a card the features cannot describe is not offered
             }
         }
+        LAST_SCORES.set(append(scores, new double[]{passScore}));
         if (modelRegistry.isPassByMass())
             return passByMass(passScore, scores);
         return best < 0 ? "" : String.valueOf(best);
     }
+
+    /** The scores of the last decision this thread answered: each option's, then pass's (for BoardDump). */
+    public static final ThreadLocal<double[]> LAST_SCORES = new ThreadLocal<>();
 
     /**
      * Pass only if passing is likelier than playing anything at all, else the likeliest play. The likeliest single

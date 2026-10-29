@@ -852,8 +852,10 @@ public class HumanReplay {
                             state != null ? state : TrainingSteps.stateOf(game, decision, p), cfSampler);
                 // the board as the human saw it; not when another answer fit the recording as well
                 if (t.match.full() && !t.ambiguous && sink != null && state != null)
-                    if (ONLY_PLAYERS == null || ONLY_PLAYERS.contains(m.name() + "\t" + p))
+                    if (ONLY_PLAYERS == null || ONLY_PLAYERS.contains(m.name() + "\t" + p)) {
+                        BoardDump.GAME.set(m.name());
                         sink.write(state, decision, t.answer, p, game);
+                    }
                 adopt(p, t);
                 if (!t.match.full())
                     return stop("events differ", t.match.channel() + ": expected " + t.match.expected()
