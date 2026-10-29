@@ -1531,6 +1531,36 @@ refit on people's four months (801,593 rows; the teacher rounds left out of both
 `sel10-oppT` against `sel10-oppC`: 49.4% +- 0.9. Nothing against any style. Either people's answers do not turn on what
 they have seen of the opponent in ways these numbers carry, or the trees cannot find it among a thousand others.
 
+## A neural network that sees the board's cards (2026-10-29)
+
+**What limits the trees.** `sel10-big5` agrees with people on a month it was fit on (October) barely more than on
+held-out July for card plays: Fellowship 67.4 against 66.1%, Shadow 63.3 against 62.5% (reconcile 55.1 / 53.3%; the
+Free Peoples assignment model 59.8 / 53.8% does overfit). Not memorising, and not fitting its own months either: the
+board as ~75 totals cannot say which sword is on whom against which minion.
+
+**Board records.** `HumanReplay --boards` writes, for each card-action decision `--steps-only` admits, every card in
+play and in the deciding player's hand as an item (card; whose; zone; what it is attached to; modified strength and
+vitality; wounds; in the skirmish; assigned; Ring-bearer), the options with the item each comes from, the one chosen
+and the set-2 state; `BoardDump cards` the card table (set-2 card numbers and the 541 card-text tokens for 3,997
+cards). People's Fellowship and Shadow card-action decisions of 2022: 502,866 of ten months, 37,776 of July (the same
+decisions the trees' July agreement counts), 1.8 GB in `~/dev/gemp-replays/labels/nn/`.
+
+**The network** (`nn/board_net.py`, a uv project; PyTorch on the Mac's GPU): each card an item (its card-table row
+through a small MLP, a learned vector for cards seen in training, hidden at random 30% of the time so it learns what a
+card is and does, and its live state), a summary item for the set-2 totals and the prompt, a transformer over them,
+each option scored from its card's item as read in context (pass from a learned item); cross-entropy over the
+decision's options on people's choices.
+
+| July agreement | Fellowship | Shadow | both |
+|---|---|---|---|
+| trees on people's four months (`sel10-oppC`) | 65.5% | 61.9% | 64.0% |
+| network, d 128 x 3 layers, 6 epochs (1.3 M parameters, 4 minutes an epoch) | 65.6% | 59.4% | 63.1% |
+| network, d 256 x 4 layers, 10 epochs (4.7 M) | **66.9%** | 61.2% | **64.5%** |
+| `sel10-big5`'s trees (people's months and the teacher rounds) | 66.1% | 62.5% | 64.6% |
+
+On people's choices alone the bigger network beats the trees on Fellowship plays and nearly matches them on Shadow; it
+equals the current bot's trees without any of their teacher labels. It peaked at epochs 7-9 and began to overfit.
+
 **A correction to every "+- x" in these notes:** BotVsBot prints a 95% interval (1.96 standard errors), not one
 standard error. The adoption rule as applied -- "no weaker" if within the printed interval, "clearly stronger" at
 twice it -- was looser on "no weaker" (about 2 SE) and stricter on "clearly stronger" (about 4 SE) than its wording.

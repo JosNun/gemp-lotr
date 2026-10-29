@@ -87,7 +87,7 @@ def encode(path, rows, seen, grow):
 
 
 class BoardNet(nn.Module):
-    def __init__(self, table, state_width, d=128, layers=3, heads=4, id_drop=0.3):
+    def __init__(self, table, state_width, d=128, layers=3, heads=4, id_drop=0.3, dropout=0.1):
         super().__init__()
         self.register_buffer('table', torch.from_numpy(table))
         width, n_ids = table.shape[1], table.shape[0] - 1
@@ -96,7 +96,7 @@ class BoardNet(nn.Module):
         self.ids = nn.Embedding(n_ids + 1, d, padding_idx=0)
         self.id_drop = id_drop
         self.state = nn.Sequential(nn.Linear(state_width + len(CONTEXTS), d), nn.GELU(), nn.Linear(d, d))
-        layer = nn.TransformerEncoderLayer(d, heads, 4 * d, dropout=0.1, batch_first=True, norm_first=True)
+        layer = nn.TransformerEncoderLayer(d, heads, 4 * d, dropout=dropout, batch_first=True, norm_first=True)
         self.encoder = nn.TransformerEncoder(layer, layers)
         self.kind = nn.Embedding(len(KINDS) + 1, d)
         self.pass_item = nn.Parameter(torch.zeros(d))
@@ -155,6 +155,9 @@ def main():
     ap.add_argument('--d', type=int, default=128)
     ap.add_argument('--layers', type=int, default=3)
     ap.add_argument('--lr', type=float, default=3e-4)
+    ap.add_argument('--dropout', type=float, default=0.1)
+    ap.add_argument('--wd', type=float, default=0.01)
+    ap.add_argument('--id-drop', type=float, default=0.3)
     ap.add_argument('--batch', type=int, default=256)
     ap.add_argument('--save', default='board_net.pt')
     args = ap.parse_args()
@@ -174,8 +177,9 @@ def main():
           f'{time.time() - t0:.0f}s to load', flush=True)
     mean = torch.from_numpy(train['state'].mean(0)).to(device)
     std = torch.from_numpy(train['state'].std(0) + 1e-3).to(device)
-    model = BoardNet(table, train['state'].shape[1], d=args.d, layers=args.layers).to(device)
-    opt = torch.optim.AdamW(model.parameters(), lr=args.lr, weight_decay=0.01)
+    model = BoardNet(table, train['state'].shape[1], d=args.d, layers=args.layers, id_drop=args.id_drop,
+                     dropout=args.dropout).to(device)
+    opt = torch.optim.AdamW(model.parameters(), lr=args.lr, weight_decay=args.wd)
     steps = args.epochs * math.ceil(len(train['y']) / args.batch)
     sched = torch.optim.lr_scheduler.OneCycleLR(opt, max_lr=args.lr, total_steps=steps, pct_start=0.05)
     print(f'{sum(p.numel() for p in model.parameters()):,} parameters on {device}', flush=True)
