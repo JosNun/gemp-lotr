@@ -1568,6 +1568,23 @@ and dead piles as items; `boards2-*.jsonl`) -> 67.0% / 61.0%, 64.5% both: ahead 
 (65.1 / 59.3% against 64.9 / 58.3% at the second) but the same at the end. The network's ceiling on people's choices
 is about 64.5% with these inputs; the trees' hand-made option crossings still win Shadow plays by 1.5 points.
 
+**Correction: the network was beating the trees all along.** Its agreement counted only the exact option the person
+took; the bot's (`Counterfactual`, `TrainingSteps.canonical`) counts the same card doing the same thing -- either of
+two copies of a minion in hand -- as agreeing. Counted the bot's way (`oe`, the options' equivalence classes in
+`board_net.encode`), on the half of July's games the mix was not tuned on (17,508 decisions; `nn/ensemble.py`, the
+trees' scores recorded on the boards with `-Dboards.trees`):
+
+| July, test half | all | Fellowship | Shadow | few games | bottom quarter | second | third | top quarter |
+|---|---|---|---|---|---|---|---|---|
+| `sel10-big5`'s trees | 64.5% | 65.7% | 62.9% | 62.7% | 62.3% | 65.7% | 65.6% | 64.5% |
+| the network (`board_net2-d256`) | **66.0%** | **67.5%** | **63.8%** | 61.7% | 62.9% | 66.4% | 68.1% | 66.9% |
+| mix, 0.6 network + 0.4 trees (log-probabilities) | **66.5%** | **67.9%** | **64.4%** | 62.9% | 63.7% | 66.9% | 68.5% | **67.1%** |
+
+(The trees counted this way match the bot's own July figures, 66.1 / 62.5% on all of July.) The network, from people's
+choices alone, beats the trees by 1.5 points, Shadow plays included; mixed, by 2.0, and by 2.6 with the top quarter of
+players (ratings: `scripts/player_ratings.py`, Elo over 2022's 19,439 Movie Block games; the regulars' quartiles
+1,442 / 1,516 / 1,592). Every model agrees about a point less with the top quarter than with the middle two.
+
 **Ten ways to improve the network** (ranked 2026-10-29 by how likely each is to help; the user asked that the rest
 not be forgotten -- 1 and 2 are being done first):
 1. Tell it what each option does: the ability a "Use" fires (phase-matched card text), its twilight cost and whether
