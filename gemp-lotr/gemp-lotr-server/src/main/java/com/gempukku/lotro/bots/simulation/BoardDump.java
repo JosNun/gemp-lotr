@@ -96,21 +96,55 @@ final class BoardDump {
             }
             JSONArray opts = new JSONArray();
             int chosen = -1;
+            List<String> vocab = vocab();
+            String context = com.gempukku.lotro.bots.rl.fotrstarters.models.cardaction.AnyPhaseCardActionTrainer
+                    .contextName(d.getText());
             for (int i = 0; i < ids.length; i++) {
                 JSONObject o = new JSONObject();
                 int src = -1;
+                PhysicalCard card = null;
                 try {
+                    card = gs.findCardById(Integer.parseInt(cardIds[i]));
                     src = index.getOrDefault(Integer.parseInt(cardIds[i]), -1);
                 } catch (RuntimeException ignored) {
                 }
+                String text = i < texts.length ? texts[i] : "";
                 o.put("src", src);
-                o.put("text", i < texts.length ? texts[i] : "");
+                o.put("text", text);
+                // what this option does: its twilight cost to play (with modifiers) and the card text of the ability
+                // it fires in this phase -- the trees have both and the network did not
+                int cost = 0;
+                if (card != null && text.toLowerCase().startsWith("play"))
+                    try {
+                        cost = mq.getTwilightCostToPlay(game, card, null, 0, false);
+                    } catch (RuntimeException e) {
+                        cost = card.getBlueprint().getTwilightCost();
+                    }
+                o.put("cost", cost);
+                if (card != null && vocab != null) {
+                    double[] t = CardTextFeatures.of(vocab, card.getBlueprintId(), text, context);
+                    JSONArray tok = new JSONArray();
+                    for (int k = 0; k < t.length; k++)
+                        if (t[k] != 0)
+                            tok.add(new double[]{k, t[k]});
+                    o.put("tok", tok);
+                }
                 opts.add(o);
                 if (ids[i].equals(answer))
                     chosen = i;
             }
+            // what is public but not on the table: both discard piles and dead piles, as cards
+            JSONObject bags = new JSONObject();
+            String opp = gs.getPlayerNames().stream().filter(p -> !p.equals(player)).findFirst().orElse(null);
+            bags.put("myDiscard", ids(gs.getDiscard(player)));
+            bags.put("myDead", ids(gs.getDeadPile(player)));
+            if (opp != null) {
+                bags.put("oppDiscard", ids(gs.getDiscard(opp)));
+                bags.put("oppDead", ids(gs.getDeadPile(opp)));
+            }
             JSONObject rec = new JSONObject();
             rec.put("ctx", d.getText());
+            rec.put("bags", bags);
             rec.put("fp", player.equals(gs.getCurrentPlayerId()) ? 1 : 0);
             rec.put("state", state);
             rec.put("cards", cards);
@@ -123,6 +157,27 @@ final class BoardDump {
         } catch (RuntimeException ignored) {
             // a board the dump cannot describe is left out
         }
+    }
+
+    private static JSONArray ids(List<? extends PhysicalCard> cards) {
+        JSONArray a = new JSONArray();
+        if (cards != null)
+            for (PhysicalCard c : cards)
+                a.add(c.getBlueprintId());
+        return a;
+    }
+
+    private static volatile List<String> vocab;
+
+    /** The card-text vocabulary the current models use, for the options' ability tokens; null if it cannot be read. */
+    private static List<String> vocab() {
+        if (vocab == null)
+            try {
+                vocab = CardTextFeatures.vocabulary(Path.of("bot-models-exp/sel10-big5/card-text"));
+            } catch (java.io.IOException e) {
+                return null;
+            }
+        return vocab;
     }
 
     private static void add(List<PhysicalCard> items, Map<Integer, Integer> index, PhysicalCard c) {
