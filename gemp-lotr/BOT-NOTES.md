@@ -1517,6 +1517,20 @@ look good. In play, over `sel10-big5`:
 Sensible labels at last, and no gain from them: people's own move decisions already were what the teacher now
 agrees with. Not kept.
 
+**Adapting to the opponent, learned from people: no sign of it.** People answer opponents differently, so a model
+that also sees what has been seen of the opponent might learn to: `HumanReplay --opp-block` records with every step
+`KnowledgeFeatures.opponent` (the 31 "oppSeen" numbers, its public cards by type and culture), and an `opp-features`
+marker (`-DanyPhase.opp`) appends them to every card-action option. The Fellowship and Shadow slots of `sel10-big5`
+refit on people's four months (801,593 rows; the teacher rounds left out of both arms), without and with the block:
+
+| | Fellowship / Shadow agreement | pool mean | racer | builder | wide fellowship | big minions | swarm |
+|---|---|---|---|---|---|---|---|
+| without (`sel10-oppC`) | 65.5 / 61.9% | 42.6 | 44.4 | 41.9 | 51.0 | 38.0 | 37.5 |
+| with (`sel10-oppT`) | 65.5 / 61.8% | 41.7 | 40.5 | 41.0 | 51.2 | 37.0 | 38.6 |
+
+`sel10-oppT` against `sel10-oppC`: 49.4% +- 0.9. Nothing against any style. Either people's answers do not turn on what
+they have seen of the opponent in ways these numbers carry, or the trees cannot find it among a thousand others.
+
 **A correction to every "+- x" in these notes:** BotVsBot prints a 95% interval (1.96 standard errors), not one
 standard error. The adoption rule as applied -- "no weaker" if within the printed interval, "clearly stronger" at
 twice it -- was looser on "no weaker" (about 2 SE) and stricter on "clearly stronger" (about 4 SE) than its wording.
