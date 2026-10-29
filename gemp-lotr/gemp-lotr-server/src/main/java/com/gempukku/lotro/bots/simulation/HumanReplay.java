@@ -1404,6 +1404,7 @@ public class HumanReplay {
                 case "--deaths-sides" -> Counterfactual.DEATHS_SIDES = java.util.Set.of(args[++i].toLowerCase().split(","));
                 case "--steps-only" -> TrainingSteps.ONLY = java.util.regex.Pattern.compile(args[++i]);
                 case "--opp-block" -> TrainingSteps.OPP = true;
+                case "--boards" -> BoardDump.OUT = new PrintWriter(Files.newBufferedWriter(Path.of(args[++i]), StandardCharsets.UTF_8));
                 case "--steps-players" -> ONLY_PLAYERS = new java.util.HashSet<>(Files.readAllLines(Path.of(args[++i])));
                 case "--probe-bot" -> probeBot = args[++i];
                 case "--probe-value" -> EffectProbe.VALUE = BotVsBot.readModel(Path.of(args[++i]).resolve("value.model"));
@@ -1469,6 +1470,8 @@ public class HumanReplay {
         }
         if (VALUES != null)
             VALUES.close();
+        if (BoardDump.OUT != null)
+            BoardDump.OUT.close();
         if (Counterfactual.ASSIGN_TEACH != null) {
             out.printf("assignment teacher: %d Free Peoples assignments labelled%n", Counterfactual.assignsTaught.get());
             Counterfactual.ASSIGN_TEACH.close();

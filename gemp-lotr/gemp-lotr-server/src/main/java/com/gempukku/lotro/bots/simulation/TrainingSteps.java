@@ -93,6 +93,7 @@ final class TrainingSteps implements HumanReplay.StepSink {
                     String[] ids = decision.getDecisionParameters().getOrDefault("actionId", new String[0]);
                     if (ids.length == 0)
                         return; // nothing to choose: pass was the only answer
+                    BoardDump.write(before, decision, player, answer, state);
                     for (String id : ids)
                         labelled.add(new String[]{id, id.equals(answer) ? "10" : "0"});
                     labelled.add(new String[]{"", answer.isEmpty() ? "10" : "0"});
