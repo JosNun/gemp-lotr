@@ -52,7 +52,7 @@ def encode(path, rows, seen, grow):
     """One month's boards as fixed-size arrays: each item its card-table row and live state. seen: the rows met in
     training months, which get a learned vector (others share row 0's)."""
     S, CF, CD, CI, CM, OS, OK, OM, Y, CX = [], [], [], [], [], [], [], [], [], []
-    OC, TI, TV, BG = [], [], [], []
+    OC, TI, TV, BG, OE = [], [], [], [], []
     for line in open(path):
         r = json.loads(line)
         if r['ctx'] not in CONTEXTS or len(r['opts']) > MAX_OPTS:
@@ -80,11 +80,18 @@ def encode(path, rows, seen, grow):
         ti = np.zeros((MAX_OPTS, MAX_TOK), np.int16)  # ability tokens, 1-based (0: none)
         tv = np.zeros((MAX_OPTS, MAX_TOK), np.float16)
         bg = np.zeros((len(BAGS), MAX_BAG), np.int16)
+        # which options are the same: the same card doing the same thing (two copies of a minion in hand) -- a pick
+        # of either copy agrees with the person, as the bot's own agreement counts it
+        oe = np.full(MAX_OPTS + 1, -1, np.int64)
+        oe[MAX_OPTS] = -2
+        kinds_seen = {}
         om = np.zeros(MAX_OPTS + 1, np.bool_)
         for j, o in enumerate(r['opts']):
             os_[j] = o['src'] if 0 <= o['src'] < MAX_CARDS else -1
             t = o['text'].lower()
             ok[j] = next((k + 1 for k, kind in enumerate(KINDS) if t.startswith(kind)), 0)
+            src_bp = base(cards[o['src']]['bp']) if 0 <= o['src'] < len(cards) else '?' + str(j)
+            oe[j] = kinds_seen.setdefault((src_bp, o['text']), len(kinds_seen))
             oc[j] = o.get('cost', 0)
             for k, (i, v) in enumerate(o.get('tok', [])[:MAX_TOK]):
                 ti[j, k] = int(i) + 1
@@ -96,11 +103,12 @@ def encode(path, rows, seen, grow):
         om[MAX_OPTS] = True  # pass
         S.append(np.array(r['state'], np.float32)); CF.append(cf); CD.append(cd); CI.append(ci); CM.append(cm)
         OS.append(os_); OK.append(ok); OM.append(om); OC.append(oc); TI.append(ti); TV.append(tv); BG.append(bg)
+        OE.append(oe)
         Y.append(r['chosen'] if r['chosen'] >= 0 else MAX_OPTS)
         CX.append(CONTEXTS.index(r['ctx']))
     return dict(state=np.stack(S), cf=np.stack(CF), cd=np.stack(CD), ci=np.stack(CI), cm=np.stack(CM),
                 os=np.stack(OS), ok=np.stack(OK), om=np.stack(OM), y=np.array(Y), cx=np.array(CX),
-                oc=np.stack(OC), ti=np.stack(TI), tv=np.stack(TV), bg=np.stack(BG))
+                oc=np.stack(OC), ti=np.stack(TI), tv=np.stack(TV), bg=np.stack(BG), oe=np.stack(OE))
 
 
 class BoardNet(nn.Module):
@@ -171,7 +179,9 @@ def evaluate(model, data, device, mean, std):
         for b in batches(data, np.arange(len(data['y'])), 512, device, mean, std):
             s = model(b)
             loss += F.cross_entropy(s, b['y'], reduction='sum').item()
-            ok = (s.argmax(-1) == b['y']).cpu().numpy()
+            pred = s.argmax(-1)
+            oe = b['oe']
+            ok = (oe.gather(1, pred.unsqueeze(1)) == oe.gather(1, b['y'].unsqueeze(1))).squeeze(1).cpu().numpy()
             for c in range(len(CONTEXTS)):
                 m = b['cx'].cpu().numpy() == c
                 hit[c] += ok[m].sum(); n[c] += m.sum()
