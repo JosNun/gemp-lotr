@@ -1561,6 +1561,13 @@ decision's options on people's choices.
 On people's choices alone the bigger network beats the trees on Fellowship plays and nearly matches them on Shadow; it
 equals the current bot's trees without any of their teacher labels. It peaked at epochs 7-9 and began to overfit.
 
+More regularisation (dropout 0.2, weight decay 0.05, the learned card vector hidden half the time) did worse: 66.2% /
+59.6% -- hiding which card it is costs most on Shadow plays, where the exact minions in hand matter. Options 1 and 2
+below (each option's twilight cost to play, whether the pool covers it, its ability's card-text tokens; both discard
+and dead piles as items; `boards2-*.jsonl`) -> 67.0% / 61.0%, 64.5% both: ahead of the run without them at every epoch
+(65.1 / 59.3% against 64.9 / 58.3% at the second) but the same at the end. The network's ceiling on people's choices
+is about 64.5% with these inputs; the trees' hand-made option crossings still win Shadow plays by 1.5 points.
+
 **Ten ways to improve the network** (ranked 2026-10-29 by how likely each is to help; the user asked that the rest
 not be forgotten -- 1 and 2 are being done first):
 1. Tell it what each option does: the ability a "Use" fires (phase-matched card text), its twilight cost and whether
