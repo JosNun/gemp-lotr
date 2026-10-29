@@ -143,6 +143,11 @@ final class BoardDump {
                 bags.put("oppDead", ids(gs.getDeadPile(opp)));
             }
             JSONObject rec = new JSONObject();
+            rec.put("game", GAME.get());
+            rec.put("player", player);
+            double[] tree = treeScores(game, d, player);
+            if (tree != null)
+                rec.put("tree", tree);
             rec.put("ctx", d.getText());
             rec.put("bags", bags);
             rec.put("fp", player.equals(gs.getCurrentPlayerId()) ? 1 : 0);
@@ -165,6 +170,38 @@ final class BoardDump {
             for (PhysicalCard c : cards)
                 a.add(c.getBlueprintId());
         return a;
+    }
+
+    /** The game being replayed on this thread (HumanReplay sets it), for the records' "game". */
+    static final ThreadLocal<String> GAME = new ThreadLocal<>();
+
+    /** -Dboards.trees=&lt;model dir&gt;: also record that bot's card-action scores for every option, then pass. */
+    private static final String TREES = System.getProperty("boards.trees");
+    private static volatile com.gempukku.lotro.bots.rl.fotrstarters.models.ModelRegistry treeRegistry;
+
+    private static double[] treeScores(DefaultLotroGame game, AwaitingDecision d, String player) {
+        if (TREES == null)
+            return null;
+        try {
+            if (treeRegistry == null)
+                synchronized (BoardDump.class) {
+                    if (treeRegistry == null)
+                        treeRegistry = com.gempukku.lotro.bots.ModelDirectory.load(Path.of(TREES));
+                }
+            var trainer = new com.gempukku.lotro.bots.rl.fotrstarters.models.cardaction.AnyPhaseCardActionTrainer();
+            int previous = CardFeatures.version();
+            try {
+                CardFeatures.setVersion(treeRegistry.getFeatureVersion());
+                com.gempukku.lotro.bots.rl.fotrstarters.models.cardaction.AnyPhaseCardActionTrainer.LAST_SCORES.remove();
+                trainer.getAnswer(game.getGameState(), d, player,
+                        new com.gempukku.lotro.bots.rl.fotrstarters.GeneralStateFeatures(), treeRegistry);
+                return com.gempukku.lotro.bots.rl.fotrstarters.models.cardaction.AnyPhaseCardActionTrainer.LAST_SCORES.get();
+            } finally {
+                CardFeatures.setVersion(previous);
+            }
+        } catch (Exception e) {
+            return null;
+        }
     }
 
     private static volatile List<String> vocab;
