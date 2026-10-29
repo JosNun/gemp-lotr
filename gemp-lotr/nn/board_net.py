@@ -25,6 +25,10 @@ KINDS = ['play', 'use', 'heal', 'transfer']
 CONTEXTS = ['Play Fellowship action or Pass', 'Play Shadow action or Pass']
 MAX_CARDS = 48
 MAX_OPTS = 24
+MAX_TOK = 20
+MAX_BAG = 40
+BAGS = ['myDiscard', 'oppDiscard', 'myDead', 'oppDead']
+TWILIGHT = 6  # the set-2 state's twilight pool
 
 
 def base(bp):
@@ -48,14 +52,15 @@ def encode(path, rows, seen, grow):
     """One month's boards as fixed-size arrays: each item its card-table row and live state. seen: the rows met in
     training months, which get a learned vector (others share row 0's)."""
     S, CF, CD, CI, CM, OS, OK, OM, Y, CX = [], [], [], [], [], [], [], [], [], []
+    OC, TI, TV, BG = [], [], [], []
     for line in open(path):
         r = json.loads(line)
         if r['ctx'] not in CONTEXTS or len(r['opts']) > MAX_OPTS:
             continue
         cards = r['cards'][:MAX_CARDS]
-        cf = np.zeros(MAX_CARDS, np.int64)
-        cd = np.zeros((MAX_CARDS, 10 + len(ZONES)), np.float32)
-        ci = np.zeros(MAX_CARDS, np.int64)
+        cf = np.zeros(MAX_CARDS, np.int16)
+        cd = np.zeros((MAX_CARDS, 10 + len(ZONES)), np.float16)
+        ci = np.zeros(MAX_CARDS, np.int16)
         cm = np.zeros(MAX_CARDS, np.bool_)
         for i, c in enumerate(cards):
             row = rows.get(c['bp'], rows.get(base(c['bp']), 0))
@@ -71,23 +76,35 @@ def encode(path, rows, seen, grow):
             cm[i] = True
         os_ = np.full(MAX_OPTS, -1, np.int64)
         ok = np.zeros(MAX_OPTS, np.int64)
+        oc = np.zeros(MAX_OPTS, np.float32)
+        ti = np.zeros((MAX_OPTS, MAX_TOK), np.int16)  # ability tokens, 1-based (0: none)
+        tv = np.zeros((MAX_OPTS, MAX_TOK), np.float16)
+        bg = np.zeros((len(BAGS), MAX_BAG), np.int16)
         om = np.zeros(MAX_OPTS + 1, np.bool_)
         for j, o in enumerate(r['opts']):
             os_[j] = o['src'] if 0 <= o['src'] < MAX_CARDS else -1
             t = o['text'].lower()
             ok[j] = next((k + 1 for k, kind in enumerate(KINDS) if t.startswith(kind)), 0)
+            oc[j] = o.get('cost', 0)
+            for k, (i, v) in enumerate(o.get('tok', [])[:MAX_TOK]):
+                ti[j, k] = int(i) + 1
+                tv[j, k] = v
             om[j] = True
+        for k, name in enumerate(BAGS):
+            for i, bp in enumerate(r.get('bags', {}).get(name, [])[:MAX_BAG]):
+                bg[k, i] = rows.get(bp, rows.get(base(bp), 0)) or -1  # -1: a card not in the table, still counted
         om[MAX_OPTS] = True  # pass
         S.append(np.array(r['state'], np.float32)); CF.append(cf); CD.append(cd); CI.append(ci); CM.append(cm)
-        OS.append(os_); OK.append(ok); OM.append(om)
+        OS.append(os_); OK.append(ok); OM.append(om); OC.append(oc); TI.append(ti); TV.append(tv); BG.append(bg)
         Y.append(r['chosen'] if r['chosen'] >= 0 else MAX_OPTS)
         CX.append(CONTEXTS.index(r['ctx']))
     return dict(state=np.stack(S), cf=np.stack(CF), cd=np.stack(CD), ci=np.stack(CI), cm=np.stack(CM),
-                os=np.stack(OS), ok=np.stack(OK), om=np.stack(OM), y=np.array(Y), cx=np.array(CX))
+                os=np.stack(OS), ok=np.stack(OK), om=np.stack(OM), y=np.array(Y), cx=np.array(CX),
+                oc=np.stack(OC), ti=np.stack(TI), tv=np.stack(TV), bg=np.stack(BG))
 
 
 class BoardNet(nn.Module):
-    def __init__(self, table, state_width, d=128, layers=3, heads=4, id_drop=0.3, dropout=0.1):
+    def __init__(self, table, state_width, d=128, layers=3, heads=4, id_drop=0.3, dropout=0.1, n_tok=541):
         super().__init__()
         self.register_buffer('table', torch.from_numpy(table))
         width, n_ids = table.shape[1], table.shape[0] - 1
@@ -99,6 +116,10 @@ class BoardNet(nn.Module):
         layer = nn.TransformerEncoderLayer(d, heads, 4 * d, dropout=dropout, batch_first=True, norm_first=True)
         self.encoder = nn.TransformerEncoder(layer, layers)
         self.kind = nn.Embedding(len(KINDS) + 1, d)
+        self.tok = nn.Embedding(n_tok + 1, d, padding_idx=0)  # the ability an option fires, as card-text tokens
+        self.cost = nn.Linear(3, d)  # its cost, whether the pool covers it, the pool after it
+        self.bag_type = nn.Embedding(len(BAGS), d)
+        self.bag_count = nn.Linear(1, d)
         self.pass_item = nn.Parameter(torch.zeros(d))
         self.score = nn.Sequential(nn.Linear(3 * d, d), nn.GELU(), nn.Linear(d, 1))
 
@@ -106,16 +127,27 @@ class BoardNet(nn.Module):
         ids = b['ci']
         if self.training and self.id_drop > 0:  # lean on what the card is and does, not only on which card it is
             ids = ids.masked_fill(torch.rand(ids.shape, device=ids.device) < self.id_drop, 0)
-        items = self.card(self.table[b['cf']]) + self.dyn(b['cd']) + self.ids(ids)
+        items = self.card(self.table[b['cf'].long()]) + self.dyn(b['cd'].float()) + self.ids(ids.long())
         ctx = F.one_hot(b['cx'], len(CONTEXTS)).float()
         st = self.state(torch.cat([b['state'], ctx], -1)).unsqueeze(1)
-        x = torch.cat([st, items], 1)
-        mask = torch.cat([torch.ones_like(b['cm'][:, :1]), b['cm']], 1)
+        # the piles: each one item, the mean of its cards plus what pile it is and how big
+        bg = b['bg'].long()
+        bm = bg != 0
+        bc = self.card(self.table[bg.clamp(min=0)])
+        bags = (bc * bm.unsqueeze(-1)).sum(2) / bm.sum(2, keepdim=True).clamp(min=1)
+        n = bm.sum(2, keepdim=True).float() / 20
+        bags = bags + self.bag_type.weight.unsqueeze(0) + self.bag_count(n)
+        x = torch.cat([st, bags, items], 1)
+        nb = len(BAGS)
+        mask = torch.cat([torch.ones_like(b['cm'][:, :1 + nb]), b['cm']], 1)
         h = self.encoder(x, src_key_padding_mask=~mask)
-        board, cards = h[:, 0], h[:, 1:]
+        board, cards = h[:, 0], h[:, 1 + nb:]
         src = b['os'].clamp(min=0)
         opt = torch.gather(cards, 1, src.unsqueeze(-1).expand(-1, -1, cards.size(-1)))
-        opt = opt * (b['os'] >= 0).unsqueeze(-1) + self.kind(b['ok'])
+        tw = b['raw_tw'].unsqueeze(1)
+        cost = torch.stack([b['oc'] / 10, (b['oc'] <= tw).float(), (tw - b['oc']) / 10], -1)
+        tok = (self.tok(b['ti'].long()) * b['tv'].float().unsqueeze(-1)).sum(2)
+        opt = opt * (b['os'] >= 0).unsqueeze(-1) + self.kind(b['ok']) + self.cost(cost) + tok
         opt = torch.cat([opt, self.pass_item.expand(opt.size(0), 1, -1)], 1)
         pooled = (cards * b['cm'].unsqueeze(-1)).sum(1) / b['cm'].sum(1, keepdim=True).clamp(min=1)
         feats = torch.cat([opt, board.unsqueeze(1).expand_as(opt), pooled.unsqueeze(1).expand_as(opt)], -1)
@@ -127,6 +159,7 @@ def batches(data, idx, size, device, mean, std):
     for i in range(0, len(idx), size):
         j = idx[i:i + size]
         b = {k: torch.from_numpy(v[j]).to(device) for k, v in data.items()}
+        b['raw_tw'] = b['state'][:, TWILIGHT].clone()
         b['state'] = (b['state'] - mean) / std
         yield b
 
@@ -150,6 +183,7 @@ def main():
     ap = argparse.ArgumentParser()
     ap.add_argument('--data', default=os.path.expanduser('~/dev/gemp-replays/labels/nn'))
     ap.add_argument('--train', default='01,02,03,04,05,06,08,09,10,11')
+    ap.add_argument('--prefix', default='boards2', help='boards (first records) or boards2 (with costs, abilities, piles)')
     ap.add_argument('--test', default='07')
     ap.add_argument('--epochs', type=int, default=4)
     ap.add_argument('--d', type=int, default=128)
@@ -168,11 +202,11 @@ def main():
     t0 = time.time()
     parts = []
     for m in args.train.split(','):
-        p = os.path.join(args.data, f'boards-{m}.jsonl')
+        p = os.path.join(args.data, f'{args.prefix}-{m}.jsonl')
         if os.path.exists(p):
             parts.append(encode(p, rows, seen, grow=True))
     train = {k: np.concatenate([p[k] for p in parts]) for k in parts[0]}
-    test = encode(os.path.join(args.data, f'boards-{args.test}.jsonl'), rows, seen, grow=False)
+    test = encode(os.path.join(args.data, f'{args.prefix}-{args.test}.jsonl'), rows, seen, grow=False)
     print(f'{len(train["y"])} training decisions, {len(test["y"])} held out, {len(seen)} cards, '
           f'{time.time() - t0:.0f}s to load', flush=True)
     mean = torch.from_numpy(train['state'].mean(0)).to(device)
