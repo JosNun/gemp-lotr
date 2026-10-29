@@ -131,6 +131,17 @@ public class ModelRegistry {
     /** The card-text vocabulary the card-action model was fit with ("card-text" in the model directory); null if none. */
     private java.util.List<String> cardText;
 
+    /** The card-action model's options end with what has been seen of the opponent ("opp-features"). */
+    private boolean oppFeatures;
+
+    public boolean isOppFeatures() {
+        return oppFeatures;
+    }
+
+    public void setOppFeatures(boolean oppFeatures) {
+        this.oppFeatures = oppFeatures;
+    }
+
     /** The card-action model's Fellowship options end with the Shadow response forecast ("response-forecast"). */
     private boolean responseForecast;
 

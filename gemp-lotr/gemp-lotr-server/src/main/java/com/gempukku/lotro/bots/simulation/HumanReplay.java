@@ -1403,6 +1403,7 @@ public class HumanReplay {
                 case "--move-rollouts" -> Counterfactual.MOVE_ROLLOUTS = Integer.parseInt(args[++i]);
                 case "--deaths-sides" -> Counterfactual.DEATHS_SIDES = java.util.Set.of(args[++i].toLowerCase().split(","));
                 case "--steps-only" -> TrainingSteps.ONLY = java.util.regex.Pattern.compile(args[++i]);
+                case "--opp-block" -> TrainingSteps.OPP = true;
                 case "--steps-players" -> ONLY_PLAYERS = new java.util.HashSet<>(Files.readAllLines(Path.of(args[++i])));
                 case "--probe-bot" -> probeBot = args[++i];
                 case "--probe-value" -> EffectProbe.VALUE = BotVsBot.readModel(Path.of(args[++i]).resolve("value.model"));

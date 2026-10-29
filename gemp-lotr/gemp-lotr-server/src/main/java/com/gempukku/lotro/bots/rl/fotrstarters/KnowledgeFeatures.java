@@ -62,6 +62,30 @@ public final class KnowledgeFeatures {
         return sb.toString().trim();
     }
 
+    /**
+     * What has been seen of the opponent this game -- the "oppSeen" numbers: its public cards by type and culture --
+     * for a bot that adapts to whom it plays. Nothing of its unseen cards, which a player does not know.
+     */
+    public static double[] opponent(GameState gs, String me) {
+        double[] all = new double[NAMES.size()];
+        try {
+            fill(all, 0, gs, me);
+        } catch (RuntimeException ignored) {
+            // before the deal
+        }
+        double[] out = new double[OPPONENT.length];
+        for (int i = 0; i < OPPONENT.length; i++)
+            out[i] = all[OPPONENT[i]];
+        return out;
+    }
+
+    private static final int[] OPPONENT = java.util.stream.IntStream.range(0, NAMES.size())
+            .filter(i -> NAMES.get(i).startsWith("oppSeen")).toArray();
+
+    public static int opponentLength() {
+        return OPPONENT.length;
+    }
+
     /** Set 2 with this block appended. */
     public static double[] withKnowledge(double[] set2, GameState gs, String me) {
         double[] f = Arrays.copyOf(set2, set2.length + NAMES.size());
