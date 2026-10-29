@@ -1585,6 +1585,14 @@ choices alone, beats the trees by 1.5 points, Shadow plays included; mixed, by 2
 players (ratings: `scripts/player_ratings.py`, Elo over 2022's 19,439 Movie Block games; the regulars' quartiles
 1,442 / 1,516 / 1,592). Every model agrees about a point less with the top quarter than with the middle two.
 
+**Weighting by the player's rating (option 6): no gain in agreement.** Each decision weighted by its player's Elo
+(doubling every 100 points over 1,500, 1/4 to 4; under 20 games 1): July test half 65.5% (unweighted 66.0%), top
+quarter 66.9% (66.9%), bottom quarter 62.1% (62.9%); mixed with the trees 65.9% (66.5%), top quarter 67.0% (67.1%).
+Leaning on strong players' decisions does not make it agree more with them and costs agreement with the rest.
+Agreement cannot say whether it plays better: `board_net3-d256-rated.pt` is kept for a test in play. (The user asked
+whether to train on winners only: a game's result says little about each of its decisions, it would see play from
+behind less, and half the data; rating weighting was the gentler form of it, and it did not help.)
+
 **Ten ways to improve the network** (ranked 2026-10-29 by how likely each is to help; the user asked that the rest
 not be forgotten -- 1 and 2 are being done first):
 1. Tell it what each option does: the ability a "Use" fires (phase-matched card text), its twilight cost and whether
