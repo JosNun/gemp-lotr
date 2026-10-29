@@ -1561,6 +1561,24 @@ decision's options on people's choices.
 On people's choices alone the bigger network beats the trees on Fellowship plays and nearly matches them on Shadow; it
 equals the current bot's trees without any of their teacher labels. It peaked at epochs 7-9 and began to overfit.
 
+**Ten ways to improve the network** (ranked 2026-10-29 by how likely each is to help; the user asked that the rest
+not be forgotten -- 1 and 2 are being done first):
+1. Tell it what each option does: the ability a "Use" fires (phase-matched card text), its twilight cost and whether
+   it is affordable, the probe's numbers on skirmish prompts. The trees have these and it does not; likely most of
+   the Shadow gap.
+2. What a player knows but is not on the table: both discard piles and dead piles (public), what has been seen of the
+   opponent. (Not the own deck's remainder from replays: the re-created deck's known cards are the future draws.)
+3. Combine it with the trees: average their option scores (models that see the game differently err differently).
+4. One network for every decision (assignments, skirmish plays, reconcile, selections, moves) with a head per kind: 3-4
+   times the examples for the board encoder, and the way to replace more than the card-play trees.
+5. More people's games: other years of Movie Block, other formats sharing cards.
+6. Learn from better players more: weight decisions by the player's record, or a player embedding played as the best.
+7. Predict the outcome as well (who wins, companions lost by the turn's end): more signal for the encoder, and a
+   learned win model for teachers or search.
+8. Recent history: what the opponent did last turn, moves made, the last skirmish's result.
+9. Architecture: options attending to each other and to the board, size and depth, label smoothing.
+10. Self-play reinforcement learning against the pool: the highest ceiling, the slowest and noisiest.
+
 **A correction to every "+- x" in these notes:** BotVsBot prints a 95% interval (1.96 standard errors), not one
 standard error. The adoption rule as applied -- "no weaker" if within the printed interval, "clearly stronger" at
 twice it -- was looser on "no weaker" (about 2 SE) and stricter on "clearly stronger" (about 4 SE) than its wording.
