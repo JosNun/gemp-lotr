@@ -38,6 +38,8 @@ final class TrainingSteps implements HumanReplay.StepSink {
     static volatile java.util.function.Function<String, com.gempukku.lotro.bots.BotPlayer> PROBE_BOTS;
     /** --steps-only: write only the decisions whose prompt matches; null for all. */
     static volatile java.util.regex.Pattern ONLY;
+    /** --opp-block: every step also records what the deciding player has seen of its opponent (LearningStep.opp). */
+    static volatile boolean OPP = false;
     final AtomicLong decisions = new AtomicLong(), steps = new AtomicLong();
 
     private TrainingSteps(Writer out) {
@@ -135,6 +137,8 @@ final class TrainingSteps implements HumanReplay.StepSink {
                     case ACTION_CHOICE -> throw new IllegalStateException();
                 };
                 LearningStep step = new LearningStep(state, action, fp, decision);
+                if (OPP)
+                    step.opp = com.gempukku.lotro.bots.rl.fotrstarters.KnowledgeFeatures.opponent(gs, player);
                 step.reward = Double.parseDouble(l[1]);
                 lines.append(step.toJson()).append('\n');
             }

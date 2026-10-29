@@ -16,6 +16,8 @@ public class LearningStep implements JsonSerializable {
     public double reward;
     /** Which decision this step is an option of, numbered as the steps are read (not written): see ListwiseTreeModel. */
     public transient int group = -1;
+    /** What the deciding player has seen of its opponent this game (KnowledgeFeatures.opponent), when recorded. */
+    public double[] opp;
 
     public LearningStep(double[] state, SemanticAction action, boolean fpPlayer, AwaitingDecision decision) {
         this.state = state;
@@ -32,6 +34,8 @@ public class LearningStep implements JsonSerializable {
         obj.put("reward", reward);
         obj.put("action", action.toJson());
         obj.put("decision", decision.toJson());
+        if (opp != null)
+            obj.put("opp", opp);
         return obj;
     }
 
@@ -49,6 +53,8 @@ public class LearningStep implements JsonSerializable {
 
         LearningStep step = new LearningStep(state, action, fpPlayer, decision);
         step.reward = reward;
+        if (obj.containsKey("opp"))
+            step.opp = obj.getObject("opp", double[].class);
         return step;
     }
 }

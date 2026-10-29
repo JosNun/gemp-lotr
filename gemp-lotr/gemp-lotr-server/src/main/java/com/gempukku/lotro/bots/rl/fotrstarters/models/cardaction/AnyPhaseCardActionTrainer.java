@@ -107,6 +107,12 @@ public class AnyPhaseCardActionTrainer extends AbstractTrainer {
      * opponent's next Shadow phase; the options' numbers say so directly. Zeros in other contexts.
      */
     public static final boolean RESPONSE_TRAINING = Boolean.getBoolean("anyPhase.response");
+    /**
+     * -DanyPhase.opp (training, from steps recorded with HumanReplay --opp-block) / an "opp-features" file (play): every
+     * option ends with what the deciding player has seen of its opponent this game (KnowledgeFeatures.opponent: its
+     * public cards by type and culture), last of all -- for a model that answers a racer and a swarm differently.
+     */
+    public static final boolean OPP_TRAINING = Boolean.getBoolean("anyPhase.opp");
     static final int RESPONSE = 3;
 
     static double[] response(double[] state, String blueprintId, String actionText, String context) {
@@ -195,6 +201,8 @@ public class AnyPhaseCardActionTrainer extends AbstractTrainer {
         List<String> text = modelRegistry.getCardText();
         String contextName = contextName(decision.getText());
         boolean forecast = modelRegistry.isResponseForecast();
+        double[] opp = modelRegistry.isOppFeatures()
+                ? com.gempukku.lotro.bots.rl.fotrstarters.KnowledgeFeatures.opponent(gameState, playerName) : null;
         double[] state = features.extractFeatures(gameState, decision, playerName);
         double[] context = context(decision.getText());
         String[] cardIds = decision.getDecisionParameters().get("cardId");
@@ -211,7 +219,7 @@ public class AnyPhaseCardActionTrainer extends AbstractTrainer {
             passScore = bestScore = score(model, state, context, null, CardFeatures.PASS, 0, rich ? new double[EXTRA] : null,
                     probe ? EffectProbe.fit(EffectProbe.pass(gameState, playerName), probeLength) : null,
                     text == null ? null : new double[text.size()],
-                    forecast ? response(state, null, null, contextName) : null);
+                    forecast ? response(state, null, null, contextName) : null, opp);
         } catch (CardNotFoundException e) {
             return null; // cannot happen: PASS is all zeros
         }
@@ -230,7 +238,7 @@ public class AnyPhaseCardActionTrainer extends AbstractTrainer {
                 double s = score(model, state, context, actionTexts[i], bp, wounds,
                         rich ? liveExtra(gameState, cardId, bp) : null, did,
                         text == null ? null : CardTextFeatures.of(text, bp, actionTexts[i], contextName),
-                        forecast ? response(state, bp, actionTexts[i], contextName) : null);
+                        forecast ? response(state, bp, actionTexts[i], contextName) : null, opp);
                 scores[i] = s;
                 if (s > bestScore) {
                     bestScore = s;
@@ -269,10 +277,10 @@ public class AnyPhaseCardActionTrainer extends AbstractTrainer {
 
     private double score(SoftClassifier<double[]> model, double[] state, double[] context, String actionText,
                          String blueprintId, int wounds, double[] extra, double[] probe, double[] text,
-                         double[] response) throws CardNotFoundException {
+                         double[] response, double[] opp) throws CardNotFoundException {
         double[] probs = new double[2];
-        model.predict(append(append(append(vector(state, context, actionText, blueprintId, wounds, extra), probe), text),
-                response), probs);
+        model.predict(append(append(append(append(vector(state, context, actionText, blueprintId, wounds, extra), probe),
+                text), response), opp), probs);
         return probs[1];
     }
 
@@ -353,6 +361,9 @@ public class AnyPhaseCardActionTrainer extends AbstractTrainer {
         if (RESPONSE_TRAINING)
             x = append(x, response(step.state, action.getSourceBlueprint() != null ? action.getSourceBlueprint() : null,
                     action.getSourceBlueprint() != null ? action.getActionText() : null, contextName(step.decision.getText())));
+        if (OPP_TRAINING)
+            x = append(x, step.opp != null ? step.opp
+                    : new double[com.gempukku.lotro.bots.rl.fotrstarters.KnowledgeFeatures.opponentLength()]);
         return x;
     }
 

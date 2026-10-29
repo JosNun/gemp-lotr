@@ -79,6 +79,7 @@ public final class ModelDirectory {
         registry.setAnyPhaseFirst(Files.exists(dir.resolve("any-phase-first")));
         registry.setAnyPhaseRich(Files.exists(dir.resolve("any-phase-rich")));
         registry.setResponseForecast(Files.exists(dir.resolve("response-forecast")));
+        registry.setOppFeatures(Files.exists(dir.resolve("opp-features")));
         if (Files.exists(dir.resolve("card-text")))
             registry.setCardText(CardTextFeatures.vocabulary(dir.resolve("card-text")));
         if (Files.exists(dir.resolve("card-text-selections")))
