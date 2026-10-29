@@ -1567,7 +1567,11 @@ not be forgotten -- 1 and 2 are being done first):
    it is affordable, the probe's numbers on skirmish prompts. The trees have these and it does not; likely most of
    the Shadow gap.
 2. What a player knows but is not on the table: both discard piles and dead piles (public), what has been seen of the
-   opponent. (Not the own deck's remainder from replays: the re-created deck's known cards are the future draws.)
+   opponent. The own deck's remainder -- as a real player knows it, an unordered multiset, the decklist less every
+   card seen (the user's point: the contents, never the order) -- cannot be learned from 2022's games: their
+   summaries list only the cards seen in the game (49% of the deck), so the remainder they give is the future
+   draws. 2024-25 summaries carry the full lists ("AllCards"), but those months' replays are not published (the CDN
+   answers 403 after 2022): asking the site for them would give honest deck knowledge and twice the games (5).
 3. Combine it with the trees: average their option scores (models that see the game differently err differently).
 4. One network for every decision (assignments, skirmish plays, reconcile, selections, moves) with a head per kind: 3-4
    times the examples for the board encoder, and the way to replace more than the card-play trees.
