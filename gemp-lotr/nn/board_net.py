@@ -52,7 +52,7 @@ def encode(path, rows, seen, grow):
     """One month's boards as fixed-size arrays: each item its card-table row and live state. seen: the rows met in
     training months, which get a learned vector (others share row 0's)."""
     S, CF, CD, CI, CM, OS, OK, OM, Y, CX = [], [], [], [], [], [], [], [], [], []
-    OC, TI, TV, BG, OE = [], [], [], [], []
+    OC, TI, TV, BG, OE, PL = [], [], [], [], [], []
     for line in open(path):
         r = json.loads(line)
         if r['ctx'] not in CONTEXTS or len(r['opts']) > MAX_OPTS:
@@ -104,11 +104,13 @@ def encode(path, rows, seen, grow):
         S.append(np.array(r['state'], np.float32)); CF.append(cf); CD.append(cd); CI.append(ci); CM.append(cm)
         OS.append(os_); OK.append(ok); OM.append(om); OC.append(oc); TI.append(ti); TV.append(tv); BG.append(bg)
         OE.append(oe)
+        PL.append(r.get('player', ''))
         Y.append(r['chosen'] if r['chosen'] >= 0 else MAX_OPTS)
         CX.append(CONTEXTS.index(r['ctx']))
     return dict(state=np.stack(S), cf=np.stack(CF), cd=np.stack(CD), ci=np.stack(CI), cm=np.stack(CM),
                 os=np.stack(OS), ok=np.stack(OK), om=np.stack(OM), y=np.array(Y), cx=np.array(CX),
-                oc=np.stack(OC), ti=np.stack(TI), tv=np.stack(TV), bg=np.stack(BG), oe=np.stack(OE))
+                oc=np.stack(OC), ti=np.stack(TI), tv=np.stack(TV), bg=np.stack(BG), oe=np.stack(OE),
+                wt=np.ones(len(Y), np.float32)), PL
 
 
 class BoardNet(nn.Module):
@@ -163,6 +165,21 @@ class BoardNet(nn.Module):
         return s.masked_fill(~b['om'], -1e9)
 
 
+def weights(players, ratings_path, doubling):
+    """A decision's weight by its player's rating: doubling every `doubling` points above 1,500, between 1/4 and 4;
+    1 for players with under 20 games (unrated in effect). All ones without ratings."""
+    w = np.ones(len(players), np.float32)
+    if not ratings_path:
+        return w
+    import csv
+    r = {x['player']: (float(x['rating']), int(x['games'])) for x in csv.DictReader(open(ratings_path), delimiter='\t')}
+    for i, p in enumerate(players):
+        rating, n = r.get(p, (1500, 0))
+        if n >= 20:
+            w[i] = min(4.0, max(0.25, 2 ** ((rating - 1500) / doubling)))
+    return w
+
+
 def batches(data, idx, size, device, mean, std):
     for i in range(0, len(idx), size):
         j = idx[i:i + size]
@@ -204,6 +221,8 @@ def main():
     ap.add_argument('--id-drop', type=float, default=0.3)
     ap.add_argument('--batch', type=int, default=256)
     ap.add_argument('--save', default='board_net.pt')
+    ap.add_argument('--ratings', default=None, help='weight decisions by the player\'s rating (player_ratings.py)')
+    ap.add_argument('--weight-doubling', type=float, default=100, help='rating points a decision\'s weight doubles in')
     args = ap.parse_args()
     torch.manual_seed(1); random.seed(1); np.random.seed(1)
     device = 'mps' if torch.backends.mps.is_available() else 'cpu'
@@ -214,9 +233,11 @@ def main():
     for m in args.train.split(','):
         p = os.path.join(args.data, f'{args.prefix}-{m}.jsonl')
         if os.path.exists(p):
-            parts.append(encode(p, rows, seen, grow=True))
+            data_m, players_m = encode(p, rows, seen, grow=True)
+            data_m['wt'] = weights(players_m, args.ratings, args.weight_doubling)
+            parts.append(data_m)
     train = {k: np.concatenate([p[k] for p in parts]) for k in parts[0]}
-    test = encode(os.path.join(args.data, f'{args.prefix}-{args.test}.jsonl'), rows, seen, grow=False)
+    test, _ = encode(os.path.join(args.data, f'{args.prefix}-{args.test}.jsonl'), rows, seen, grow=False)
     print(f'{len(train["y"])} training decisions, {len(test["y"])} held out, {len(seen)} cards, '
           f'{time.time() - t0:.0f}s to load', flush=True)
     mean = torch.from_numpy(train['state'].mean(0)).to(device)
@@ -231,7 +252,7 @@ def main():
         idx = np.random.permutation(len(train['y']))
         t0 = time.time(); total = 0.0
         for b in batches(train, idx, args.batch, device, mean, std):
-            loss = F.cross_entropy(model(b), b['y'])
+            loss = (F.cross_entropy(model(b), b['y'], reduction='none') * b['wt']).sum() / b['wt'].sum()
             opt.zero_grad(); loss.backward()
             torch.nn.utils.clip_grad_norm_(model.parameters(), 1.0)
             opt.step(); sched.step()
