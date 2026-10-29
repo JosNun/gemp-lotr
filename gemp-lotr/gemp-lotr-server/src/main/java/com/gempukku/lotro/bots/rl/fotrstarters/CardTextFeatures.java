@@ -86,6 +86,11 @@ public final class CardTextFeatures {
         defs = m;
     }
 
+    /** Every blueprint id with a definition. */
+    public static Set<String> ids() {
+        return new TreeSet<>(defs.keySet());
+    }
+
     /** The vocabulary file beside a model, or one built from every definition and written there. */
     public static List<String> vocabulary(Path file) throws IOException {
         if (Files.exists(file))
