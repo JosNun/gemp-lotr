@@ -131,6 +131,23 @@ public class ModelRegistry {
     /** The card-text vocabulary the card-action model was fit with ("card-text" in the model directory); null if none. */
     private java.util.List<String> cardText;
 
+    /** The board network (board-net.onnx) and the trees' share when the two are mixed (board-net-mix, 0.4). */
+    private com.gempukku.lotro.bots.rl.fotrstarters.BoardNet boardNet;
+    private double boardNetTreeWeight = 0.4;
+
+    public com.gempukku.lotro.bots.rl.fotrstarters.BoardNet getBoardNet() {
+        return boardNet;
+    }
+
+    public void setBoardNet(com.gempukku.lotro.bots.rl.fotrstarters.BoardNet boardNet, double treeWeight) {
+        this.boardNet = boardNet;
+        this.boardNetTreeWeight = treeWeight;
+    }
+
+    public double getBoardNetTreeWeight() {
+        return boardNetTreeWeight;
+    }
+
     /** The card-action model's options end with what has been seen of the opponent ("opp-features"). */
     private boolean oppFeatures;
 
