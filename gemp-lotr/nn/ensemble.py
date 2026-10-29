@@ -42,7 +42,7 @@ def main():
     a = ck['args']
     rows, table, width = bn.load_cards(os.path.join(args.data, 'cards.tsv'))
     seen = set(ck['seen'])
-    data = bn.encode(args.boards, rows, seen, grow=False)
+    data, _ = bn.encode(args.boards, rows, seen, grow=False)
     meta = []  # game, player, tree scores, options, chosen, context -- in encode's order
     for line in open(args.boards):
         r = json.loads(line)
