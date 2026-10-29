@@ -80,6 +80,10 @@ public final class ModelDirectory {
         registry.setAnyPhaseRich(Files.exists(dir.resolve("any-phase-rich")));
         registry.setResponseForecast(Files.exists(dir.resolve("response-forecast")));
         registry.setOppFeatures(Files.exists(dir.resolve("opp-features")));
+        var net = com.gempukku.lotro.bots.rl.fotrstarters.BoardNet.load(dir);
+        if (net != null)
+            registry.setBoardNet(net, Files.exists(dir.resolve("board-net-mix"))
+                    ? Double.parseDouble(Files.readString(dir.resolve("board-net-mix")).trim()) : 0.4);
         if (Files.exists(dir.resolve("card-text")))
             registry.setCardText(CardTextFeatures.vocabulary(dir.resolve("card-text")));
         if (Files.exists(dir.resolve("card-text-selections")))

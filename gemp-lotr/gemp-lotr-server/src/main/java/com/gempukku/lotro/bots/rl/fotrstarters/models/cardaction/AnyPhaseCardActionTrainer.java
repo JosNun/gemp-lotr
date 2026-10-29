@@ -249,9 +249,44 @@ public class AnyPhaseCardActionTrainer extends AbstractTrainer {
             }
         }
         LAST_SCORES.set(append(scores, new double[]{passScore}));
+        var net = modelRegistry.getBoardNet();
+        if (net != null && com.gempukku.lotro.bots.rl.fotrstarters.BoardNet.applies(decision)) {
+            // the board network mixed with these trees: (1 - w) * its log-probabilities + w * the trees' (a softmax over
+            // the logits of their listwise probabilities); held-out July 66.5% against the trees' 64.5% and its 66.0%
+            double[] lp = net.logProbs(gameState, decision, playerName, state, text);
+            if (lp != null && lp.length == scores.length + 1) {
+                double w = modelRegistry.getBoardNetTreeWeight();
+                double[] t = new double[lp.length];
+                for (int i = 0; i < scores.length; i++)
+                    t[i] = scores[i] == Double.NEGATIVE_INFINITY ? Double.NEGATIVE_INFINITY : logit(scores[i]);
+                t[scores.length] = logit(passScore);
+                double max = Double.NEGATIVE_INFINITY, sum = 0;
+                for (double v : t)
+                    max = Math.max(max, v);
+                for (double v : t)
+                    sum += v == Double.NEGATIVE_INFINITY ? 0 : Math.exp(v - max);
+                double norm = max + Math.log(sum);
+                int pick = -1;
+                double bestMix = Double.NEGATIVE_INFINITY;
+                for (int i = 0; i < lp.length; i++) {
+                    double m = (1 - w) * lp[i] + w * (t[i] - norm);
+                    if (m > bestMix) {
+                        bestMix = m;
+                        pick = i;
+                    }
+                }
+                if (pick >= 0)
+                    return pick == scores.length ? "" : String.valueOf(pick);
+            }
+        }
         if (modelRegistry.isPassByMass())
             return passByMass(passScore, scores);
         return best < 0 ? "" : String.valueOf(best);
+    }
+
+    private static double logit(double p) {
+        double q = Math.min(1 - 1e-9, Math.max(1e-9, p));
+        return Math.log(q / (1 - q));
     }
 
     /** The scores of the last decision this thread answered: each option's, then pass's (for BoardDump). */

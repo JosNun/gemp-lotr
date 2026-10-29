@@ -10,6 +10,12 @@
     <artifactId>gemp-lotr-server</artifactId>
     <packaging>jar</packaging>
     <dependencies>
+        <!-- runs the bot's board network (nn/board_net.py, exported to ONNX) when a model directory has one -->
+        <dependency>
+            <groupId>com.microsoft.onnxruntime</groupId>
+            <artifactId>onnxruntime</artifactId>
+            <version>1.23.0</version>
+        </dependency>
         <dependency>
             <groupId>com.github.haifengl</groupId>
             <artifactId>smile-core</artifactId>
