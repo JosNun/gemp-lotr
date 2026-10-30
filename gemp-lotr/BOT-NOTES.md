@@ -1599,7 +1599,9 @@ share). `sel10-net` = `sel10-big5` + the network at 0.6: July's Fellowship and S
 agreement (64.6%; Fellowship 68.6, Shadow 64.8) -- the Java encoder feeds what it was trained on -- but **48.6% +- 0.9
 against `sel10-big5`** and a pool mean of 43.6 (46.3). More like people, weaker: it learned people's play alone, and
 the trees' strength is largely the search's labels (trees on people's games alone lost ~5 points in the mirror).
-Mixing it in at 0.6 dilutes them.
+Mixing it in at 0.6 dilutes them. At 0.4 network (`sel10-net6`, `board-net-mix` 0.6): agreement 66.7% (+2.1),
+**49.5% +- 0.9** against `sel10-big5`, pool mean 45.7 (46.3) -- within noise in play, nearly all the gain in
+human-likeness. The way to make it stronger as well is to teach it the search's labels, as the trees were.
 
 **Ten ways to improve the network** (ranked 2026-10-29 by how likely each is to help; the user asked that the rest
 not be forgotten -- 1 and 2 are being done first):
