@@ -1604,6 +1604,16 @@ Mixing it in at 0.6 dilutes them. At 0.4 network (`sel10-net6`, `board-net-mix` 
 human-likeness. The way to make it stronger as well is to teach it the search's labels, as the trees were.
 **`sel10-net6` is the bot to use** (adopted 2026-10-29: no weaker in play, +2.1 points of agreement with people).
 
+**The search's labels for the network: worse.** `BotTeach --boards` writes a board record for each card-action decision
+the search labels (its best option the answer, where the options' values differ by the margin). From `sel10-big5`'s
+games, Fellowship and Shadow prompts searched half the time (`-Dsearch.phases=fellowship,shadow`, 8 play-outs, value
+at depth 1): 1,500 games, 13,925 decisions, 6 hours (the bots are slower now: bigger trees, card text, the skirmish
+probe in every play-out). The network on people's boards plus these at weight 3 (`board_netT-d256`): alone 65.3% on
+July's test half (66.0% without), mixed in the bot as `sel10-net6` is -> `sel10-netT`: agreement 66.2% (66.7%),
+**48.7% +- 0.9 against `sel10-net6`, 47.9% against `sel10-big5`**, pool 45.4 (45.7). A single best option from 8
+noisy play-outs is a hard target for a softmax -- the trees learned the same search as good and bad labels with a
+margin, and from ten times as many -- and the positions are the bot's own. Not kept.
+
 **Ten ways to improve the network** (ranked 2026-10-29 by how likely each is to help; the user asked that the rest
 not be forgotten -- 1 and 2 are being done first):
 1. Tell it what each option does: the ability a "Use" fires (phase-matched card text), its twilight cost and whether
