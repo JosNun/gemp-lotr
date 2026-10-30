@@ -57,6 +57,28 @@ public class BotTeach {
             movesSearched = new AtomicInteger(), movesTaken = new AtomicInteger(), assignmentsTaught = new AtomicInteger(), rbChecked = new AtomicInteger();
     /** Scores a rollout's position when --depth stops it early: P(win) for the player whose state it is. */
     static volatile SoftClassifier<double[]> valueModel;
+    /**
+     * -Dteach.opponents=&lt;kind&gt;,...: a league. The learning bot plays seat ~a and is the one searched; ~b is each
+     * opponent in turn (game by game), in the main game and in the play-outs -- not the learner against itself.
+     */
+    static final List<String> OPPONENTS = System.getProperty("teach.opponents") == null ? List.of()
+            : List.of(System.getProperty("teach.opponents").split(","));
+    /**
+     * -Dsearch.judge=&lt;model dir&gt;: a cut-off rollout is scored by the combined network's outcome head (the
+     * board-net2-judge.onnx there if exported, else board-net2.onnx's own) instead of the value model -- read at the
+     * first decision after the cut that the network takes and that the searching player is asked.
+     */
+    static final com.gempukku.lotro.bots.rl.fotrstarters.BoardNet2 JUDGE = judge(System.getProperty("search.judge"));
+
+    private static com.gempukku.lotro.bots.rl.fotrstarters.BoardNet2 judge(String dir) {
+        if (dir == null)
+            return null;
+        try {
+            return com.gempukku.lotro.bots.rl.fotrstarters.BoardNet2.load(java.nio.file.Path.of(dir));
+        } catch (IOException e) {
+            throw new UncheckedIOException(e);
+        }
+    }
     /** 3 if the value model reads feature set 2 with KnowledgeFeatures appended (value-features.txt). */
     private static volatile int valueFeatures = 2;
     /** --corruption-weight: how much a cut-off position's value moves with corruption pressure; 0 = off. */
@@ -168,7 +190,8 @@ public class BotTeach {
         }
         if (!opts.trainOnly())
             generate(opts, ctx, stepsFile, out);
-        train(opts, stepsFile, out);
+        if (System.getProperty("teach.noTrain") == null) // the round loop needs only the boards (-Dteach.noTrain)
+            train(opts, stepsFile, out);
     }
 
     private static void generate(Options opts, BotVsBot.Context ctx, Path stepsFile, PrintStream out) throws Exception {
@@ -236,10 +259,11 @@ public class BotTeach {
                     LotroFormat format = ctx.formats().getFormat(m.format());
                     long seed = new SplittableRandom().nextLong();
                     List<BotGame.Step> steps = new ArrayList<>();
-                    Branch branch = new Branch(format, ctx, seats, seed, steps, policy, opts);
+                    String opponent = OPPONENTS.isEmpty() ? policy : OPPONENTS.get(game % OPPONENTS.size());
+                    Branch branch = new Branch(format, ctx, seats, seed, steps, policy, opponent, opts);
                     List<BotPlayer> bots = List.of(
                             new Teaching(BotVsBot.bot(policy, "~a", ctx), branch, features, sink, opts, opts.play()),
-                            opts.play() && !opts.both() ? BotVsBot.bot(policy, "~b", ctx)
+                            !OPPONENTS.isEmpty() || opts.play() && !opts.both() ? BotVsBot.bot(opponent, "~b", ctx)
                                     : new Teaching(BotVsBot.bot(policy, "~b", ctx), branch, features, sink, opts, opts.play()));
                     // its rollouts make this game slow, not stuck
                     POSITIONS.get().clear();
@@ -455,7 +479,7 @@ public class BotTeach {
 
     /** Everything needed to replay one game to a decision and play it out from there. */
     record Branch(LotroFormat format, BotVsBot.Context ctx, Map<String, LotroDeck> decks, long seed,
-                  List<BotGame.Step> steps, String policy, Options opts) {
+                  List<BotGame.Step> steps, String policy, String opponent, Options opts) {
         /** Wins for {@code player} out of the rollouts, with {@code answer} given at the decision after the steps. */
         double value(List<BotGame.Step> prefix, String player, String answer, long[] worlds, GameState live) {
             return value(prefix, player, answer, worlds, live, opts.depth());
@@ -469,12 +493,12 @@ public class BotTeach {
                 if (opts.fromCopies()) { // the same rollout from a copy of the live game; BotCloneCheck checks it is
                     shared = new Shared(List.of(), player, answer, world, depth, opts.peek());
                     r = CloneRollout.play(copier, (com.gempukku.lotro.logic.timing.DefaultLotroGame) live.getGame(),
-                            prefix, shared, BotVsBot.bot(policy, "~a", ctx), BotVsBot.bot(policy, "~b", ctx));
+                            prefix, shared, BotVsBot.bot(policy, "~a", ctx), BotVsBot.bot(opponent, "~b", ctx));
                 } else {
                     shared = new Shared(prefix, player, answer, world, depth, opts.peek());
                     r = BotGame.play(format, ctx.library(),
                             List.of(new Branching("~a", shared, BotVsBot.bot(policy, "~a", ctx)),
-                                    new Branching("~b", shared, BotVsBot.bot(policy, "~b", ctx))),
+                                    new Branching("~b", shared, BotVsBot.bot(opponent, "~b", ctx))),
                             decks, 1000, seed);
                 }
                 rolloutsRun.incrementAndGet();
@@ -555,8 +579,21 @@ public class BotTeach {
                 shared.startPhase = gameState.getCurrentPhase();
                 return shared.answer;
             }
-            if (shared.depth > 0 && shared.value < 0 && (PHASE_CUT ? gameState.getCurrentPhase() != shared.startPhase
-                    || gameState.getTurnNumber() > shared.startTurn : gameState.getTurnNumber() >= shared.startTurn + shared.depth)) {
+            boolean far = shared.depth > 0 && shared.value < 0 && (PHASE_CUT ? gameState.getCurrentPhase() != shared.startPhase
+                    || gameState.getTurnNumber() > shared.startTurn : gameState.getTurnNumber() >= shared.startTurn + shared.depth);
+            if (far && JUDGE != null) {
+                // the learned judge reads boards only at decisions it was trained on, from the decider's side
+                if (name.equals(shared.player) && BoardDump.kind(decision) != null) {
+                    double[] st = com.gempukku.lotro.bots.rl.fotrstarters.BoardNet2.state(gameState, decision, shared.player);
+                    double[] o = st == null ? null : JUDGE.outcome(gameState.getGame(), decision, shared.player, st);
+                    if (o != null) {
+                        shared.value = o[0] + o[1] + o[2];
+                        gameState.getGame().playerLost(name, "rollout cut off");
+                    }
+                }
+                return policy.chooseAction(gameState, decision);
+            }
+            if (far) {
                 // far enough: score the position for the player who branched, and end this throwaway game
                 double[] p = new double[2];
                 double[] v = new GeneralStateFeatures().extractFeatures(gameState, decision, shared.player);
@@ -971,11 +1008,22 @@ public class BotTeach {
             double[] state = record.extractFeatures(gameState, decision, getName());
             boolean fp = getName().equals(gameState.getCurrentPlayerId());
             double lowest = Arrays.stream(value).min().orElse(best);
-            if (BoardDump.OUT != null && best - lowest >= opts.margin()) {
-                // the board too, the search's best option the answer -- teacher labels for the board network, as the
-                // trees had theirs (board records' "game" is "teacher")
+            if (BoardDump.OUT != null) {
+                // the board with every searched option's value -- soft targets for the combined network: what people
+                // do, tilted toward what the search says wins (near-ties included: they say the options are equal).
+                // "searched": [index into the decision's actions (-1 pass), value]; "game" is "teacher"
                 BoardDump.GAME.set("teacher");
-                BoardDump.write(gameState.getGame(), decision, getName(), bestOption, state);
+                double[] st = com.gempukku.lotro.bots.rl.fotrstarters.BoardNet2.state(gameState, decision, getName());
+                var rec = st == null ? null : BoardDump.record(gameState.getGame(), decision, getName(), bestOption, st);
+                if (rec != null) {
+                    com.alibaba.fastjson2.JSONArray searched = new com.alibaba.fastjson2.JSONArray();
+                    List<String> ids = Arrays.asList(actionIds);
+                    for (int i = 0; i < options.size(); i++)
+                        searched.add(new double[]{options.get(i).isEmpty() ? -1 : ids.indexOf(options.get(i)), value[i]});
+                    rec.put("searched", searched);
+                    rec.put("rollouts", opts.rollouts());
+                    BoardDump.writeRecord(rec);
+                }
             }
             StringBuilder lines = new StringBuilder();
             for (int i = 0; i < options.size(); i++) {

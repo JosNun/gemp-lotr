@@ -54,7 +54,7 @@ import java.util.*;
  * {@code HumanReplay --boards <file>} writes one JSON line per reproduced decision of those kinds;
  * {@code BoardDump cards <out.tsv>} writes the card table the items refer to (set-2 card numbers and card text).
  */
-final class BoardDump {
+public final class BoardDump {
     static volatile PrintWriter OUT;
     /** "game\tplayer" -> the decklist's known blueprints (HumanReplay --decklists). Null: use the deck itself. */
     static volatile Map<String, List<String>> DECKS;
@@ -62,7 +62,11 @@ final class BoardDump {
      * Bot games (BotTeach): the remainder is the deck itself. Never in replays -- there the engine's deck is built from
      * the cards the game went on to show, so its contents are the future draws.
      */
-    static volatile boolean TRUE_DECK = false;
+    public static volatile boolean TRUE_DECK = false;
+    /** A bot is reading boards as it plays (BoardNet2): remember what each player shows, as the dump does. */
+    public static volatile boolean LIVE = false;
+    /** In a replay (HumanReplay): the remainder only ever from --decklists, whatever TRUE_DECK says. */
+    static volatile boolean REPLAY = false;
 
     /** The keywords recorded per card, as counts (damage +2 is 2). */
     static final List<Keyword> KEYWORDS = List.of(Keyword.DAMAGE, Keyword.FIERCE, Keyword.ARCHER, Keyword.AMBUSH,
@@ -77,12 +81,26 @@ final class BoardDump {
         PrintWriter out = OUT;
         if (out == null)
             return;
+        JSONObject rec = record(game, d, player, answer, state);
+        if (rec == null)
+            return;
+        String line = rec.toString();
+        synchronized (BoardDump.class) {
+            out.println(line);
+        }
+    }
+
+    /**
+     * The decision as a board record, as the dump writes it; {@code answer} null for a decision not yet answered (the
+     * bot reading the board to choose: no "chosen"). Null if the network does not take this decision.
+     */
+    public static JSONObject record(LotroGame game, AwaitingDecision d, String player, String answer, double[] state) {
         try {
             GameState gs = game.getGameState();
             observe(game);
             String kind = kind(d);
             if (kind == null)
-                return;
+                return null;
             var mq = game.getModifiersQuerying();
             List<PhysicalCard> items = new ArrayList<>();
             Map<Integer, Integer> index = new HashMap<>();
@@ -160,21 +178,22 @@ final class BoardDump {
             switch (kind) {
                 case "action" -> {
                     if (!action(game, d, answer, index, rec))
-                        return;
-                    double[] tree = treeScores(game, d, player);
+                        return null;
+                    double[] tree = OUT != null ? treeScores(game, d, player) : null;
                     if (tree != null)
                         rec.put("tree", tree);
                 }
                 case "assign" -> {
                     if (!assign(d, answer, index, rec))
-                        return;
+                        return null;
                 }
                 case "move" -> {
                     JSONArray opts = new JSONArray();
                     for (String r : params.getOrDefault("results", new String[0]))
                         opts.add(Map.of("src", -1, "text", r));
                     rec.put("opts", opts);
-                    rec.put("chosen", Integer.parseInt(answer.trim()));
+                    if (answer != null)
+                        rec.put("chosen", Integer.parseInt(answer.trim()));
                 }
                 case "reconcile" -> {
                     JSONArray opts = new JSONArray();
@@ -182,27 +201,36 @@ final class BoardDump {
                     for (String cid : params.getOrDefault("cardId", new String[0]))
                         opts.add(Map.of("src", index.getOrDefault(Integer.parseInt(cid), -1), "text", "discard"));
                     rec.put("opts", opts);
-                    rec.put("chosen", ReconcileChoiceTrainer.chosen(d, answer));
+                    if (answer != null)
+                        rec.put("chosen", ReconcileChoiceTrainer.chosen(d, answer));
                 }
                 default -> {
-                    return;
+                    return null;
                 }
             }
             rec.put("bags", bags(gs, player));
             rec.put("fp", player.equals(gs.getCurrentPlayerId()) ? 1 : 0);
             rec.put("state", state);
             rec.put("cards", cards);
-            String line = rec.toString();
-            synchronized (BoardDump.class) {
-                out.println(line);
-            }
+            return rec;
         } catch (RuntimeException ignored) {
-            // a board the dump cannot describe is left out
+            return null; // a board the dump cannot describe is left out
+        }
+    }
+
+    /** Writes a record built elsewhere (BotTeach's searched boards). */
+    static void writeRecord(JSONObject rec) {
+        PrintWriter out = OUT;
+        if (out == null || rec == null)
+            return;
+        String line = rec.toString();
+        synchronized (BoardDump.class) {
+            out.println(line);
         }
     }
 
     /** The decision's kind, or null for one the network does not take. */
-    static String kind(AwaitingDecision d) {
+    public static String kind(AwaitingDecision d) {
         var t = d.getDecisionType();
         if (t == AwaitingDecisionType.CARD_ACTION_CHOICE)
             return d.getDecisionParameters().getOrDefault("actionId", new String[0]).length > 0 ? "action" : null;
@@ -254,10 +282,12 @@ final class BoardDump {
             if (ids[i].equals(answer))
                 chosen = i;
         }
-        if (chosen < 0 && !answer.isEmpty())
-            return false;
         rec.put("opts", opts);
-        rec.put("chosen", chosen); // -1: pass
+        if (answer != null) {
+            if (chosen < 0 && !answer.isEmpty())
+                return false;
+            rec.put("chosen", chosen); // -1: pass
+        }
         return true;
     }
 
@@ -269,7 +299,7 @@ final class BoardDump {
         if (fps.length == 0 || minions.length == 0)
             return false;
         Map<String, String> to = new HashMap<>();
-        for (var e : AssignmentProbe.parse(answer).entrySet())
+        for (var e : AssignmentProbe.parse(answer != null ? answer : "").entrySet())
             for (String m : e.getValue())
                 to.put(m, e.getKey());
         List<String> fpList = Arrays.asList(fps);
@@ -282,7 +312,8 @@ final class BoardDump {
             chosen.add(f == null ? -1 : fpList.indexOf(f));
         }
         rec.put("asg", Map.of("fp", fp, "min", min));
-        rec.put("chosen", chosen);
+        if (answer != null)
+            rec.put("chosen", chosen);
         return true;
     }
 
@@ -300,8 +331,8 @@ final class BoardDump {
     private static final Map<Object, Map<String, LinkedHashSet<String>>> SEEN = new WeakHashMap<>();
 
     /** Remember every card each player has shown in a public zone; HumanReplay calls this at every decision. */
-    static void observe(LotroGame game) {
-        if (OUT == null)
+    public static void observe(LotroGame game) {
+        if (OUT == null && !LIVE)
             return;
         try {
             see(game);
@@ -367,7 +398,7 @@ final class BoardDump {
             for (var e : left.entrySet())
                 for (int i = 0; i < e.getValue(); i++)
                     list.add(e.getKey());
-        } else if (!TRUE_DECK) {
+        } else if (!TRUE_DECK || REPLAY) {
             return bags;
         } else {
             list = new ArrayList<>();

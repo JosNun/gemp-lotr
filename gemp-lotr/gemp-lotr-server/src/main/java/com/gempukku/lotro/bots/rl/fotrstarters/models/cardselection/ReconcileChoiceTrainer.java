@@ -146,6 +146,16 @@ public class ReconcileChoiceTrainer extends AbstractTrainer {
             }
         }
         double[] share = softmax(score);
+        var net2 = modelRegistry.getBoardNet2();
+        if (net2 != null) {
+            // keep, then the cards in the decision's order -- the same options in the same order as the network's
+            var r = net2.read(gameState, decision, playerName);
+            if (r != null && r.options().length == share.length) {
+                double[] m = com.gempukku.lotro.bots.rl.fotrstarters.BoardNet2.mix(r.options(), score,
+                        net2.treeWeight("reconcile"));
+                share = softmax(m);
+            }
+        }
         if (share[0] >= 0.5)
             return "";
         int best = 1;

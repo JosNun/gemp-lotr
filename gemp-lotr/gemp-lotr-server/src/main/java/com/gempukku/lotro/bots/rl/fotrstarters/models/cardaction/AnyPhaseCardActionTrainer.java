@@ -249,6 +249,21 @@ public class AnyPhaseCardActionTrainer extends AbstractTrainer {
             }
         }
         LAST_SCORES.set(append(scores, new double[]{passScore}));
+        var net2 = modelRegistry.getBoardNet2();
+        if (net2 != null) {
+            // the combined network, any phase, mixed with these trees as the first network was
+            var r = net2.read(gameState, decision, playerName);
+            if (r != null && r.options().length == scores.length + 1) {
+                double[] t = new double[scores.length + 1];
+                for (int i = 0; i < scores.length; i++)
+                    t[i] = scores[i] == Double.NEGATIVE_INFINITY ? Double.NEGATIVE_INFINITY : logit(scores[i]);
+                t[scores.length] = logit(passScore);
+                int pick = com.gempukku.lotro.bots.rl.fotrstarters.BoardNet2.argmax(
+                        com.gempukku.lotro.bots.rl.fotrstarters.BoardNet2.mix(r.options(), t, net2.treeWeight(r.context())));
+                if (pick >= 0)
+                    return pick == scores.length ? "" : String.valueOf(pick);
+            }
+        }
         var net = modelRegistry.getBoardNet();
         if (net != null && com.gempukku.lotro.bots.rl.fotrstarters.BoardNet.applies(decision)) {
             // the board network mixed with these trees: (1 - w) * its log-probabilities + w * the trees' (a softmax over

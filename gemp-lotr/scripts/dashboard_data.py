@@ -37,7 +37,7 @@ def training():
     p = os.path.join(L, 'nn', 'net2-assign-legal.json')
     if os.path.exists(p):
         legal = json.load(open(p))
-    for name, path in (('net2', 'nn/net2.log'), ('judge', 'nn/judge.log')):
+    for name, path in (('net2', 'nn/net2.log'), ('judge', 'nn/judge.log'), ('judge2', 'nn/judge2.log')):
         f = os.path.join(L, path)
         if not os.path.exists(f):
             continue
@@ -205,14 +205,19 @@ def collect():
     if os.path.exists(mf):
         main = [x.strip() for x in open(mf) if x.strip()]
     main = main + [r['name'] for r in rounds() if r.get('name') and r['name'] not in main]
-    ladder = {b: v for b, v in elo(h2h).items() if b in main}
+    full = elo(h2h)
+    ladder = {b: v for b, v in full.items() if b in main}
     agree = {b: v for b, v in agree.items() if b in main}
     pool = {b: v for b, v in pool.items() if b in main}
     h2h = [r for r in h2h if r['a'] in main and (r['b'] in main or r['b'].startswith('pool-'))]
     bots = list(main)
+    rs = rounds()
+    for r in rs:
+        if r.get('name') in full:
+            r['elo'] = full[r['name']]['elo']
     data = {'updated': time.time(), 'bots': bots, 'anchor': ANCHOR, 'training': training(), 'agreement': agree,
             'h2h': h2h, 'pool': pool, 'poolStyles': {b: v for b, v in styles.items() if b in main}, 'elo': ladder, 'peopleEnds': people_ends(),
-            'status': status(), 'rounds': rounds(), 'contexts': CONTEXTS}
+            'status': status(), 'rounds': rs, 'contexts': CONTEXTS}
     os.makedirs(os.path.dirname(OUT), exist_ok=True)
     tmp = OUT + '.tmp'
     json.dump(data, open(tmp, 'w'))

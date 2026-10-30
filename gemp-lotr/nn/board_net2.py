@@ -71,7 +71,7 @@ def load_routes(path):
 def encode(path, rows, seen, grow, routes, kinds=None):
     """A month's boards as fixed-size arrays (int8/int16 where they fit: a million boards in ~6 GB)."""
     out = collections.defaultdict(list)
-    for line in open(path):
+    for line in (open(path) if isinstance(path, str) else path):  # a file, or the lines themselves
         r = json.loads(line)
         kind = r.get('kind', 'action')
         if kinds and kind not in kinds:
@@ -137,6 +137,11 @@ def encode(path, rows, seen, grow, routes, kinds=None):
                 bc[k, i] = min(n, 127)
         known = len(bags.get('myDeck', []))
         extra = [known / 20, bags.get('myDeckUnknown', 0) / 20, 1.0 if 'myDeck' in bags else 0.0]
+        sv = np.full(MAX_OPTS + 1, np.nan, np.float32)  # the search's value per option (teacher boards), pass last
+        for i, v in r.get('searched', []):
+            i = int(i)
+            if i < len(opts):
+                sv[i if i >= 0 else MAX_OPTS] = v
         g = routes.get(r.get('game'))
         win, route = -1, -1
         if g:
@@ -146,9 +151,11 @@ def encode(path, rows, seen, grow, routes, kinds=None):
         for k, v in (('state', np.array(r['state'] + extra, np.float32)), ('cf', cf), ('ci', ci), ('cm', cm),
                      ('cd', cd), ('cz', cz), ('ck', ck), ('os', os_), ('ok', ok), ('oc', oc), ('ti', ti), ('tv', tv),
                      ('om', om), ('oe', oe), ('y', y), ('am', am), ('af', af), ('ay', ay), ('bg', bg), ('bc', bc),
-                     ('cx', CONTEXTS.index(context(r))), ('win', win), ('route', route)):
+                     ('cx', CONTEXTS.index(context(r))), ('win', win), ('route', route), ('sv', sv)):
             out[k].append(v)
         out['player'].append(r.get('player', '')); out['game'].append(r.get('game', ''))
+    if not out:
+        return {}, []
     data = {k: np.stack(v) if isinstance(v[0], np.ndarray) else np.array(v) for k, v in out.items()
             if k not in ('player', 'game')}
     data['y'] = data['y'].astype(np.int64); data['cx'] = data['cx'].astype(np.int64)
@@ -245,10 +252,22 @@ def batches(data, idx, size, device, mean, std):
         yield b
 
 
+LAMBDA = 0.1  # the search's temperature: a value 0.1 higher multiplies an option's target by e
+
+
 def losses(model, b):
     s, a, o = model(b)
-    has_y = b['y'] >= 0
+    searched = ~torch.isnan(b['sv'])
+    soft = searched.any(1)
+    has_y = (b['y'] >= 0) & ~soft
     lo = F.cross_entropy(s, b['y'].clamp(min=0), reduction='none') * has_y
+    if soft.any():
+        # what people would do (the starting network, frozen), tilted toward what the search says wins, over the
+        # options the search tried: target ~ p0 * exp(value / lambda); the network's log-probabilities renormalised there
+        neg = torch.full_like(s, -1e9)
+        tgt = F.softmax(torch.where(searched, b['lp0'] + torch.nan_to_num(b['sv']) / LAMBDA, neg), -1)
+        lp = F.log_softmax(torch.where(searched, s, neg), -1)
+        lo = lo + -(tgt * torch.where(searched, lp, torch.zeros_like(lp))).sum(-1) * soft * b['tw']
     la = F.cross_entropy(a.flatten(0, 1), b['ay'].long().flatten(), ignore_index=-100, reduction='none')
     la = la.view(a.size(0), -1)
     n_min = (b['ay'] != -100).sum(1)
@@ -332,18 +351,37 @@ def main():
     ap.add_argument('--decision-weight', type=float, default=1.0, help='0: train the outcome head alone (a judge)')
     ap.add_argument('--evals', type=int, default=1, help='July checks per epoch')
     ap.add_argument('--save-best-auc', default=None, help='also keep the checkpoint with the best July win AUC here')
+    ap.add_argument('--init', default=None, help='start from this checkpoint (its card ids and normalisation too)')
+    ap.add_argument('--teacher', default=None, help='searched teacher boards (BotTeach --boards), comma separated')
+    ap.add_argument('--teacher-weight', type=float, default=1.0)
+    ap.add_argument('--lam', type=float, default=0.1, help='the search temperature for the soft targets')
+    ap.add_argument('--per-game', type=int, default=0,
+                    help='each epoch, only this many random positions of each game (a judge that cannot memorise games)')
     args = ap.parse_args()
     torch.manual_seed(1); random.seed(1); np.random.seed(1)
     device = 'mps' if torch.backends.mps.is_available() else 'cpu'
+    global LAMBDA
+    LAMBDA = args.lam
     rows, table, width = load_cards(os.path.join(args.data, 'cards.tsv'))
     routes = load_routes(args.routes or os.path.join(args.data, 'routes-2022.jsonl'))
-    seen = set()
+    init = torch.load(args.init, weights_only=False, map_location='cpu') if args.init else None
+    seen = set(init['seen']) if init else set()
     t0 = time.time()
-    parts = []
+    parts, games = [], []
     for m in args.train.split(','):
         p = os.path.join(args.data, f'{args.prefix}-{m}.jsonl')
         if os.path.exists(p):
-            parts.append(encode(p, rows, seen, True, routes)[0])
+            d, g = encode(p, rows, seen, init is None, routes)
+            parts.append(d); games.extend(g)
+    n_people = sum(len(p['cx']) for p in parts)
+    for path in (args.teacher.split(',') if args.teacher else []):
+        d, g = encode(path, rows, seen, False, {})
+        if d:
+            parts.append(d); games.extend(g)
+            print(f'{len(d["cx"])} searched teacher boards from {path}', flush=True)
+    for p in parts:
+        p['tw'] = np.full(len(p['cx']), args.teacher_weight, np.float32)
+        p['lp0'] = np.zeros((len(p['cx']), MAX_OPTS + 1), np.float32)
     train = {k: np.concatenate([p[k] for p in parts]) for k in parts[0]}
     test, _ = encode(os.path.join(args.data, f'{args.prefix}-{args.test}.jsonl'), rows, seen, False, routes)
     print(f'{len(train["cx"])} training decisions, {len(test["cx"])} held out, {len(seen)} cards, '
@@ -352,16 +390,50 @@ def main():
           flush=True)
     print(f'outcome labels: {(train["win"] >= 0).mean():.0%} with a winner, {(train["route"] >= 0).mean():.0%} with a route',
           flush=True)
-    mean = torch.from_numpy(train['state'].mean(0)).to(device)
-    std = torch.from_numpy(train['state'].std(0) + 1e-3).to(device)
+    if init:
+        mean, std = init['mean'].to(device), init['std'].to(device)
+    else:
+        mean = torch.from_numpy(train['state'].mean(0)).to(device)
+        std = torch.from_numpy(train['state'].std(0) + 1e-3).to(device)
     model = BoardNet2(table, train['state'].shape[1], d=args.d, layers=args.layers, id_drop=args.id_drop,
                       dropout=args.dropout).to(device)
+    if init:
+        model.load_state_dict(init['model'])
+        # the starting network's choices on the teacher boards: the people-like prior the soft targets tilt
+        teach = np.arange(n_people, len(train['cx']))
+        if len(teach):
+            model.eval()
+            with torch.no_grad():
+                out = [torch.log_softmax(model(b)[0], -1).cpu().numpy()
+                       for b in batches(train, teach, 512, device, mean, std)]
+            train['lp0'][teach] = np.concatenate(out)
+            model.train()
+            # how often the search overrules the network: its best option is not the network's first choice among them
+            sv = train['sv'][teach]
+            sv_best = np.nanargmax(np.where(np.isnan(sv), -np.inf, sv), 1)
+            lp_best = np.argmax(np.where(np.isnan(sv), -np.inf, train['lp0'][teach]), 1)
+            spread = np.nanmax(sv, 1) - np.nanmin(sv, 1)
+            print(f'search overrules the network on {np.mean(sv_best != lp_best):.1%} of {len(teach)} searched '
+                  f'decisions (value spread: median {np.median(spread):.3f})', flush=True)
     opt = torch.optim.AdamW(model.parameters(), lr=args.lr, weight_decay=args.wd)
-    steps = args.epochs * math.ceil(len(train['cx']) / args.batch)
+    by_game = collections.defaultdict(list)
+    for i, g in enumerate(games):
+        by_game[g].append(i)
+    by_game = [np.array(v) for v in by_game.values()]
+
+    def epoch_rows():
+        if not args.per_game:
+            return np.random.permutation(len(train['cx']))
+        pick = [v if len(v) <= args.per_game else np.random.choice(v, args.per_game, replace=False) for v in by_game]
+        return np.random.permutation(np.concatenate(pick))
+    rows_per_epoch = len(epoch_rows())
+    if args.per_game:
+        print(f'{args.per_game} positions a game: {rows_per_epoch} rows an epoch from {len(by_game)} games', flush=True)
+    steps = args.epochs * math.ceil(rows_per_epoch / args.batch)
     sched = torch.optim.lr_scheduler.OneCycleLR(opt, max_lr=args.lr, total_steps=steps, pct_start=0.05)
     print(f'{sum(p.numel() for p in model.parameters()):,} parameters on {device}', flush=True)
     best_auc = 0.0
-    per_epoch = math.ceil(len(train['cx']) / args.batch)
+    per_epoch = math.ceil(rows_per_epoch / args.batch)
     check = set(int(per_epoch * (k + 1) / args.evals) for k in range(args.evals))
 
     def save(path):
@@ -369,7 +441,7 @@ def main():
                     'args': vars(args)}, path)
 
     for epoch in range(args.epochs):
-        idx = np.random.permutation(len(train['cx']))
+        idx = epoch_rows()
         t0 = time.time(); tot_d = tot_o = 0.0; seen_rows = 0
         for step, b in enumerate(batches(train, idx, args.batch, device, mean, std), 1):
             ld, lw, _ = losses(model, b)
