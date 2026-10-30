@@ -1640,6 +1640,65 @@ not be forgotten -- 1 and 2 are being done first):
 standard error. The adoption rule as applied -- "no weaker" if within the printed interval, "clearly stronger" at
 twice it -- was looser on "no weaker" (about 2 SE) and stricter on "clearly stronger" (about 4 SE) than its wording.
 
+## One network for every decision, and how the game ends (2026-10-30)
+
+Options 4 and 7 of the ten, with the user's corrections to what the network sees: keywords per card are "typically
+critical" (the state only had side totals: 2 fierce minions, not which), a player knows their own sites and the ones
+played but never the opponent's unplayed ones, what the opponent has played tells you their deck and hand, the own
+decklist is known (its contents, never the order), opponent skill is not wanted as an input; and a win is reached by a
+route -- site 9, killing the Ring-bearer, corrupting it -- that people switch between as the game turns, which a single
+"who wins" number cannot say.
+
+**Own decklists from the same deck's other games** (`scripts/decklists.py`). 2020, 2021 and 2022 summaries all list only
+the cards a game showed. But a card's original id is its slot in the decklist, and the slot order holds from game to
+game: of one player's same-size game pairs, 156,397 agree on every slot both saw. Games are grouped where they agree,
+and each game gets the union of its group's *other* games' slots (never its own: a deck seen once would list exactly
+what that game was about to draw). Median 96% of slots known, 70% of player-games at 90% or more; the slots no game
+shows are the cards played straight from the deck (in decks with 10+ games, 18,109 of 18,127 have no more unknown slots
+than such plays), out of the deck by the first decision anyway. On the boards the remainder plus `myDeckUnknown` equals
+the real deck size on 923 of 926 checked.
+
+**How games end, concessions included** (`scripts/game_routes.py`). 44% of July's Fellowship-block games end in a
+concession. Each game's event stream is walked to the end (positions, burdens and wounds on each Ring-bearer, characters
+in play, dead piles, whose turn), and a softmax regression learns the route from the start of the last turn of games
+decided on the board: 86.4% held out (69.3% before "whose turn" -- site 9 is won on your own turn, a kill on the
+other's). A concession gets a route only at confidence 0.85, where decided games are 96.4% right on 61% of them (the
+user: infer it, or discard if not confident): 6,014 of 9,436 concessions and time-outs (site 9 3,478, kill 2,477,
+corruption 59); the rest teach only won or lost. Caveat: a concession's last turn is not a decided game's.
+
+**Boards v4** (`BoardDump`, `HumanReplay --decklists`, `labels/scripts/boards4.sh`): every card-action prompt of every
+phase, assignments (per minion, the character it went to), "move again?" and reconcile; per card its live keywords
+(16, as the game has them now), resistance, active, and a hand card's cost to play now; the own adventure deck as items;
+`oppSeen` (every card of the opponent's seen in a public zone, kept when it goes back to hand or deck) and `myDeck` (the
+remainder, sorted). Option cards come first among the items: listed after the hand, 3.6% of boards went over the
+48-card cap and 1,988 of the 5,765 options on them lost their card (586 the chosen one). 1,252,400 boards of 2022
+(7.2 GB), 38 minutes.
+
+**The network** (`nn/board_net2.py`, d 256 x 4 layers, 5.4 M parameters; 8 epochs of 42 minutes): one transformer, three
+heads -- options (card plays of any phase, reconcile, move), assignment (each minion against each character, or none;
+`nn/eval_assign.py` decodes the best legal Free Peoples assignment as a matching), and the outcome as six classes (won or
+lost x route; a game without a route through the sum of its three). Held-out July against `sel10-net6`'s agreement on
+30% of July (`labels/hl/hl-sel10-net6.tsv`; for Fellowship and Shadow plays that bot is already trees + the first
+network):
+
+| July agreement | combined network | `sel10-net6` |
+|---|---|---|
+| move again? | **87.3%** | 82.1% |
+| reconcile | **58.3%** | 52.4% |
+| assignment (Free Peoples, legal decode) | **56.2%** | 54.1% |
+| archery plays | **72.7%** | 70.8% |
+| regroup plays | **82.3%** | 81.5% |
+| maneuver plays | 83.8% | 83.7% |
+| skirmish plays (the bot has the probe) | 80.2% | 81.1% |
+| optional responses | 89.2% | 90.3% |
+| Fellowship plays | 67.3% | 68.6% |
+| Shadow plays | 63.6% | 64.1% |
+| win AUC | **0.712** (0.743 after epoch 1) | 0.670 (13-term win model) |
+
+The outcome head overfits: its training loss falls 1.09 -> 0.08 over the 8 epochs while July AUC falls 0.743 -> 0.712
+(dozens of positions a game: it can learn "this game was won"). A judge is trained on its own (`--decision-weight 0`,
+more dropout, best July AUC kept). Not yet in the bot: that needs the Java encoder for v4 boards and a head per decision.
+
 ## Human Movie Block games, and assignments learned from them (2026-10-19)
 
 **2022 replays.** October and November 2022 (`GEMP-LOTR-Replays_2022-1{0,1}.zip`, ~340 MB
