@@ -1030,6 +1030,7 @@ public class BotTeach {
                 case "--boards" -> {
                     try {
                         BoardDump.OUT = new java.io.PrintWriter(java.nio.file.Files.newBufferedWriter(java.nio.file.Path.of(args[++i])), true);
+                        BoardDump.TRUE_DECK = true;
                     } catch (IOException e) {
                         throw new UncheckedIOException(e);
                     }

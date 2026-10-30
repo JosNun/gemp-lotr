@@ -3,8 +3,10 @@ name = "gemp-nn"
 version = "0.1.0"
 requires-python = ">=3.13"
 dependencies = [
+    "matplotlib>=3.11.2",
     "numpy>=2.5.4",
     "onnx>=1.23.2",
     "onnxruntime>=1.31.1",
+    "scipy>=1.18.1",
     "torch>=2.15.0",
 ]

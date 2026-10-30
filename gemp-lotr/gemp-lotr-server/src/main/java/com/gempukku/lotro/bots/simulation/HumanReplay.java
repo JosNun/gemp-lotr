@@ -850,6 +850,8 @@ public class HumanReplay {
                 if (t.match.full() && !t.ambiguous && !engineOnly(decision) && Counterfactual.DEATHS_TEACH != null)
                     Counterfactual.teachByDeaths(game, copier, ctx, m.players(), p, decision,
                             state != null ? state : TrainingSteps.stateOf(game, decision, p), cfSampler);
+                BoardDump.GAME.set(m.name());
+                BoardDump.observe(game); // what each player has shown, for the boards' "oppSeen"
                 // the board as the human saw it; not when another answer fit the recording as well
                 if (t.match.full() && !t.ambiguous && sink != null && state != null)
                     if (ONLY_PLAYERS == null || ONLY_PLAYERS.contains(m.name() + "\t" + p)) {
@@ -1406,6 +1408,7 @@ public class HumanReplay {
                 case "--deaths-sides" -> Counterfactual.DEATHS_SIDES = java.util.Set.of(args[++i].toLowerCase().split(","));
                 case "--steps-only" -> TrainingSteps.ONLY = java.util.regex.Pattern.compile(args[++i]);
                 case "--opp-block" -> TrainingSteps.OPP = true;
+                case "--decklists" -> BoardDump.DECKS = BoardDump.loadDecklists(Path.of(args[++i]));
                 case "--boards" -> BoardDump.OUT = new PrintWriter(Files.newBufferedWriter(Path.of(args[++i]), StandardCharsets.UTF_8));
                 case "--steps-players" -> ONLY_PLAYERS = new java.util.HashSet<>(Files.readAllLines(Path.of(args[++i])));
                 case "--probe-bot" -> probeBot = args[++i];
