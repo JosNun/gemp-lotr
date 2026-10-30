@@ -221,6 +221,8 @@ def main():
     ap.add_argument('--id-drop', type=float, default=0.3)
     ap.add_argument('--batch', type=int, default=256)
     ap.add_argument('--save', default='board_net.pt')
+    ap.add_argument('--teacher', default=None, help='teacher board files (BotTeach --boards), comma separated')
+    ap.add_argument('--teacher-weight', type=float, default=3.0)
     ap.add_argument('--ratings', default=None, help='weight decisions by the player\'s rating (player_ratings.py)')
     ap.add_argument('--weight-doubling', type=float, default=100, help='rating points a decision\'s weight doubles in')
     args = ap.parse_args()
@@ -236,6 +238,12 @@ def main():
             data_m, players_m = encode(p, rows, seen, grow=True)
             data_m['wt'] = weights(players_m, args.ratings, args.weight_doubling)
             parts.append(data_m)
+    for path in (args.teacher.split(',') if args.teacher else []):
+        # the search's labels (BotTeach --boards): its best option as the answer, weighted like the trees' teacher rows
+        data_t, _ = encode(path, rows, seen, grow=True)
+        data_t['wt'] = np.full(len(data_t['y']), args.teacher_weight, np.float32)
+        parts.append(data_t)
+        print(f'{len(data_t["y"])} teacher decisions from {path} at weight {args.teacher_weight}', flush=True)
     train = {k: np.concatenate([p[k] for p in parts]) for k in parts[0]}
     test, _ = encode(os.path.join(args.data, f'{args.prefix}-{args.test}.jsonl'), rows, seen, grow=False)
     print(f'{len(train["y"])} training decisions, {len(test["y"])} held out, {len(seen)} cards, '

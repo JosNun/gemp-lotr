@@ -1602,6 +1602,7 @@ the trees' strength is largely the search's labels (trees on people's games alon
 Mixing it in at 0.6 dilutes them. At 0.4 network (`sel10-net6`, `board-net-mix` 0.6): agreement 66.7% (+2.1),
 **49.5% +- 0.9** against `sel10-big5`, pool mean 45.7 (46.3) -- within noise in play, nearly all the gain in
 human-likeness. The way to make it stronger as well is to teach it the search's labels, as the trees were.
+**`sel10-net6` is the bot to use** (adopted 2026-10-29: no weaker in play, +2.1 points of agreement with people).
 
 **Ten ways to improve the network** (ranked 2026-10-29 by how likely each is to help; the user asked that the rest
 not be forgotten -- 1 and 2 are being done first):
