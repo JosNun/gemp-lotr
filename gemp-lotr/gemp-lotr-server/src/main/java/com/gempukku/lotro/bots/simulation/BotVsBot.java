@@ -285,6 +285,20 @@ public class BotVsBot {
     }
 
     private static final boolean FIXED_DECKS = Boolean.getBoolean("bvb.fixedDecks");
+    /** -Dbvb.gameLog=&lt;file&gt;: one JSON line per game -- how it ended and how each side played (GameLog). */
+    private static final java.io.PrintWriter GAME_LOG = gameLog(System.getProperty("bvb.gameLog"));
+
+    private static java.io.PrintWriter gameLog(String path) {
+        if (path == null)
+            return null;
+        try {
+            return new java.io.PrintWriter(java.nio.file.Files.newBufferedWriter(java.nio.file.Path.of(path),
+                    java.nio.charset.StandardCharsets.UTF_8, java.nio.file.StandardOpenOption.CREATE,
+                    java.nio.file.StandardOpenOption.APPEND), true);
+        } catch (java.io.IOException e) {
+            throw new java.io.UncheckedIOException(e);
+        }
+    }
 
     private static Outcome play(int matchup, int game, LotroFormat format, LotroDeck deck1, LotroDeck deck2,
                                 Options opts, Context ctx) {
@@ -302,8 +316,29 @@ public class BotVsBot {
         Arrays.fill(random, 0);
         var threads = java.lang.management.ManagementFactory.getThreadMXBean();
         long cpu0 = threads.getCurrentThreadCpuTime();
-        BotGame.Result r = BotGame.play(format, ctx.library(), List.of(a, b), decks, opts.maxDecisions());
+        GameLog log = GAME_LOG != null ? new GameLog() : null;
+        if (log != null)
+            GameLog.CURRENT.set(log);
+        BotGame.Result r;
+        try {
+            r = BotGame.play(format, ctx.library(), List.of(a, b), decks, opts.maxDecisions());
+        } finally {
+            GameLog.CURRENT.remove();
+        }
         long cpu = threads.getCurrentThreadCpuTime() - cpu0;
+        if (log != null) {
+            var line = log.finish(r, new java.util.LinkedHashMap<>(Map.of(BOT_A, "A", BOT_B, "B")));
+            line.put("matchup", matchup);
+            line.put("game", game);
+            line.put("botA", opts.kindA());
+            line.put("botB", opts.kindB());
+            line.put("deckA", decks.get(BOT_A).getDeckName());
+            line.put("deckB", decks.get(BOT_B).getDeckName());
+            line.put("cpu", cpu / 1e9);
+            synchronized (GAME_LOG) {
+                GAME_LOG.println(line);
+            }
+        }
         random[0] += r.rejected().getOrDefault(BOT_A, 0);
         random[1] += r.rejected().getOrDefault(BOT_B, 0);
         return new Outcome(matchup, game, aSeat, seat(r.winner()), seat(r.first()), r.reason(), r.turns(),

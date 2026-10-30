@@ -835,6 +835,8 @@ public class HumanReplay {
                                 : String.valueOf(x)).collect(Collectors.joining(",")));
                     }
                 }
+                BoardDump.GAME.set(m.name()); // before a counterfactual bot reads the board
+                BoardDump.observe(game);
                 Trial t = tryAnswers(p, cands);
                 if (t.match == null)
                     return stop(t.error != null ? "engine error" : "no valid answer",
@@ -850,8 +852,6 @@ public class HumanReplay {
                 if (t.match.full() && !t.ambiguous && !engineOnly(decision) && Counterfactual.DEATHS_TEACH != null)
                     Counterfactual.teachByDeaths(game, copier, ctx, m.players(), p, decision,
                             state != null ? state : TrainingSteps.stateOf(game, decision, p), cfSampler);
-                BoardDump.GAME.set(m.name());
-                BoardDump.observe(game); // what each player has shown, for the boards' "oppSeen"
                 // the board as the human saw it; not when another answer fit the recording as well
                 if (t.match.full() && !t.ambiguous && sink != null && state != null)
                     if (ONLY_PLAYERS == null || ONLY_PLAYERS.contains(m.name() + "\t" + p)) {
@@ -1371,6 +1371,7 @@ public class HumanReplay {
     // ---------------------------------------------------------------- main
 
     public static void main(String[] args) throws Exception {
+        BoardDump.REPLAY = true; // the engine's decks here hold the future draws
         Path manifests = null, report = null, steps = null;
         int limit = Integer.MAX_VALUE, jobs = 2;
         boolean verbose = false;

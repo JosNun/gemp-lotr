@@ -189,6 +189,34 @@ public abstract class AbstractAssignmentTrainer extends AbstractTrainer {
             } catch (CardNotFoundException ignore) {
             }
         }
+        var net2 = modelRegistry.getBoardNet2();
+        if (net2 != null && isForFp() && legal.size() > 1) {
+            // the combined network: a candidate's log-likelihood is the sum over minions of where it sends each (or
+            // leaves it), mixed with the trees' scores as log-probabilities over the candidates
+            var r = net2.read(gameState, decision, playerName);
+            if (r != null && r.assign().length == minionIds.length) {
+                List<String> fps = Arrays.asList(freeCharIds), mins = Arrays.asList(minionIds);
+                double[] net = new double[legal.size()], trees = new double[legal.size()];
+                for (int c = 0; c < legal.size(); c++) {
+                    double p = Math.min(1 - 1e-9, Math.max(1e-9, legal.get(c).getKey()));
+                    trees[c] = Math.log(p / (1 - p));
+                    int[] to = new int[mins.size()];
+                    Arrays.fill(to, fps.size()); // unassigned
+                    for (var e : legal.get(c).getValue().entrySet())
+                        for (String m : e.getValue())
+                            if (mins.indexOf(m) >= 0 && fps.indexOf(e.getKey()) >= 0)
+                                to[mins.indexOf(m)] = fps.indexOf(e.getKey());
+                    for (int m = 0; m < to.length; m++)
+                        net[c] += r.assign()[m][to[m]];
+                }
+                double[] mixed = com.gempukku.lotro.bots.rl.fotrstarters.BoardNet2.mix(net, trees,
+                        net2.treeWeight("assign fp"));
+                List<Map.Entry<Double, Map<String, List<String>>>> rescored = new ArrayList<>();
+                for (int c = 0; c < legal.size(); c++)
+                    rescored.add(Map.entry(mixed[c], legal.get(c).getValue()));
+                legal = rescored;
+            }
+        }
         // stable: among equal scores the first generated wins, as before
         legal.sort(Map.Entry.<Double, Map<String, List<String>>>comparingByKey().reversed());
         List<String> answers = new ArrayList<>();

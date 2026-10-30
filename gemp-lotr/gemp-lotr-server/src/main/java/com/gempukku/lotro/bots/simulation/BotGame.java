@@ -149,6 +149,9 @@ public final class BotGame {
         try {
             DefaultLotroGame game = setup.get();
             DefaultUserFeedback feedback = (DefaultUserFeedback) game.getUserFeedback();
+            GameLog log = GameLog.CURRENT.get();
+            if (log != null && start)
+                log.bind(game); // the first game started here; copies played inside a decision are not it
             watchdog = WATCHDOG.schedule(() -> {
                 if (!game.isFinished()) {
                     stuck.set(true);
@@ -215,6 +218,8 @@ public final class BotGame {
                     if (!accepted.equals(answer))
                         rejected.merge(name, 1, Integer::sum);
                     steps.add(new Step(name, question, accepted));
+                    if (log != null)
+                        log.decided(game, name, decision, accepted);
                 } catch (DecisionResultInvalidException e) {
                     game.playerLost(name, "Invalid decision");
                     break;

@@ -186,11 +186,11 @@ function renderAgree(d) {
 }
 
 function renderTraining(d) {
-  const runs = { net2: d.training.filter((r) => r.run === 'net2'), judge: d.training.filter((r) => r.run === 'judge') };
+  const runs = { net2: d.training.filter((r) => r.run === 'net2'), judge: d.training.filter((r) => r.run === 'judge'), judge2: d.training.filter((r) => r.run === 'judge2') };
   const anchor = d.agreement[d.anchor] || {};
   const body = $('train');
   body.innerHTML = '';
-  if (!runs.net2.length && !runs.judge.length) { body.innerHTML = '<div class="empty">No training runs logged.</div>'; return; }
+  if (!runs.net2.length && !runs.judge.length && !runs.judge2.length) { body.innerHTML = '<div class="empty">No training runs logged.</div>'; return; }
   const grid = document.createElement('div');
   grid.className = 'small-multiples';
   for (const c of d.contexts) {
@@ -212,6 +212,16 @@ function renderTraining(d) {
     { name: 'judge', color: '#d6b25e', points: runs.judge.filter((r) => r.auc).map((r) => [r.epoch, r.auc]) },
   ], { refs: [{ y: 0.670 }], yFmt: (v) => v.toFixed(3), minPad: 0.005 }));
   grid.appendChild(auc);
+  const j2 = d.training.filter((r) => r.run === 'judge2' && r.auc);
+  if (j2.length) {
+    const cell = document.createElement('div');
+    cell.className = 'sm';
+    cell.innerHTML = '<h3>Judge, 2 positions a game <span class="hint">AUC by epoch; dashed: current judge</span></h3>';
+    const ticks = [...new Set(j2.map((r) => r.epoch))].filter((e) => e % 5 === 0 || e === 1);
+    cell.appendChild(lineChart([{ name: 'judge2', color: '#6cc3c9', points: j2.map((r) => [r.epoch, r.auc]) }],
+      { refs: [{ y: 0.670 }], yFmt: (v) => v.toFixed(3), minPad: 0.005, xTicks: ticks }));
+    grid.appendChild(cell);
+  }
   body.appendChild(grid);
 }
 
@@ -258,12 +268,48 @@ function renderRounds(d) {
     grid.appendChild(cell);
   };
   metric('Elo', 'elo', (v) => v.toFixed(0), '#d6b25e');
-  metric('vs previous generation', 'vsPrev', (v) => `${v.toFixed(1)}%`, '#4fb37a');
+  metric('vs its parent', 'vsPrev', (v) => `${v.toFixed(1)}%`, '#4fb37a');
+  metric('vs sel10-net6', 'vsNet6', (v) => `${v.toFixed(1)}%`, '#4fb37a');
   metric('Pool mean', 'pool', (v) => `${v.toFixed(1)}%`, '#5b9bd5');
   metric('July agreement', 'agreement', (v) => `${v.toFixed(1)}%`, '#6cc3c9');
   metric('Search overrules the network', 'overrule', (v) => `${v.toFixed(1)}%`, '#a68be0');
-  metric('Games per hour', 'gamesPerHour', (v) => v.toFixed(0), '#9aa5b1');
+  metric('Teacher games per hour', 'gamesPerHour', (v) => v.toFixed(0), '#9aa5b1');
   body.appendChild(grid);
+  // style fingerprints: the learner's games (seat A) in the evaluation, generation by generation
+  const keys = { turns: 'game length (turns)', site: 'site reached', deadCompanions: 'companions lost',
+    moveAgain: 'moves again (share; people 0.23)', minionsPerShadowTurn: 'minions a Shadow turn',
+    unspentTwilight: 'twilight left unspent', 'pass:fellowship': 'passes, Fellowship', 'pass:shadow': 'passes, Shadow',
+    'pass:skirmish': 'passes, skirmish' };
+  const styled = d.rounds.filter((r) => r.style);
+  if (styled.length) {
+    const h = document.createElement('h3');
+    h.textContent = 'Style fingerprints by generation';
+    h.style.cssText = 'margin:16px 0 8px;font-size:13px;font-weight:600';
+    body.appendChild(h);
+    const g2 = document.createElement('div');
+    g2.className = 'small-multiples';
+    for (const [k, label] of Object.entries(keys)) {
+      const pts = styled.filter((r) => r.style[k] !== undefined).map((r) => [r.gen, r.style[k]]);
+      if (!pts.length) continue;
+      const cell = document.createElement('div');
+      cell.className = 'sm';
+      cell.innerHTML = `<h3>${label}</h3>`;
+      cell.appendChild(lineChart([{ name: k, color: '#e0915b', points: pts }],
+        { yFmt: (v) => v.toFixed(2), minPad: 0.02, h: 110 }));
+      g2.appendChild(cell);
+    }
+    body.appendChild(g2);
+  }
+  const t = document.createElement('table');
+  t.className = 'h2h';
+  t.style.marginTop = '14px';
+  t.innerHTML = '<tr><td>gen</td><td>bot</td><td>parent</td><td class="n">vs parent</td><td class="n">vs net6</td><td class="n">July</td><td class="n">adopted</td></tr>'
+    + [...d.rounds].reverse().map((r) => `<tr><td>${r.gen}</td><td>${r.name}</td><td>${r.parent}</td>
+      <td class="n">${r.vsPrev !== undefined ? r.vsPrev.toFixed(1) + '% ± ' + r.vsPrevCi.toFixed(1) : ''}</td>
+      <td class="n">${r.vsNet6 !== undefined ? r.vsNet6.toFixed(1) + '%' : ''}</td>
+      <td class="n">${r.agreement !== undefined ? r.agreement.toFixed(1) + '%' : ''}</td>
+      <td class="n ${r.adopted ? 'win' : 'loss'}">${r.adopted ? 'yes' : 'no'}</td></tr>`).join('');
+  body.appendChild(t);
 }
 
 async function refresh() {

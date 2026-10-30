@@ -132,6 +132,17 @@ public class ModelRegistry {
     private java.util.List<String> cardText;
 
     /** The board network (board-net.onnx) and the trees' share when the two are mixed (board-net-mix, 0.4). */
+    private com.gempukku.lotro.bots.rl.fotrstarters.BoardNet2 boardNet2;
+
+    /** The combined network (board-net2.onnx), mixed into card actions, moves, reconcile and FP assignments. */
+    public com.gempukku.lotro.bots.rl.fotrstarters.BoardNet2 getBoardNet2() {
+        return boardNet2;
+    }
+
+    public void setBoardNet2(com.gempukku.lotro.bots.rl.fotrstarters.BoardNet2 net) {
+        this.boardNet2 = net;
+    }
+
     private com.gempukku.lotro.bots.rl.fotrstarters.BoardNet boardNet;
     private double boardNetTreeWeight = 0.4;
 
