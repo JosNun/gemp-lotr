@@ -1,0 +1,74 @@
+:root {
+  --bg: #0f1216;
+  --panel: #171b21;
+  --edge: #262c35;
+  --ink: #e6e8eb;
+  --dim: #8a93a0;
+  --faint: #4a525e;
+  --gold: #d6b25e;
+  --up: #4fb37a;
+  --down: #d0605a;
+  --blue: #5b9bd5;
+  --violet: #a68be0;
+  --cut: 10px;
+  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Inter, sans-serif;
+}
+* { box-sizing: border-box; }
+body { margin: 0; background: var(--bg); color: var(--ink); font-size: 14px; }
+header { display: flex; justify-content: space-between; align-items: end; padding: 22px 28px 10px; gap: 16px; flex-wrap: wrap; }
+h1 { margin: 0; font-size: 26px; letter-spacing: 0.04em; color: var(--gold); font-weight: 650; }
+.sub { color: var(--dim); font-size: 13px; }
+.title { display: flex; flex-direction: column; gap: 4px; }
+.updated { color: var(--dim); font-size: 12px; text-align: right; }
+.updated b { color: var(--ink); font-weight: 600; }
+
+.status { display: flex; gap: 10px; flex-wrap: wrap; padding: 4px 28px 14px; }
+.job { background: var(--panel); border: 1px solid var(--edge); padding: 8px 12px; display: flex; gap: 10px; align-items: center;
+  clip-path: polygon(var(--cut) 0, 100% 0, 100% calc(100% - var(--cut)), calc(100% - var(--cut)) 100%, 0 100%, 0 var(--cut)); }
+.job .dot { width: 8px; height: 8px; border-radius: 50%; background: var(--up); box-shadow: 0 0 8px var(--up); animation: pulse 1.6s infinite; }
+.job.idle .dot { background: var(--faint); box-shadow: none; animation: none; }
+.job .what { font-weight: 600; }
+.job .detail, .job .el { color: var(--dim); font-size: 12px; }
+@keyframes pulse { 50% { opacity: 0.35; } }
+details.logs { flex-basis: 100%; padding: 2px 2px 0; color: var(--dim); font-size: 12px; }
+details.logs summary { cursor: pointer; }
+details.logs code { display: block; white-space: pre-wrap; color: var(--dim); margin: 4px 0; }
+
+.kpis { display: grid; grid-template-columns: repeat(auto-fit, minmax(190px, 1fr)); gap: 12px; padding: 0 28px 16px; }
+.kpi { background: var(--panel); border: 1px solid var(--edge); padding: 14px 16px;
+  clip-path: polygon(var(--cut) 0, 100% 0, 100% calc(100% - var(--cut)), calc(100% - var(--cut)) 100%, 0 100%, 0 var(--cut)); }
+.kpi .label { color: var(--dim); font-size: 12px; text-transform: uppercase; letter-spacing: 0.06em; }
+.kpi .value { font-size: 26px; font-weight: 650; margin-top: 4px; }
+.kpi .note { color: var(--dim); font-size: 12px; margin-top: 2px; }
+.kpi .value.gold { color: var(--gold); }
+
+main { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 14px; padding: 0 28px 28px; }
+@media (max-width: 900px) { main { grid-template-columns: 1fr; } header, .status, .kpis, main, details.logs { padding-left: 12px; padding-right: 12px; } }
+.panel { background: var(--panel); border: 1px solid var(--edge); padding: 14px 16px 16px; min-width: 0;
+  clip-path: polygon(var(--cut) 0, 100% 0, 100% calc(100% - var(--cut)), calc(100% - var(--cut)) 100%, 0 100%, 0 var(--cut)); }
+.panel.wide { grid-column: 1 / -1; }
+.panel h2 { margin: 0 0 12px; font-size: 15px; font-weight: 600; letter-spacing: 0.02em; }
+.hint { color: var(--dim); font-weight: 400; font-size: 12px; margin-left: 6px; }
+.body { overflow-x: auto; }
+.empty { color: var(--dim); font-size: 13px; line-height: 1.6; }
+.empty ul { margin: 6px 0 0 18px; padding: 0; }
+
+svg text { fill: var(--dim); font-size: 11px; font-family: inherit; }
+svg .ink { fill: var(--ink); }
+svg .axis { stroke: var(--edge); }
+svg .grid { stroke: #1f242c; }
+
+table.h2h { width: 100%; border-collapse: collapse; font-size: 13px; }
+table.h2h td { padding: 5px 6px; border-bottom: 1px solid var(--edge); }
+table.h2h td.n { text-align: right; font-variant-numeric: tabular-nums; }
+.win { color: var(--up); } .loss { color: var(--down); } .even { color: var(--dim); }
+
+.heat { border-collapse: separate; border-spacing: 3px; font-size: 12px; }
+.heat th { color: var(--dim); font-weight: 500; padding: 4px 6px; text-align: center; white-space: nowrap; }
+.heat th.row { text-align: right; color: var(--ink); }
+.heat td { padding: 7px 8px; text-align: center; font-variant-numeric: tabular-nums; min-width: 62px; }
+.small-multiples { display: grid; grid-template-columns: repeat(auto-fill, minmax(190px, 1fr)); gap: 10px; }
+.sm h3 { margin: 0 0 2px; font-size: 12px; font-weight: 500; color: var(--ink); }
+.legend { display: flex; gap: 14px; color: var(--dim); font-size: 12px; margin-bottom: 8px; flex-wrap: wrap; }
+.legend i { display: inline-block; width: 12px; height: 3px; vertical-align: middle; margin-right: 5px; }
+footer { color: var(--faint); font-size: 11px; padding: 0 28px 24px; }

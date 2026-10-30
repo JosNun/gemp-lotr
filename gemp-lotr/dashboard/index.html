@@ -1,0 +1,62 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>GEMP bot — progress</title>
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+<header>
+  <div class="title">
+    <h1>GEMP bot</h1>
+    <span class="sub">strength, human-likeness and how it plays &middot; refreshes every minute</span>
+  </div>
+  <div class="updated" id="updated"></div>
+</header>
+
+<section id="status" class="status"></section>
+
+<section class="kpis" id="kpis"></section>
+
+<main>
+  <div class="panel wide" id="p-rounds">
+    <h2>Self-play generations</h2>
+    <div class="body" id="rounds"></div>
+  </div>
+
+  <div class="panel" id="p-elo">
+    <h2>Strength ladder <span class="hint">Elo from head-to-heads, <b id="anchor-name"></b> = 1500, 95% bars</span></h2>
+    <div class="body" id="elo"></div>
+  </div>
+
+  <div class="panel" id="p-pool">
+    <h2>Against the pool <span class="hint">mean win rate over the five style bots</span></h2>
+    <div class="body" id="pool"></div>
+  </div>
+
+  <div class="panel wide" id="p-agree">
+    <h2>Plays like people <span class="hint">agreement with people on held-out July, by decision; colour: against the anchor bot</span></h2>
+    <div class="body" id="agree"></div>
+  </div>
+
+  <div class="panel wide" id="p-train">
+    <h2>Network training <span class="hint">July agreement by epoch; dashed: the anchor bot</span></h2>
+    <div class="body" id="train"></div>
+  </div>
+
+  <div class="panel" id="p-ends">
+    <h2>How games end</h2>
+    <div class="body" id="ends"></div>
+  </div>
+
+  <div class="panel" id="p-h2h">
+    <h2>Head-to-heads <span class="hint">A's win rate, 95%</span></h2>
+    <div class="body" id="h2h"></div>
+  </div>
+</main>
+
+<footer>Served from the Mac (scripts/dashboard_data.py writes data/data.json; nothing here leaves the LAN).</footer>
+<script src="app.js"></script>
+</body>
+</html>
