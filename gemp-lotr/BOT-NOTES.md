@@ -1593,6 +1593,14 @@ Agreement cannot say whether it plays better: `board_net3-d256-rated.pt` is kept
 whether to train on winners only: a game's result says little about each of its decisions, it would see play from
 behind less, and half the data; rating weighting was the gentler form of it, and it did not help.)
 
+**The network in the bot** (`nn/export_onnx.py`, ONNX Runtime 1.23 from Java, `BoardNet`; a `board-net.onnx` in the
+model directory mixes it with the card-action trees at Fellowship and Shadow prompts, `board-net-mix` the trees'
+share). `sel10-net` = `sel10-big5` + the network at 0.6: July's Fellowship and Shadow plays through the bot 67.0%
+agreement (64.6%; Fellowship 68.6, Shadow 64.8) -- the Java encoder feeds what it was trained on -- but **48.6% +- 0.9
+against `sel10-big5`** and a pool mean of 43.6 (46.3). More like people, weaker: it learned people's play alone, and
+the trees' strength is largely the search's labels (trees on people's games alone lost ~5 points in the mirror).
+Mixing it in at 0.6 dilutes them.
+
 **Ten ways to improve the network** (ranked 2026-10-29 by how likely each is to help; the user asked that the rest
 not be forgotten -- 1 and 2 are being done first):
 1. Tell it what each option does: the ability a "Use" fires (phase-matched card text), its twilight cost and whether
