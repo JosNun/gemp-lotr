@@ -970,6 +970,13 @@ public class BotTeach {
 
             double[] state = record.extractFeatures(gameState, decision, getName());
             boolean fp = getName().equals(gameState.getCurrentPlayerId());
+            double lowest = Arrays.stream(value).min().orElse(best);
+            if (BoardDump.OUT != null && best - lowest >= opts.margin()) {
+                // the board too, the search's best option the answer -- teacher labels for the board network, as the
+                // trees had theirs (board records' "game" is "teacher")
+                BoardDump.GAME.set("teacher");
+                BoardDump.write(gameState.getGame(), decision, getName(), bestOption, state);
+            }
             StringBuilder lines = new StringBuilder();
             for (int i = 0; i < options.size(); i++) {
                 int label = value[i] >= best - 1e-9 ? 1 : value[i] <= best - opts.margin() ? 0 : -1;
@@ -1020,6 +1027,13 @@ public class BotTeach {
                 case "--max-decisions" -> maxDecisions = Integer.parseInt(args[++i]);
                 case "--card-picks" -> cardPicks = true;
                 case "--move-rollouts" -> moveRollouts = Integer.parseInt(args[++i]);
+                case "--boards" -> {
+                    try {
+                        BoardDump.OUT = new java.io.PrintWriter(java.nio.file.Files.newBufferedWriter(java.nio.file.Path.of(args[++i])), true);
+                    } catch (IOException e) {
+                        throw new UncheckedIOException(e);
+                    }
+                }
                 case "--no-card-search" -> cardSearch = false;
                 case "--assign-teach-rate" -> assignTeachRate = Double.parseDouble(args[++i]);
                 case "--deck-order-teach-rate" -> deckOrderTeachRate = Double.parseDouble(args[++i]);

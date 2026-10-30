@@ -33,7 +33,8 @@ final class BoardDump {
     private BoardDump() {
     }
 
-    static void write(DefaultLotroGame game, AwaitingDecision d, String player, String answer, double[] state) {
+    static void write(com.gempukku.lotro.game.state.LotroGame game, AwaitingDecision d, String player, String answer,
+                      double[] state) {
         PrintWriter out = OUT;
         if (out == null)
             return;
@@ -179,7 +180,7 @@ final class BoardDump {
     private static final String TREES = System.getProperty("boards.trees");
     private static volatile com.gempukku.lotro.bots.rl.fotrstarters.models.ModelRegistry treeRegistry;
 
-    private static double[] treeScores(DefaultLotroGame game, AwaitingDecision d, String player) {
+    private static double[] treeScores(com.gempukku.lotro.game.state.LotroGame game, AwaitingDecision d, String player) {
         if (TREES == null)
             return null;
         try {
