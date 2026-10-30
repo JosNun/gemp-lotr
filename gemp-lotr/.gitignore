@@ -32,3 +32,6 @@ hs_err_pid*
 
 # Ignoring stuff in target
 **/target/*
+
+# the dashboard's data (scripts/dashboard_data.py), rebuilt from logs outside the repo
+dashboard/data/
