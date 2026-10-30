@@ -17,6 +17,9 @@ L = os.path.expanduser('~/dev/gemp-replays/labels')
 OUT = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), 'dashboard', 'data', 'data.json')
 ORDER = ['sel10-f', 'sel10-gr', 'sel10-gf', 'sel10-ar1', 'sel10-big5', 'sel10-net', 'sel10-netT', 'sel10-net6', 'sel10-n2', 'sel10-n2p']
 ANCHOR = 'sel10-net6'
+# the bots the page shows (the rest are history; their results still go into the Elo fit). Self-play generations are
+# added as they are made. Override with a file dashboard/data/main-bots.txt, one name a line.
+MAIN = ['sel10-big5', 'sel10-net6', 'sel10-n2', 'sel10-n2p']
 CONTEXTS = ['fellowship', 'shadow', 'maneuver', 'archery', 'skirmish', 'regroup', 'optional', 'reconcile', 'move',
             'assign fp']
 KIND_NAMES = {  # the counterfactual file's decision labels -> the network's kinds
@@ -197,13 +200,18 @@ def rounds():
 def collect():
     h2h, pool, styles = matches()
     agree = agreement()
-    bots = [b for b in ORDER if b in agree or any(b in (r['a'], r['b']) for r in h2h) or b in pool]
-    for r in h2h:
-        for b in (r['a'], r['b']):
-            if b not in bots and not b.startswith('pool-'):
-                bots.append(b)
+    main = MAIN
+    mf = os.path.join(os.path.dirname(OUT), 'main-bots.txt')
+    if os.path.exists(mf):
+        main = [x.strip() for x in open(mf) if x.strip()]
+    main = main + [r['name'] for r in rounds() if r.get('name') and r['name'] not in main]
+    ladder = {b: v for b, v in elo(h2h).items() if b in main}
+    agree = {b: v for b, v in agree.items() if b in main}
+    pool = {b: v for b, v in pool.items() if b in main}
+    h2h = [r for r in h2h if r['a'] in main and (r['b'] in main or r['b'].startswith('pool-'))]
+    bots = list(main)
     data = {'updated': time.time(), 'bots': bots, 'anchor': ANCHOR, 'training': training(), 'agreement': agree,
-            'h2h': h2h, 'pool': pool, 'poolStyles': styles, 'elo': elo(h2h), 'peopleEnds': people_ends(),
+            'h2h': h2h, 'pool': pool, 'poolStyles': {b: v for b, v in styles.items() if b in main}, 'elo': ladder, 'peopleEnds': people_ends(),
             'status': status(), 'rounds': rounds(), 'contexts': CONTEXTS}
     os.makedirs(os.path.dirname(OUT), exist_ok=True)
     tmp = OUT + '.tmp'
