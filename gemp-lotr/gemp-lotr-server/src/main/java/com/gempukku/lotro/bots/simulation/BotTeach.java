@@ -66,6 +66,31 @@ public class BotTeach {
     static final List<String> OPPONENTS = System.getProperty("teach.opponents") == null ? List.of()
             : List.of(System.getProperty("teach.opponents").split(","));
     /**
+     * -Dteach.positions=&lt;file&gt; / -Dteach.outcomes=&lt;file&gt;: every decision of both seats in the main games as a
+     * board record (Recording), and how each game ended -- the outcome head learns from the league's own games what
+     * positions are worth several turns on, which a play-out a phase long cannot see.
+     */
+    static final java.io.PrintWriter POSITION_BOARDS = Recording.open(System.getProperty("teach.positions")),
+            OUTCOMES = Recording.open(System.getProperty("teach.outcomes"));
+    static final String RUN = Long.toHexString(System.nanoTime());
+    /**
+     * -Dsearch.turnCutFor=move,fellowship: with -Dsearch.phaseCut, these decisions' play-outs still run a whole turn --
+     * a move or a Fellowship play costs in the Shadow phase and the skirmishes that follow, past the phase's end.
+     */
+    static final List<String> TURN_CUT_FOR = System.getProperty("search.turnCutFor") == null ? List.of()
+            : List.of(System.getProperty("search.turnCutFor").toLowerCase().split(","));
+
+    static boolean phaseCutFor(AwaitingDecision d) {
+        if (!PHASE_CUT)
+            return false;
+        if (d == null || d.getText() == null)
+            return true;
+        String t = d.getText().toLowerCase();
+        if (TURN_CUT_FOR.contains("move") && t.contains("another move"))
+            return false;
+        return !(TURN_CUT_FOR.contains("fellowship") && t.contains("fellowship action"));
+    }
+    /**
      * -Dsearch.judge=&lt;model dir&gt;: a cut-off rollout is scored by the combined network's outcome head (the
      * board-net2-judge.onnx there if exported, else board-net2.onnx's own) instead of the value model -- read at the
      * first decision after the cut that the network takes and that the searching player is asked.
@@ -262,15 +287,27 @@ public class BotTeach {
                     long seed = new SplittableRandom().nextLong();
                     List<BotGame.Step> steps = new ArrayList<>();
                     String opponent = OPPONENTS.isEmpty() ? policy : OPPONENTS.get(game % OPPONENTS.size());
+                    String gameId = POSITION_BOARDS != null || OUTCOMES != null ? "t" + RUN + "-" + game : null;
+                    BoardDump.GAME.set(gameId);
+                    if (POSITION_BOARDS != null) {
+                        BoardDump.TRUE_DECK = true;
+                        BoardDump.LIVE = true;
+                    }
                     Branch branch = new Branch(format, ctx, seats, seed, steps, policy, opponent, opts);
                     List<BotPlayer> bots = List.of(
                             new Teaching(BotVsBot.bot(policy, "~a", ctx), branch, features, sink, opts, opts.play()),
                             !OPPONENTS.isEmpty() || opts.play() && !opts.both() ? BotVsBot.bot(opponent, "~b", ctx)
                                     : new Teaching(BotVsBot.bot(policy, "~b", ctx), branch, features, sink, opts, opts.play()));
+                    if (POSITION_BOARDS != null)
+                        bots = List.of(new Recording(bots.get(0), POSITION_BOARDS, 1.0),
+                                new Recording(bots.get(1), POSITION_BOARDS, 1.0));
                     // its rollouts make this game slow, not stuck
                     POSITIONS.get().clear();
                     LOWEST_RESISTANCE.get().clear();
                     BotGame.Result r = BotGame.play(format, ctx.library(), bots, seats, maxDecisions, seed, steps, 24 * 3600);
+                    if (r.finished())
+                        Recording.outcome(OUTCOMES, gameId, r.winner(), r.reason());
+                    BoardDump.GAME.remove();
                     if (r.finished() && opts.recordValues() != null) {
                         StringBuilder rows = new StringBuilder();
                         for (Object[] row : POSITIONS.get()) {
@@ -522,6 +559,8 @@ public class BotTeach {
         final long world;
         final int depth;
         final boolean peek;
+        /** End this play-out with its phase (else with the turn): -Dsearch.phaseCut, but not for -Dsearch.turnCutFor. */
+        final boolean phaseCut = phaseCutFor(DECIDING.get());
         int next, startTurn;
         com.gempukku.lotro.common.Phase startPhase;
         boolean branched, diverged;
@@ -581,7 +620,7 @@ public class BotTeach {
                 shared.startPhase = gameState.getCurrentPhase();
                 return shared.answer;
             }
-            boolean far = shared.depth > 0 && shared.value < 0 && (PHASE_CUT ? gameState.getCurrentPhase() != shared.startPhase
+            boolean far = shared.depth > 0 && shared.value < 0 && (shared.phaseCut ? gameState.getCurrentPhase() != shared.startPhase
                     || gameState.getTurnNumber() > shared.startTurn : gameState.getTurnNumber() >= shared.startTurn + shared.depth);
             if (far && JUDGE != null) {
                 // the learned judge reads boards only at decisions it was trained on, from the decider's side
@@ -846,7 +885,7 @@ public class BotTeach {
             AwaitingDecision decision = DECIDING.get();
             if (BoardDump.OUT != null && decision != null && "move".equals(BoardDump.kind(decision))) {
                 // "move again?" for the network: both options' values, as the card actions' searched boards
-                BoardDump.GAME.set("teacher");
+                if (BoardDump.GAME.get() == null) BoardDump.GAME.set("teacher");
                 double[] st = com.gempukku.lotro.bots.rl.fotrstarters.BoardNet2.state(gameState, decision, getName());
                 var rec = st == null ? null : BoardDump.record(gameState.getGame(), decision, getName(),
                         bestOption != null ? bestOption : "0", st);
@@ -1042,7 +1081,7 @@ public class BotTeach {
                 // the board with every searched option's value -- soft targets for the combined network: what people
                 // do, tilted toward what the search says wins (near-ties included: they say the options are equal).
                 // "searched": [index into the decision's actions (-1 pass), value]; "game" is "teacher"
-                BoardDump.GAME.set("teacher");
+                if (BoardDump.GAME.get() == null) BoardDump.GAME.set("teacher");
                 double[] st = com.gempukku.lotro.bots.rl.fotrstarters.BoardNet2.state(gameState, decision, getName());
                 var rec = st == null ? null : BoardDump.record(gameState.getGame(), decision, getName(), bestOption, st);
                 if (rec != null) {

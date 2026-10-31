@@ -26,6 +26,8 @@ JUDGE_PT=${JUDGE_PT:-$N/judge2-d256-best.pt}  # AUC 0.761 on July: 2 positions a
 GAMES=${GAMES:-600}; ROLLOUTS=${ROLLOUTS:-8}; TEACH_RATE=${TEACH_RATE:-0.3}; LAM=${LAM:-0.1}; MIX=${MIX:-default 0}
 POOL="general@bot-models-exp/pool-racer,general@bot-models-exp/pool-builder,general@bot-models-exp/pool-wide-fellowship,general@bot-models-exp/pool-big-minions,general@bot-models-exp/pool-swarm-grinder"
 [ -f $STATE ] || printf "%s\t%s\n" "$START" "$START_PT" > $STATE
+JUDGE_STATE=$N/selfplay-judge     # the judge in use, retrained each round with JUDGE_RETRAIN
+[ -f $JUDGE_STATE ] || echo "$JUDGE_PT" > $JUDGE_STATE
 
 h2h() { # <a> <b> <game log>: "<a> vs <b> A x% +- y" and the games' rate
   printf "%s vs %s " $1 $2
@@ -48,7 +50,9 @@ for gen in $(seq $1 $2); do
   rm -rf $N/sp-teach-$G && mkdir -p $N/sp-teach-$G
   S=$(/tmp/snap-classes.sh)
   t0=$(date +%s)
-  JAVA_OPTS="-Dsearch.phaseCut=${PHASE_CUT:-true} -Dsearch.judge=bot-models-exp/$PREV -Dteach.opponents=$LEAGUE -Dteach.noTrain -Xmx20g" SNAP=$S \
+  REC=""
+  [ -n "${RECORD_POSITIONS:-}" ] && REC="-Dteach.positions=$N/sp-teach-$G/positions.jsonl -Dteach.outcomes=$N/sp-teach-$G/outcomes.jsonl"
+  JAVA_OPTS="$REC -Dsearch.turnCutFor=${TURN_CUT_FOR:-} -Dsearch.phaseCut=${PHASE_CUT:-true} -Dsearch.judge=bot-models-exp/$PREV -Dteach.opponents=$LEAGUE -Dteach.noTrain -Xmx20g" SNAP=$S \
     /tmp/run-classes.sh BotTeach --clone --base bot-models-exp/$PREV --value bot-models-exp/value-real \
     --rollouts $ROLLOUTS --depth 1 --move-rollouts $ROLLOUTS --move-depth 1 --max-candidates 8 --teach-rate $TEACH_RATE --max-decisions 3000 \
     --suite decks/real/suite-train.txt --games $GAMES --out $N/sp-teach-$G --boards $N/sp-teach-$G/boards.jsonl \
@@ -56,6 +60,20 @@ for gen in $(seq $1 $2); do
   rm -rf $S
   echo "play: $(wc -l < $N/sp-teach-$G/boards.jsonl) searched boards from $GAMES games, $(( ($(date +%s) - t0) / 60 )) min" | tee -a $LOG
   echo "$GAMES games in $(( $(date +%s) - t0 ))s" >> $LOG
+
+  # 1b. the judge, from the league's own games: every position with how the game ended (the last five rounds'), two
+  # of each game's a pass among people's, from the judge in use; the best on July kept
+  if [ -n "${JUDGE_RETRAIN:-}" ]; then
+    POS=$(ls $N/sp-teach-*/positions.jsonl 2>/dev/null | tail -5 | paste -sd, -)
+    OUTS=$(ls $N/sp-teach-*/outcomes.jsonl 2>/dev/null | tail -5 | paste -sd, -)
+    JUDGE_PT=$(cat $JUDGE_STATE)
+    (cd nn && uv run python board_net2.py --data $N --init $JUDGE_PT --decision-weight 0 --outcome-weight 1 \
+      --dropout 0.3 --id-drop 0.5 --per-game 2 --epochs ${JUDGE_EPOCHS:-8} --lr 1e-4 --extra-boards $POS --extra-routes $OUTS \
+      --save $N/judge-g$G.pt --save-best-auc $N/judge-g$G-best.pt 2>&1 | grep -E "extra boards|^epoch|Error|Traceback" \
+      | sed -E 's/train decision loss.*July:.*win AUC/judge: win AUC/') | tee -a $LOG
+    [ -f $N/judge-g$G-best.pt ] && echo "$N/judge-g$G-best.pt" > $JUDGE_STATE
+  fi
+  JUDGE_PT=$(cat $JUDGE_STATE)
 
   # 2. learn: this round's boards and the last two rounds' (the search's labels from older play are still about
   # the game; the people's months anchor everything)
