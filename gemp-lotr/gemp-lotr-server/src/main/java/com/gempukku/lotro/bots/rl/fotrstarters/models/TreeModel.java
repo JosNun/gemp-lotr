@@ -68,13 +68,41 @@ public final class TreeModel implements SoftClassifier<double[]> {
         return new TreeModel(model, features.schema());
     }
 
+    /** The trees as arrays, built on first use (FlatTrees); null until then, or if they cannot be flattened. */
+    private transient volatile FlatTrees.Boost flat;
+    private transient volatile boolean flatFailed;
+
+    private FlatTrees.Boost flat() {
+        if (!FlatTrees.ENABLED || flatFailed)
+            return null;
+        FlatTrees.Boost f = flat;
+        if (f == null)
+            try {
+                flat = f = new FlatTrees.Boost(model);
+            } catch (RuntimeException e) {
+                flatFailed = true;
+            }
+        return f;
+    }
+
+    public int width() {
+        return schema.length();
+    }
+
     @Override
     public int predict(double[] x) {
-        return model.predict(Tuple.of(x, schema));
+        FlatTrees.Boost f = flat();
+        return f != null ? f.predict(x, null) : model.predict(Tuple.of(x, schema));
     }
 
     @Override
     public int predict(double[] x, double[] posteriori) {
+        FlatTrees.Boost f = flat();
+        return f != null ? f.predict(x, posteriori) : model.predict(Tuple.of(x, schema), posteriori);
+    }
+
+    /** Smile's own prediction, for FlatTrees' parity check. */
+    int predictSmile(double[] x, double[] posteriori) {
         return model.predict(Tuple.of(x, schema), posteriori);
     }
 }

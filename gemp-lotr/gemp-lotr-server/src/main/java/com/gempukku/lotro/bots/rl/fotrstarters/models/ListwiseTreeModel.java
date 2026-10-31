@@ -91,12 +91,42 @@ public final class ListwiseTreeModel implements SoftClassifier<double[]>, Serial
         return new ListwiseTreeModel(trees, data.schema());
     }
 
+    private transient volatile FlatTrees.Tree[] flat;
+    private transient volatile boolean flatFailed;
+
     public double score(double[] x) {
+        if (FlatTrees.ENABLED && !flatFailed) {
+            FlatTrees.Tree[] f = flat;
+            if (f == null)
+                try {
+                    flat = f = FlatTrees.flatten(trees);
+                } catch (RuntimeException e) {
+                    flatFailed = true;
+                }
+            if (f != null)
+                return FlatTrees.sum(f, SHRINKAGE, x);
+        }
+        return scoreSmile(x);
+    }
+
+    double scoreSmile(double[] x) {
         Tuple tuple = Tuple.of(x, schema);
         double s = 0;
         for (RegressionTree tree : trees)
             s += SHRINKAGE * tree.predict(tuple);
         return s;
+    }
+
+    public int width() {
+        return schema.length();
+    }
+
+    /** Smile's own prediction, for FlatTrees' parity check. */
+    int predictSmile(double[] x, double[] posteriori) {
+        double p = 1 / (1 + Math.exp(-scoreSmile(x)));
+        posteriori[0] = 1 - p;
+        posteriori[1] = p;
+        return p > 0.5 ? 1 : 0;
     }
 
     @Override

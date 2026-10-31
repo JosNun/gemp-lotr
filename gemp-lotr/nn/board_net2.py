@@ -355,6 +355,8 @@ def main():
     ap.add_argument('--teacher', default=None, help='searched teacher boards (BotTeach --boards), comma separated')
     ap.add_argument('--teacher-weight', type=float, default=1.0)
     ap.add_argument('--lam', type=float, default=0.1, help='the search temperature for the soft targets')
+    ap.add_argument('--people-frac', type=float, default=1.0,
+                    help='each epoch, this share of people\'s decisions (all teacher boards): a quicker round')
     ap.add_argument('--per-game', type=int, default=0,
                     help='each epoch, only this many random positions of each game (a judge that cannot memorise games)')
     args = ap.parse_args()
@@ -422,6 +424,9 @@ def main():
     by_game = [np.array(v) for v in by_game.values()]
 
     def epoch_rows():
+        if args.people_frac < 1:
+            people = np.random.choice(n_people, int(n_people * args.people_frac), replace=False)
+            return np.random.permutation(np.concatenate([people, np.arange(n_people, len(train['cx']))]))
         if not args.per_game:
             return np.random.permutation(len(train['cx']))
         pick = [v if len(v) <= args.per_game else np.random.choice(v, args.per_game, replace=False) for v in by_game]

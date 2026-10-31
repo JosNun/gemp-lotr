@@ -192,6 +192,18 @@ public class AnyPhaseCardActionTrainer extends AbstractTrainer {
         SoftClassifier<double[]> model = modelRegistry.getModel(getClass());
         if (model == null)
             return null;
+        var alone = modelRegistry.getBoardNet2();
+        if (alone != null) {
+            // where the trees' share is 0 the network decides alone: skip the trees and the probe that feeds them --
+            // in a pure-network bot's play-outs they were half the time and decided nothing
+            var r = alone.read(gameState, decision, playerName);
+            if (r != null && alone.treeWeight(r.context()) == 0) {
+                int pick = com.gempukku.lotro.bots.rl.fotrstarters.BoardNet2.argmax(r.options());
+                int n = decision.getDecisionParameters().getOrDefault("actionId", new String[0]).length;
+                if (pick >= 0 && r.options().length == n + 1)
+                    return pick == n ? "" : String.valueOf(pick);
+            }
+        }
         boolean rich = modelRegistry.isAnyPhaseRich();
         // all the probe's numbers where the model directory names the context; the first 20 for a skirmish-only model
         int probeLength = modelRegistry.getProbeContexts().contains(contextName(decision.getText()))
