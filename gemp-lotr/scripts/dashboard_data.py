@@ -187,6 +187,48 @@ def status():
     return {'jobs': uniq, 'logs': logs[::-1]}
 
 
+def current_round():
+    """The generation in progress, read off the round log as it is written: its step and what it has measured so far."""
+    f = os.path.join(L, 'nn', 'selfplay.log')
+    if not os.path.exists(f):
+        return None
+    text = open(f, errors='replace').read()
+    starts = [m.start() for m in re.finditer(r'^== generation ', text, re.M)]
+    if not starts or 'selfplay done' in text[starts[-1]:]:
+        return None
+    sec = text[starts[-1]:]
+    m = re.match(r'== generation (\d+): (\S+) from (\S+) \((.+)\)', sec)
+    if not m:
+        return None
+    gen, name, parent, started = int(m.group(1)), m.group(2), m.group(3), m.group(4)
+    if os.path.exists(os.path.join(L, 'nn', 'rounds', f'gen-{gen:02d}.json')):
+        return None  # finished: the generations panel has it
+    cur = {'gen': gen, 'name': name, 'parent': parent, 'started': started, 'step': 'play'}
+    boards = os.path.join(L, 'nn', f'sp-teach-{gen:02d}', 'boards.jsonl')
+    if os.path.exists(boards):
+        cur['boards'] = sum(1 for _ in open(boards))
+    m = re.search(r'^play:\s+(\d+) searched boards from (\d+) games, (\d+) min', sec, re.M)
+    if m:
+        cur.update(step='learn', boards=int(m.group(1)), playMinutes=int(m.group(3)))
+    m = re.search(r'search overrules the network on ([\d.]+)% of (\d+) searched decisions \(value spread: median ([\d.]+)', sec)
+    if m:
+        cur.update(overrule=float(m.group(1)), spread=float(m.group(3)))
+    m = re.search(r'^epoch 1: .*July: (.+?); win AUC', sec, re.M)
+    if m:
+        cur['step'] = 'check'
+        cur['fineTune'] = {k.strip(): float(v) for k, v in re.findall(r'([a-z ]+?) ([\d.]+)%', m.group(1)) if k.strip() in CONTEXTS}
+    m = re.search(r'counterfactual: (\d+) decisions asked, bot agreed with the human on (\d+)', sec)
+    if m:
+        cur['agreement'] = round(100 * int(m.group(2)) / int(m.group(1)), 1)
+    res = re.findall(r'^(\S+) vs (\S+) A ([\d.]+)% \+- ([\d.]+)', sec, re.M)
+    cur['results'] = [{'a': a, 'b': b, 'rate': float(r), 'ci': float(c)} for a, b, r, c in res]
+    m = re.search(r'^adopted: (\w+)', sec, re.M)
+    if m:
+        cur['step'] = 'report'
+        cur['adopted'] = m.group(1) == 'yes'
+    return cur
+
+
 def rounds():
     out = []
     for f in sorted(glob.glob(os.path.join(L, 'nn', 'rounds', '*.json'))):
@@ -217,7 +259,7 @@ def collect():
             r['elo'] = full[r['name']]['elo']
     data = {'updated': time.time(), 'bots': bots, 'anchor': ANCHOR, 'training': training(), 'agreement': agree,
             'h2h': h2h, 'pool': pool, 'poolStyles': {b: v for b, v in styles.items() if b in main}, 'elo': ladder, 'peopleEnds': people_ends(),
-            'status': status(), 'rounds': rs, 'contexts': CONTEXTS}
+            'status': status(), 'rounds': rs, 'current': current_round(), 'contexts': CONTEXTS}
     os.makedirs(os.path.dirname(OUT), exist_ok=True)
     tmp = OUT + '.tmp'
     json.dump(data, open(tmp, 'w'))
