@@ -1699,6 +1699,43 @@ The outcome head overfits: its training loss falls 1.09 -> 0.08 over the 8 epoch
 (dozens of positions a game: it can learn "this game was won"). A judge is trained on its own (`--decision-weight 0`,
 more dropout, best July AUC kept). Not yet in the bot: that needs the Java encoder for v4 boards and a head per decision.
 
+## Self-play rounds, and what the trees know (2026-10-30/31)
+
+`scripts/selfplay.sh` (expert iteration anchored to people): each generation the bot plays 300 league games (its
+parent, older generations, sel10-net6, the five style bots) in BotTeach; at 30% of card actions every option is played
+out a phase and scored by the outcome-only judge (`judge2-d256-best`, July AUC 0.761: two positions of each game an
+epoch -- training on every position memorised games, 0.743 -> 0.712); the network is fine-tuned on a quarter of people's
+decisions plus the last three rounds' searched boards, target = its prior x exp(value / lambda) over the options tried;
+adopted if no weaker than its parent and July agreement within 0.3. Speed: FlatTrees (Smile's trees as arrays, identical
+on 94,000 predictions), the assignment probe's per-decision cache, one network inference a decision (BoardNet2.read
+was asked twice), boards run on the smallest exported card count, play-outs ending with their phase: a generation
+4-5 h -> ~3 h.
+
+| generation | lineage, settings | vs parent | vs sel10-net6 | the network alone vs sel10-net6 | July |
+|---|---|---|---|---|---|
+| 1, 2 | pure network (sel10-n2p), boards x1, lambda 0.1 | 50.9, 49.3 | 34.6, 34.5 | (same) | 71.1 |
+| 3 | mixed (trees 0.6; trees alone at move and skirmish), x4, lambda 0.05 | 50.6 | 49.3 | 35.6 | 71.6 |
+| 4 | lambda 0.01, move boards | 49.7 | 49.7 | 35.9 | 71.5 |
+| 5 | | 50.4 | | 34.7 | 71.5 |
+| 6 | | 50.9 | 50.1 | 32.5 (a second run: 34.5) | 71.5 |
+
+Why so little: at lambda 0.05 the soft target switched only 6% of the decisions the search disagreed with (0.01: 24%,
+0.005: 36%); the network learned the search's choices only partly (on its own boards it picks the search's best 36.9
+-> 39.5% in a round at 0.01); "move again?" was never searched while labelling (fixed); and the pure network moves
+again 0.5-0.8% of the time (sel10-net6 9.3%, people 23%). In the mixed lineage the play-outs are the mixed bot's, so the
+search teaches what is best when the trees play on -- the network alone did not gain (34.6 .. 32.5). The search's
+overrule rate fell 65 -> 58% over the rounds at lambda 0.01: the network came to agree with it without getting stronger.
+
+**What the trees know** (`Recording`, BotVsBot -Dbvb.boards): sel10-net6 against itself and the five style bots on the
+training decks, 4,799 games, 218,410 of its decisions with its answers (35% sampled; both seats in the mirror). The
+people-only network trained on people's decisions plus these (3 passes, half of each a pass, from board_net2-d256-e8):
+it picks sel10-net6's choice on 84.1% of those boards (77.2% before; Shadow plays 73.1 -> 84.1, reconcile 56.9 -> 66.0),
+July unchanged (Fellowship+Shadow 66.0%; through the bot 71.3%), and **alone it plays sel10-net6 39.9% +- 1.2** (34.6
+before) -- more than six rounds of self-play gave. Mixed with the trees (sp-distill-mix): 50.0% +- 1.2, July 71.5%.
+Generations 7-10 continue from it, recording every league position with its outcome (BotTeach -Dteach.positions), the
+judge retrained on those and the trees' games each round (JUDGE_RETRAIN), turn-long play-outs for moves and Fellowship
+plays (-Dsearch.turnCutFor) -- the user's point that the payoff of a decision can come turns later than the phase.
+
 ## How human is "agreement with people", and play by precedent (2026-10-31)
 
 **The measure rewards the consensus.** The user asked whether a real person would score higher on it than the bot. No:

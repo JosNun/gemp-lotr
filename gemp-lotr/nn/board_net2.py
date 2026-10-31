@@ -148,7 +148,7 @@ def encode(path, rows, seen, grow, routes, kinds=None):
         win, route = -1, -1
         if g:
             win = int(g['winner'] == r['player'])
-            if g['route'] in ROUTES:
+            if g.get('route') in ROUTES:  # an outcome line may have none (an end the route reader cannot name)
                 route = ROUTES.index(g['route']) + (0 if win else 3)
         for k, v in (('state', np.array(r['state'] + extra, np.float32)), ('cf', cf), ('ci', ci), ('cm', cm),
                      ('cd', cd), ('cz', cz), ('ck', ck), ('os', os_), ('ok', ok), ('oc', oc), ('ti', ti), ('tv', tv),
