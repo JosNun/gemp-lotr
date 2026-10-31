@@ -12,7 +12,7 @@
 # usage: scripts/selfplay.sh <first gen> <last gen>
 #   env: START (the bot generation 0 is, default sel10-n2p), START_PT (its checkpoint), JUDGE_PT (the judge),
 #        GAMES (teacher games a round, 600), ROLLOUTS (8), TEACH_RATE (0.3), LAM (0.1), MIX ("default 0": pure network),
-#        PHASE_CUT (true: play-outs end with the phase they branched in -- 3.5x the searched decisions an hour of
+#        NET6_EVERY (1: the match against sel10-net6 every generation), PHASE_CUT (true: play-outs end with the phase they branched in -- 3.5x the searched decisions an hour of
 #        ending them with the turn, value gaps a third smaller), PEOPLE_FRAC (0.25 of people's decisions a round)
 set -u
 cd ~/dev/gemp-lotr/gemp-lotr
@@ -70,7 +70,9 @@ for gen in $(seq $1 $2); do
   (cd ~ && HL_OUT=$L/hl HL_EXTRA="--decklists $N/decklists-2022.jsonl" /tmp/human-like.sh $NAME 2>&1 | grep counterfactual) | tee -a $LOG
   GL=$N/sp-games-$G.jsonl; rm -f $GL
   h2h $NAME $PREV $GL | tee -a $LOG
-  h2h $NAME sel10-net6 $GL | tee -a $LOG
+  # the full match against sel10-net6 every NET6_EVERY generations (the parent's decides adoption; the pure check shows
+  # the learning) -- a mixed generation's checks were half its time
+  [ $((gen % ${NET6_EVERY:-1})) -eq 0 ] && h2h $NAME sel10-net6 $GL | tee -a $LOG
   if [ -n "${PURE_CHECK:-}" ]; then
     # the network on its own, whatever the lineage's mix: is it the one learning?
     rm -rf bot-models-exp/$NAME-pure && mkdir bot-models-exp/$NAME-pure
