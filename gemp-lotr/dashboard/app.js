@@ -144,7 +144,8 @@ function renderKpis(d) {
     { label: 'Strongest (Elo)', value: best || '—', note: best ? `${elo[best].elo.toFixed(0)} Elo` : '', gold: true },
     { label: 'Most human-like', value: bestAgree ? bestAgree[0] : '—', note: bestAgree ? `${bestAgree[1].all}% of July decisions` : '' },
     { label: 'Best against the pool', value: poolBest ? `${poolBest[1].toFixed(1)}%` : '—', note: poolBest ? poolBest[0] : '' },
-    { label: 'Self-play generation', value: lastRound ? `#${lastRound.gen}` : 'not started', note: lastRound ? lastRound.name : 'the round loop comes next' },
+    d.current ? { label: 'Self-play generation', value: `#${d.current.gen}`, note: `${d.current.name}: ${d.current.step} step, in progress` }
+      : { label: 'Self-play generation', value: lastRound ? `#${lastRound.gen}` : 'not started', note: lastRound ? lastRound.name : 'the round loop comes next' },
   ];
   html('kpis', tiles.map((t) => `<div class="kpi"><div class="label">${t.label}</div>
       <div class="value ${t.gold ? 'gold' : ''}">${t.value}</div><div class="note">${t.note}</div></div>`).join(''));
@@ -243,10 +244,32 @@ function renderH2h(d) {
   }).join('') + '</table>');
 }
 
+function renderCurrent(d) {
+  const c = d.current;
+  if (!c) return '';
+  const steps = ['play', 'learn', 'check', 'report'];
+  const pills = steps.map((s) => `<span style="padding:3px 9px;margin-right:4px;font-size:12px;border:1px solid var(--edge);
+    ${s === c.step ? 'background:#2a3340;color:var(--gold);border-color:var(--gold)' : steps.indexOf(s) < steps.indexOf(c.step) ? 'color:var(--up)' : 'color:var(--dim)'}">${s}</span>`).join('');
+  const facts = [];
+  if (c.boards !== undefined) facts.push(`<b>${c.boards.toLocaleString()}</b> searched boards${c.playMinutes ? ` in ${c.playMinutes} min` : ' so far'}`);
+  if (c.overrule !== undefined) facts.push(`search overrules the network on <b>${c.overrule}%</b> (median value gap ${c.spread})`);
+  if (c.agreement !== undefined) facts.push(`July agreement <b>${c.agreement}%</b>`);
+  for (const r of c.results || []) facts.push(`vs ${r.b}: <b>${r.rate}% ± ${r.ci}</b>`);
+  if (c.adopted !== undefined) facts.push(`adopted: <b class="${c.adopted ? 'win' : 'loss'}">${c.adopted ? 'yes' : 'no'}</b>`);
+  let ft = '';
+  if (c.fineTune) ft = '<div style="margin-top:8px;color:var(--dim);font-size:12px">after fine-tuning, July by decision: '
+    + Object.entries(c.fineTune).map(([k, v]) => `${CTX_NAMES[k] || k} ${v}%`).join(' · ') + '</div>';
+  return `<div style="border:1px solid var(--gold);padding:12px 14px;margin-bottom:14px">
+    <div style="display:flex;justify-content:space-between;flex-wrap:wrap;gap:8px"><div><b style="color:var(--gold)">Generation ${c.gen} in progress</b>
+    <span class="hint">${c.name} from ${c.parent} · started ${c.started}</span></div><div>${pills}</div></div>
+    <div style="margin-top:8px;line-height:1.7">${facts.join(' &nbsp;·&nbsp; ') || 'starting'}</div>${ft}</div>`;
+}
+
 function renderRounds(d) {
   const body = $('rounds');
+  const live = renderCurrent(d);
   if (!d.rounds.length) {
-    body.innerHTML = `<div class="empty">The round loop hasn't started. Each generation will add:
+    body.innerHTML = live + `<div class="empty">${live ? 'When this generation finishes, the panel adds' : 'The round loop hasn\'t started. Each generation will add'}:
       <ul><li>Elo by generation against fixed anchors, and the league matrix (every generation against every other)</li>
       <li>win rate against each pool style; agreement with people per decision</li>
       <li>its games on the play-style map beside people's, coloured by generation (exploration)</li>
@@ -255,7 +278,7 @@ function renderRounds(d) {
       <li>where the search overrules the network, and what that is worth; judge calibration; games per hour</li></ul></div>`;
     return;
   }
-  body.innerHTML = '';
+  body.innerHTML = live;
   const grid = document.createElement('div');
   grid.className = 'small-multiples';
   const metric = (title, key, fmt, color) => {
