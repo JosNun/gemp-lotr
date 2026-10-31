@@ -57,6 +57,8 @@ public class BotTeach {
             movesSearched = new AtomicInteger(), movesTaken = new AtomicInteger(), assignmentsTaught = new AtomicInteger(), rbChecked = new AtomicInteger();
     /** Scores a rollout's position when --depth stops it early: P(win) for the player whose state it is. */
     static volatile SoftClassifier<double[]> valueModel;
+    /** The decision the teaching bot is answering on this thread. */
+    static final ThreadLocal<AwaitingDecision> DECIDING = new ThreadLocal<>();
     /**
      * -Dteach.opponents=&lt;kind&gt;,...: a league. The learning bot plays seat ~a and is the one searched; ~b is each
      * opponent in turn (game by game), in the main game and in the play-outs -- not the learner against itself.
@@ -637,6 +639,7 @@ public class BotTeach {
                     boolean search) implements BotPlayer {
         @Override
         public String chooseAction(GameState gameState, AwaitingDecision decision) {
+            DECIDING.set(decision); // for choose(), which records the move boards
             try {
                 var game = gameState.getGame();
                 for (String p : gameState.getPlayerNames()) {
@@ -772,12 +775,14 @@ public class BotTeach {
                 }
             }
             String[] results = decision.getDecisionParameters().get("results");
-            if (search && opts.choices() && decision.getDecisionType() == AwaitingDecisionType.MULTIPLE_CHOICE
+            boolean isMove = decision.getText() != null && decision.getText().toLowerCase().contains("another move");
+            if (search && (opts.choices() || moveRollouts > 0 && isMove)
+                    && decision.getDecisionType() == AwaitingDecisionType.MULTIPLE_CHOICE
                     && results != null && results.length > 1) {
                 // Yes/no and pick-one questions -- move again or stop, pay a cost to assign, keep or discard --
                 // which the models answer from a fixed state ranking or not at all. Searched, not labelled.
-                boolean move = moveRollouts > 0 && decision.getText() != null
-                        && decision.getText().toLowerCase().contains("another move");
+                // --move-rollouts alone searches "move again?" only, and its board is kept for the network.
+                boolean move = moveRollouts > 0 && isMove;
                 String best = move ? choose(gameState, results.length, moveRollouts, moveDepth)
                         : choose(gameState, results.length, opts.rollouts(), opts.depth());
                 if (move) {
@@ -820,8 +825,10 @@ public class BotTeach {
             long[] worlds = new SplittableRandom().longs(rollouts).toArray();
             String bestOption = null;
             double best = -1, worst = 2;
+            double[] values = new double[n];
             for (int i = 0; i < n; i++) {
                 double v = branch.value(prefix, getName(), String.valueOf(i), worlds, gameState, depth);
+                values[i] = v;
                 if (v > best) {
                     best = v;
                     bestOption = String.valueOf(i);
@@ -829,6 +836,22 @@ public class BotTeach {
                 worst = Math.min(worst, v);
             }
             choicesSearched.incrementAndGet();
+            AwaitingDecision decision = DECIDING.get();
+            if (BoardDump.OUT != null && decision != null && "move".equals(BoardDump.kind(decision))) {
+                // "move again?" for the network: both options' values, as the card actions' searched boards
+                BoardDump.GAME.set("teacher");
+                double[] st = com.gempukku.lotro.bots.rl.fotrstarters.BoardNet2.state(gameState, decision, getName());
+                var rec = st == null ? null : BoardDump.record(gameState.getGame(), decision, getName(),
+                        bestOption != null ? bestOption : "0", st);
+                if (rec != null) {
+                    com.alibaba.fastjson2.JSONArray searched = new com.alibaba.fastjson2.JSONArray();
+                    for (int i = 0; i < n; i++)
+                        searched.add(new double[]{i, values[i]});
+                    rec.put("searched", searched);
+                    rec.put("rollouts", rollouts);
+                    BoardDump.writeRecord(rec);
+                }
+            }
             return best > worst ? bestOption : null;
         }
 

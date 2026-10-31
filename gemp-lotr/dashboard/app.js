@@ -293,6 +293,7 @@ function renderRounds(d) {
   metric('Elo', 'elo', (v) => v.toFixed(0), '#d6b25e');
   metric('vs its parent', 'vsPrev', (v) => `${v.toFixed(1)}%`, '#4fb37a');
   metric('vs sel10-net6', 'vsNet6', (v) => `${v.toFixed(1)}%`, '#4fb37a');
+  metric('the network alone vs sel10-net6', 'pureVsNet6', (v) => `${v.toFixed(1)}%`, '#e0915b');
   metric('Pool mean', 'pool', (v) => `${v.toFixed(1)}%`, '#5b9bd5');
   metric('July agreement', 'agreement', (v) => `${v.toFixed(1)}%`, '#6cc3c9');
   metric('Search overrules the network', 'overrule', (v) => `${v.toFixed(1)}%`, '#a68be0');

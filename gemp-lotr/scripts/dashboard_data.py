@@ -79,7 +79,7 @@ def agreement():
     return out
 
 
-RESULT = re.compile(r'^(\S+) vs (\S+) A ([\d.]+)% \+- ([\d.]+)')
+RESULT = re.compile(r'^(\S+) vs (\S+) .*?A ([\d.]+)% \+- ([\d.]+)')
 POOL = re.compile(r'^(\S+) pool mean ([\d.]+)%')
 
 
@@ -220,7 +220,7 @@ def current_round():
     m = re.search(r'counterfactual: (\d+) decisions asked, bot agreed with the human on (\d+)', sec)
     if m:
         cur['agreement'] = round(100 * int(m.group(2)) / int(m.group(1)), 1)
-    res = re.findall(r'^(\S+) vs (\S+) A ([\d.]+)% \+- ([\d.]+)', sec, re.M)
+    res = re.findall(r'^(\S+) vs (\S+) .*?A ([\d.]+)% \+- ([\d.]+)', sec, re.M)
     cur['results'] = [{'a': a, 'b': b, 'rate': float(r), 'ci': float(c)} for a, b, r, c in res]
     m = re.search(r'^adopted: (\w+)', sec, re.M)
     if m:

@@ -50,7 +50,7 @@ for gen in $(seq $1 $2); do
   t0=$(date +%s)
   JAVA_OPTS="-Dsearch.phaseCut=${PHASE_CUT:-true} -Dsearch.judge=bot-models-exp/$PREV -Dteach.opponents=$LEAGUE -Dteach.noTrain -Xmx20g" SNAP=$S \
     /tmp/run-classes.sh BotTeach --clone --base bot-models-exp/$PREV --value bot-models-exp/value-real \
-    --rollouts $ROLLOUTS --depth 1 --max-candidates 8 --teach-rate $TEACH_RATE --max-decisions 3000 \
+    --rollouts $ROLLOUTS --depth 1 --move-rollouts $ROLLOUTS --move-depth 1 --max-candidates 8 --teach-rate $TEACH_RATE --max-decisions 3000 \
     --suite decks/real/suite-train.txt --games $GAMES --out $N/sp-teach-$G --boards $N/sp-teach-$G/boards.jsonl \
     2>&1 | grep -v SLF4J | tail -3 >> $LOG
   rm -rf $S
@@ -60,21 +60,28 @@ for gen in $(seq $1 $2); do
   # 2. learn: this round's boards and the last two rounds' (the search's labels from older play are still about
   # the game; the people's months anchor everything)
   TEACH=$(ls $N/sp-teach-*/boards.jsonl | tail -3 | paste -sd, -)
-  (cd nn && uv run python board_net2.py --data $N --init $PREV_PT --teacher $TEACH --lam $LAM --epochs 1 --lr 1e-4 --people-frac ${PEOPLE_FRAC:-0.25} \
+  (cd nn && uv run python board_net2.py --data $N --init $PREV_PT --teacher $TEACH --teacher-weight ${TEACHER_WEIGHT:-1} --lam $LAM --epochs 1 --lr 1e-4 --people-frac ${PEOPLE_FRAC:-0.25} \
     --save $N/$NAME.pt 2>&1 | grep -E "searched|overrules|^epoch|Error|Traceback") | tee -a $LOG
 
   # 3. check
   rm -rf bot-models-exp/$NAME && cp -R bot-models-exp/$PREV bot-models-exp/$NAME
   (cd nn && uv run python export_onnx2.py --model $N/$NAME.pt --judge $JUDGE_PT --out ../bot-models-exp/$NAME 2>&1 | grep exported) | tee -a $LOG
-  echo "$MIX" > bot-models-exp/$NAME/board-net2-mix
+  printf '%b\n' "$MIX" > bot-models-exp/$NAME/board-net2-mix
   (cd ~ && HL_OUT=$L/hl HL_EXTRA="--decklists $N/decklists-2022.jsonl" /tmp/human-like.sh $NAME 2>&1 | grep counterfactual) | tee -a $LOG
   GL=$N/sp-games-$G.jsonl; rm -f $GL
   h2h $NAME $PREV $GL | tee -a $LOG
   h2h $NAME sel10-net6 $GL | tee -a $LOG
+  if [ -n "${PURE_CHECK:-}" ]; then
+    # the network on its own, whatever the lineage's mix: is it the one learning?
+    rm -rf bot-models-exp/$NAME-pure && mkdir bot-models-exp/$NAME-pure
+    for f in bot-models-exp/$NAME/*; do ln -s ../$NAME/$(basename $f) bot-models-exp/$NAME-pure/; done
+    rm bot-models-exp/$NAME-pure/board-net2-mix && echo "default 0" > bot-models-exp/$NAME-pure/board-net2-mix
+    h2h $NAME-pure sel10-net6 $N/sp-games-$G-pure.jsonl | tee -a $LOG
+  fi
   [ -n "${POOL_EVERY:-}" ] && [ $((gen % POOL_EVERY)) -eq 0 ] && $L/scripts/pooleval.sh $NAME | grep "pool mean" | tee -a $LOG
 
   # adopted: no weaker than the parent (its 95% interval reaches 50%) and no less human-like (within 0.3 points)
-  read RATE CI <<< $(grep -E "^$NAME vs $PREV A" $LOG | tail -1 | sed -E 's/.*A ([0-9.]+)% \+- ([0-9.]+).*/\1 \2/')
+  read RATE CI <<< $(grep -E "^$NAME vs $PREV .*A [0-9.]+% \+-" $LOG | tail -1 | sed -E 's/.* A ([0-9.]+)% \+- ([0-9.]+).*/\1 \2/')
   NEW_HL=$(awk -F'\t' '{T++; if($9=="0") A++} END{print 100*A/T}' $L/hl/hl-$NAME.tsv)
   OLD_HL=$(awk -F'\t' '{T++; if($9=="0") A++} END{print 100*A/T}' $L/hl/hl-$PREV.tsv 2>/dev/null || echo 0)
   ADOPT=$(python3 -I -c "print('yes' if ${RATE:-0} + ${CI:-0} >= 50 and $NEW_HL >= $OLD_HL - 0.3 else 'no')")
