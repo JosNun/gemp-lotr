@@ -776,6 +776,13 @@ public class BotTeach {
             }
             String[] results = decision.getDecisionParameters().get("results");
             boolean isMove = decision.getText() != null && decision.getText().toLowerCase().contains("another move");
+            if (!search && moveRollouts > 0 && isMove && BoardDump.OUT != null && results != null && results.length > 1) {
+                // labelling, not playing by the search: every "move again?" is searched for its board (a few a game),
+                // and the game goes on with the bot's own answer, as the card actions' labels do
+                choose(gameState, results.length, moveRollouts, moveDepth);
+                movesSearched.incrementAndGet();
+                return inner.chooseAction(gameState, decision);
+            }
             if (search && (opts.choices() || moveRollouts > 0 && isMove)
                     && decision.getDecisionType() == AwaitingDecisionType.MULTIPLE_CHOICE
                     && results != null && results.length > 1) {
