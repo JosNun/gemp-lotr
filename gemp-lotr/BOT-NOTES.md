@@ -1699,6 +1699,23 @@ The outcome head overfits: its training loss falls 1.09 -> 0.08 over the 8 epoch
 (dozens of positions a game: it can learn "this game was won"). A judge is trained on its own (`--decision-weight 0`,
 more dropout, best July AUC kept). Not yet in the bot: that needs the Java encoder for v4 boards and a head per decision.
 
+## How human is "agreement with people", and play by precedent (2026-10-31)
+
+**The measure rewards the consensus.** The user asked whether a real person would score higher on it than the bot. No:
+the bot plays the most common choice, a person samples from what people do, so a person agrees with another about
+sum(p^2) of the time where the bot gets max(p). From board_net2's probabilities on July (slightly over-confident: it
+expects 75.6% and gets 72.4%): the bot 72.4%, a random person with another ~67% (Fellowship 67.3 against ~62, Shadow
+63.6 against ~59, reconcile 58.3 against ~47, move 87.3 against ~85). So agreement ranks bots by closeness to what
+people typically do; it cannot say whether a bot would pass for a person (a bot playing exactly like one player would
+score lower). For that: sample from the network instead of its top choice (variety), or a discriminator test.
+
+**Play by precedent** (`nn/knn_policy.py`, the user's idea): every people's decision kept as the network's board token
+(the 256 numbers each option is scored against), and at a July decision the K most similar of the same prompt vote
+for their choice where the same card doing the same thing is on offer. Library: January, March and May, 374,918
+decisions; 83,300 July decisions. Network 72.4%; precedent K=1 42.6% (a neighbour's choice on offer on 54% of
+decisions), K=5 50.1%, K=25 52.0%, K=100 50.0%; winners' decisions only 51.6% at K=25. The network is not a lookup of
+similar past boards: it composes what it knows of cards, costs and board, which exact precedent cannot.
+
 ## Human Movie Block games, and assignments learned from them (2026-10-19)
 
 **2022 replays.** October and November 2022 (`GEMP-LOTR-Replays_2022-1{0,1}.zip`, ~340 MB
