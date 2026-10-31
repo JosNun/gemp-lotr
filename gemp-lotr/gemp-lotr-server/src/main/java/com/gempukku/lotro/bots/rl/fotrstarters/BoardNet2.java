@@ -48,6 +48,9 @@ public final class BoardNet2 {
 
     private final OrtEnvironment env = OrtEnvironment.getEnvironment();
     private final OrtSession session, judge;
+    /** The same models exported for boards of at most K cards (board-net2-cK.onnx): padding costs as much as cards. */
+    private final java.util.TreeMap<Integer, OrtSession> sessionBySize = new java.util.TreeMap<>(),
+            judgeBySize = new java.util.TreeMap<>();
     private final Map<String, Integer> rows = new HashMap<>();
     private final Set<Integer> seen = new HashSet<>();
     /** The trees' share when mixed, per context (board-net2-mix: "context weight" lines, "default" for the rest). */
@@ -73,6 +76,13 @@ public final class BoardNet2 {
         session = env.createSession(dir.resolve("board-net2.onnx").toString(), options);
         Path j = dir.resolve("board-net2-judge.onnx");
         judge = Files.exists(j) ? env.createSession(j.toString(), options) : null;
+        for (int k = 8; k < MAX_CARDS; k += 8) {
+            Path m = dir.resolve("board-net2-c" + k + ".onnx"), mj = dir.resolve("board-net2-judge-c" + k + ".onnx");
+            if (Files.exists(m))
+                sessionBySize.put(k, env.createSession(m.toString(), options));
+            if (judge != null && Files.exists(mj))
+                judgeBySize.put(k, env.createSession(mj.toString(), options));
+        }
     }
 
     /** The network in {@code dir}, or null if there is none. */
@@ -106,10 +116,21 @@ public final class BoardNet2 {
         }
     }
 
+    /**
+     * The last reading on this thread, by decision: a decision's answer can ask twice (whether the network decides alone,
+     * then the mix), and an inference is most of what a network bot's decision costs.
+     */
+    private static final ThreadLocal<Object[]> LAST = new ThreadLocal<>(); // {network, decision, game state, player, Result}
+
     /** The network's reading of the decision the bot is answering, from its game state; null if none. */
     public Result read(com.gempukku.lotro.game.state.GameState gs, AwaitingDecision d, String player) {
+        Object[] last = LAST.get();
+        if (last != null && last[0] == this && last[1] == d && last[2] == gs && player.equals(last[3]))
+            return (Result) last[4];
         double[] state = state(gs, d, player);
-        return state == null ? null : read(gs.getGame(), d, player, state);
+        Result r = state == null ? null : read(gs.getGame(), d, player, state);
+        LAST.set(new Object[]{this, d, gs, player, r});
+        return r;
     }
 
     /** log-softmax of {@code v} (-inf entries stay -inf). */
@@ -311,17 +332,30 @@ public final class BoardNet2 {
         state[st.size() + 2] = bags.containsKey("myDeck") ? 1f : 0f;
         String context = context(r);
         long cx = CONTEXTS.indexOf(context);
-        OrtSession s = useJudge && judge != null ? judge : session;
+        boolean asJudge = useJudge && judge != null;
+        OrtSession s = asJudge ? judge : session;
+        int k = MAX_CARDS;
+        var smaller = (asJudge ? judgeBySize : sessionBySize).ceilingEntry(Math.max(1, nc));
+        if (smaller != null) { // the smallest model that holds the board: the same answers for less work
+            s = smaller.getValue();
+            k = smaller.getKey();
+            cf = Arrays.copyOf(cf, k);
+            ci = Arrays.copyOf(ci, k);
+            cz = Arrays.copyOf(cz, k);
+            cm = Arrays.copyOf(cm, k);
+            cd = Arrays.copyOf(cd, k * DYN);
+            ck = Arrays.copyOf(ck, k * N_KW);
+        }
         Map<String, OnnxTensor> in = new LinkedHashMap<>();
         try {
             in.put("state", OnnxTensor.createTensor(env, FloatBuffer.wrap(state), new long[]{1, state.length}));
             in.put("cx", OnnxTensor.createTensor(env, LongBuffer.wrap(new long[]{cx}), new long[]{1}));
-            in.put("cf", t(cf, 1, MAX_CARDS));
-            in.put("ci", t(ci, 1, MAX_CARDS));
+            in.put("cf", t(cf, 1, k));
+            in.put("ci", t(ci, 1, k));
             in.put("cm", OnnxTensor.createTensor(env, new boolean[][]{cm}));
-            in.put("cd", t(cd, 1, MAX_CARDS, DYN));
-            in.put("cz", t(cz, 1, MAX_CARDS));
-            in.put("ck", t(ck, 1, MAX_CARDS, N_KW));
+            in.put("cd", t(cd, 1, k, DYN));
+            in.put("cz", t(cz, 1, k));
+            in.put("ck", t(ck, 1, k, N_KW));
             in.put("os", t(os, 1, MAX_OPTS));
             in.put("ok", t(ok, 1, MAX_OPTS));
             in.put("oc", t(oc, 1, MAX_OPTS));
