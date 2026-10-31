@@ -22,6 +22,17 @@ from board_net import load_cards
 
 NAMES = ['state', 'cx', 'cf', 'ci', 'cm', 'cd', 'cz', 'ck', 'os', 'ok', 'oc', 'ti', 'tv', 'om', 'am', 'af', 'bg', 'bc']
 TYPES = {'state': np.float32, 'cm': np.bool_, 'om': np.bool_}
+# the batch, and the cards: a board of 25 cards need not run 64 (padding is masked, so the answers are the same) --
+# the Java encoder sends only the cards there are
+# The cards axis cannot be left open (the attention's reshapes keep the traced length), so the model is exported again
+# for smaller boards: board-net2-cK.onnx runs K cards, and the Java encoder picks the smallest K that holds the board.
+AXES = {n: {0: 'batch'} for n in NAMES + ['opt', 'asg', 'win']}
+CARD_INPUTS = ('cf', 'ci', 'cm', 'cd', 'cz', 'ck')
+BUCKETS = (16, 24, 32, 40, 48)
+
+
+def cut(tensors, k):
+    return [t[:, :k] if n in CARD_INPUTS else t for n, t in zip(NAMES, tensors)]
 
 
 class Exported(torch.nn.Module):
@@ -42,17 +53,20 @@ def inputs(data, idx):
     return [torch.from_numpy(np.ascontiguousarray(data[k][idx]).astype(TYPES.get(k, np.int64))) for k in NAMES]
 
 
-def export(ck_path, table, data, path):
+def export(ck_path, table, data, path, buckets=True):
     ck = torch.load(ck_path, weights_only=False, map_location='cpu')
     a = ck['args']
     model = bn.BoardNet2(table, data['state'].shape[1], d=a['d'], layers=a['layers'])
     model.load_state_dict(ck['model'])
     model.eval()
     ex = Exported(model, ck['mean'], ck['std']).eval()
-    torch.onnx.export(ex, tuple(inputs(data, np.arange(4))), path, input_names=NAMES,
-                      output_names=['opt', 'asg', 'win'],
-                      dynamic_axes={n: {0: 'batch'} for n in NAMES + ['opt', 'asg', 'win']}, opset_version=17,
-                      dynamo=False)
+    sample = inputs(data, np.arange(4))
+    torch.onnx.export(ex, tuple(sample), path, input_names=NAMES, output_names=['opt', 'asg', 'win'],
+                      dynamic_axes=AXES, opset_version=17, dynamo=False)
+    if buckets:
+        for k in BUCKETS:
+            torch.onnx.export(ex, tuple(cut(sample, k)), path.replace('.onnx', f'-c{k}.onnx'), input_names=NAMES,
+                              output_names=['opt', 'asg', 'win'], dynamic_axes=AXES, opset_version=17, dynamo=False)
     return ex, ck
 
 
@@ -93,6 +107,16 @@ def main():
         want = [t.numpy() for t in ex(*inputs(data, idx))]
     om = feeds['om']
     d_opt = np.abs(np.where(om, got[0] - want[0], 0)).max()
+    # each smaller model on the boards that fit it: the same answers as the full one
+    n_cards = feeds['cm'].sum(1)
+    for k in BUCKETS:
+        fit = np.where(n_cards <= k)[0]
+        if not len(fit):
+            continue
+        sk = ort.InferenceSession(os.path.join(args.out, f'board-net2-c{k}.onnx'))
+        got_k = sk.run(None, {n: (v[fit][:, :k] if n in CARD_INPUTS else v[fit]) for n, v in feeds.items()})
+        dk = np.abs(np.where(om[fit], got_k[0] - got[0][fit], 0)).max()
+        print(f'{k} cards: {len(fit)} boards fit, options max |diff| {dk:.2e}, outcome {np.abs(got_k[2] - got[2][fit]).max():.2e}')
     d_win = np.abs(got[2] - want[2]).max()
     print(f'exported to {args.out}; ONNX Runtime against PyTorch on {len(idx)} records: options max |diff| {d_opt:.2e}, '
           f'outcome {d_win:.2e}')
