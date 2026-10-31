@@ -27,13 +27,16 @@ def main():
     args = ap.parse_args()
     r = {'gen': args.gen, 'name': args.name, 'parent': args.parent, 'adopted': args.adopted == 'yes'}
     text = open(args.log, errors='replace').read() if os.path.exists(args.log) else ''
-    for a, b, rate, ci in re.findall(r'^(\S+) vs (\S+) A ([\d.]+)% \+- ([\d.]+)', text, re.M):
+    for a, b, rate, ci in re.findall(r'^(\S+) vs (\S+) .*?A ([\d.]+)% \+- ([\d.]+)', text, re.M):
         if a != args.name:
             continue
         if b == args.parent:
             r['vsPrev'], r['vsPrevCi'] = float(rate), float(ci)
         elif b == 'sel10-net6':
             r['vsNet6'], r['vsNet6Ci'] = float(rate), float(ci)
+    for a, b, rate, ci in re.findall(r'^(\S+) vs (\S+) .*?A ([\d.]+)% \+- ([\d.]+)', text, re.M):
+        if a == args.name + '-pure' and b == 'sel10-net6':
+            r['pureVsNet6'], r['pureVsNet6Ci'] = float(rate), float(ci)
     m = re.search(rf'^{re.escape(args.name)} pool mean ([\d.]+)%', text, re.M)
     if m:
         r['pool'] = float(m.group(1))
