@@ -420,6 +420,11 @@ public class BotVsBot {
             BotGame.BOT_ERRORS.entrySet().stream().sorted(Map.Entry.<String, Integer>comparingByValue().reversed())
                     .limit(10).forEach(e -> System.out.printf("    %5d  %s%n", e.getValue(), e.getKey()));
         }
+        if (!BotGame.BOT_REJECTED.isEmpty()) {
+            System.out.println("  answers the engine refused (count, bot: decision) -- the fallback answered:");
+            BotGame.BOT_REJECTED.entrySet().stream().sorted(Map.Entry.<String, Integer>comparingByValue().reversed())
+                    .limit(15).forEach(e -> System.out.printf("    %5d  %s%n", e.getValue(), e.getKey()));
+        }
         if (!unknown.isEmpty()) {
             System.out.println("  decisions answered at random, by bot (count, decision):");
             unknown.entrySet().stream().sorted(Map.Entry.<String, Integer>comparingByValue().reversed()).limit(25)

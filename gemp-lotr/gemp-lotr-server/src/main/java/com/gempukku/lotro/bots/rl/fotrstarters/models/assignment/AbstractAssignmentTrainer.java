@@ -167,7 +167,17 @@ public abstract class AbstractAssignmentTrainer extends AbstractTrainer {
         double bestIllegalScore = Double.NEGATIVE_INFINITY;
         Map<String, List<String>> bestIllegalAssignment = null;
 
+        // the network deciding alone (trees' share 0): enumerate and check legality, but leave the scoring to it
+        var alone = modelRegistry.getBoardNet2();
+        boolean netAlone = alone != null && isForFp() && alone.treeWeight("assign fp") == 0;
         for (AssignmentInfo assignment : allAssignments) {
+            if (netAlone) {
+                if (legality.isLegal(side, freeCharIds, minionIds, assignment.physicalAssignment()))
+                    legal.add(Map.entry(0.5, assignment.physicalAssignment()));
+                else if (bestIllegalAssignment == null)
+                    bestIllegalAssignment = assignment.physicalAssignment();
+                continue;
+            }
             try {
                 double[] assignmentVector = CardFeatures.getAssignmentFeatures(assignment.blueprintAssignment(), woundsOnFp,
                         assignment.numberOfUnassignedMinions(), assignment.strengthOfUnassignedMinions());

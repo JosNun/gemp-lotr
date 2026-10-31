@@ -40,10 +40,30 @@ public final class AssignmentProbe {
         return m;
     }
 
+    /**
+     * Per decision, each card's strength, vitality, damage and overwhelm multiplier, asked of the engine once: every
+     * candidate assignment of a decision asks about the same cards, and nothing is assigned while they are scored.
+     * The probe was a quarter of a tree bot's time (JFR, 2026-10-30), most of it in these modifier queries.
+     */
+    private static final ThreadLocal<Object[]> CACHE = new ThreadLocal<>(); // {decision, game state, Map<id, int[4]>}
+
+    @SuppressWarnings("unchecked")
+    private static int[] stats(GameState gs, AwaitingDecision decision, PhysicalCard c) {
+        Object[] cache = CACHE.get();
+        if (cache == null || cache[0] != decision || cache[1] != gs) {
+            cache = new Object[]{decision, gs, new HashMap<Integer, int[]>()};
+            CACHE.set(cache);
+        }
+        return ((Map<Integer, int[]>) cache[2]).computeIfAbsent(c.getCardId(), id -> {
+            var game = gs.getGame();
+            var q = game.getModifiersQuerying();
+            return new int[]{q.getStrength(game, c), q.getVitality(game, c), q.getKeywordCount(game, c, Keyword.DAMAGE),
+                    q.getOverwhelmMultiplier(game, c)};
+        });
+    }
+
     /** The skirmishes {@code assignment} sets up at {@code decision}, with those already assigned. */
     public static double[] features(GameState gs, AwaitingDecision decision, Map<String, List<String>> assignment) {
-        var game = gs.getGame();
-        var q = game.getModifiersQuerying();
         Map<PhysicalCard, List<PhysicalCard>> fights = new LinkedHashMap<>();
         for (Assignment a : gs.getAssignments())
             fights.computeIfAbsent(a.getFellowshipCharacter(), k -> new ArrayList<>()).addAll(a.getShadowCharacters());
@@ -71,16 +91,18 @@ public final class AssignmentProbe {
             PhysicalCard fp = e.getKey();
             if (e.getValue().isEmpty())
                 continue;
-            int fpStrength = q.getStrength(game, fp), minions = 0, minionDamage = 0;
+            int[] fs = stats(gs, decision, fp);
+            int fpStrength = fs[0], minions = 0, minionDamage = 0;
             for (PhysicalCard m : e.getValue()) {
-                minions += q.getStrength(game, m);
-                minionDamage += q.getKeywordCount(game, m, Keyword.DAMAGE);
+                int[] ms = stats(gs, decision, m);
+                minions += ms[0];
+                minionDamage += ms[2];
             }
-            int multiplier = q.getOverwhelmMultiplier(game, fp);
+            int multiplier = fs[3];
             boolean overwhelmed = multiplier < CantBeOverwhelmedModifier.ImmuneToOverwhelmThreshold
                     && fpStrength * multiplier <= minions;
             boolean won = fpStrength > minions;
-            boolean dies = overwhelmed || !won && q.getVitality(game, fp) <= 1 + minionDamage;
+            boolean dies = overwhelmed || !won && fs[1] <= 1 + minionDamage;
             f[0]++;
             f[won ? 1 : 2]++;
             f[3] += overwhelmed ? 1 : 0;
@@ -90,9 +112,9 @@ public final class AssignmentProbe {
             minMargin = Math.min(minMargin, fpStrength - minions);
             f[8] += fpStrength - minions;
             if (won) {
-                int fpDamage = q.getKeywordCount(game, fp, Keyword.DAMAGE);
+                int fpDamage = fs[2];
                 for (PhysicalCard m : e.getValue())
-                    f[9] += q.getVitality(game, m) <= 1 + fpDamage ? 1 : 0;
+                    f[9] += stats(gs, decision, m)[1] <= 1 + fpDamage ? 1 : 0;
             }
         }
         f[7] = minMargin == Integer.MAX_VALUE ? 0 : minMargin;
@@ -106,7 +128,7 @@ public final class AssignmentProbe {
             PhysicalCard m = gs.findCardById(Integer.parseInt(minionIds[i]));
             if (m == null)
                 continue;
-            int s = q.getStrength(game, m);
+            int s = stats(gs, decision, m)[0];
             f[10]++;
             f[11] += s;
             leftMax = Math.max(leftMax, s);
@@ -120,7 +142,7 @@ public final class AssignmentProbe {
             if (c == null)
                 continue;
             f[13]++;
-            weakestFree = Math.min(weakestFree, q.getStrength(game, c));
+            weakestFree = Math.min(weakestFree, stats(gs, decision, c)[0]);
         }
         f[14] = f[10] > 0 && weakestFree != Integer.MAX_VALUE ? leftMax - weakestFree : 0;
         return f;

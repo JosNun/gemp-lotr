@@ -11,7 +11,9 @@
 #
 # usage: scripts/selfplay.sh <first gen> <last gen>
 #   env: START (the bot generation 0 is, default sel10-n2p), START_PT (its checkpoint), JUDGE_PT (the judge),
-#        GAMES (teacher games a round, 600), ROLLOUTS (8), TEACH_RATE (0.3), LAM (0.1), MIX ("default 0": pure network)
+#        GAMES (teacher games a round, 600), ROLLOUTS (8), TEACH_RATE (0.3), LAM (0.1), MIX ("default 0": pure network),
+#        PHASE_CUT (true: play-outs end with the phase they branched in -- 3.5x the searched decisions an hour of
+#        ending them with the turn, value gaps a third smaller), PEOPLE_FRAC (0.25 of people's decisions a round)
 set -u
 cd ~/dev/gemp-lotr/gemp-lotr
 L=~/dev/gemp-replays/labels
@@ -20,7 +22,7 @@ LOG=$N/selfplay.log
 STATE=$N/selfplay-state           # the adopted bot and its checkpoint, carried across generations
 START=${START:-sel10-n2p}
 START_PT=${START_PT:-$N/board_net2-d256-e8.pt}
-JUDGE_PT=${JUDGE_PT:-$N/judge-d256-best.pt}
+JUDGE_PT=${JUDGE_PT:-$N/judge2-d256-best.pt}  # AUC 0.761 on July: 2 positions a game an epoch
 GAMES=${GAMES:-600}; ROLLOUTS=${ROLLOUTS:-8}; TEACH_RATE=${TEACH_RATE:-0.3}; LAM=${LAM:-0.1}; MIX=${MIX:-default 0}
 POOL="general@bot-models-exp/pool-racer,general@bot-models-exp/pool-builder,general@bot-models-exp/pool-wide-fellowship,general@bot-models-exp/pool-big-minions,general@bot-models-exp/pool-swarm-grinder"
 [ -f $STATE ] || printf "%s\t%s\n" "$START" "$START_PT" > $STATE
@@ -46,7 +48,7 @@ for gen in $(seq $1 $2); do
   rm -rf $N/sp-teach-$G && mkdir -p $N/sp-teach-$G
   S=$(/tmp/snap-classes.sh)
   t0=$(date +%s)
-  JAVA_OPTS="-Dsearch.judge=bot-models-exp/$PREV -Dteach.opponents=$LEAGUE -Dteach.noTrain -Xmx20g" SNAP=$S \
+  JAVA_OPTS="-Dsearch.phaseCut=${PHASE_CUT:-true} -Dsearch.judge=bot-models-exp/$PREV -Dteach.opponents=$LEAGUE -Dteach.noTrain -Xmx20g" SNAP=$S \
     /tmp/run-classes.sh BotTeach --clone --base bot-models-exp/$PREV --value bot-models-exp/value-real \
     --rollouts $ROLLOUTS --depth 1 --max-candidates 8 --teach-rate $TEACH_RATE --max-decisions 3000 \
     --suite decks/real/suite-train.txt --games $GAMES --out $N/sp-teach-$G --boards $N/sp-teach-$G/boards.jsonl \
@@ -58,7 +60,7 @@ for gen in $(seq $1 $2); do
   # 2. learn: this round's boards and the last two rounds' (the search's labels from older play are still about
   # the game; the people's months anchor everything)
   TEACH=$(ls $N/sp-teach-*/boards.jsonl | tail -3 | paste -sd, -)
-  (cd nn && uv run python board_net2.py --data $N --init $PREV_PT --teacher $TEACH --lam $LAM --epochs 1 --lr 1e-4 \
+  (cd nn && uv run python board_net2.py --data $N --init $PREV_PT --teacher $TEACH --lam $LAM --epochs 1 --lr 1e-4 --people-frac ${PEOPLE_FRAC:-0.25} \
     --save $N/$NAME.pt 2>&1 | grep -E "searched|overrules|^epoch|Error|Traceback") | tee -a $LOG
 
   # 3. check

@@ -50,6 +50,8 @@ public final class BotGame {
      * fallback's answer, as on the server, so without this a bot that throws on some decision just looks weak.
      */
     public static final Map<String, Integer> BOT_ERRORS = new java.util.concurrent.ConcurrentHashMap<>();
+    /** Answers the engine refused (not exceptions: an answer given and rejected), by decision type and prompt. */
+    public static final Map<String, Integer> BOT_REJECTED = new java.util.concurrent.ConcurrentHashMap<>();
     private static final ScheduledExecutorService WATCHDOG = Executors.newSingleThreadScheduledExecutor(r -> {
         Thread t = new Thread(r, "bot-game-watchdog");
         t.setDaemon(true);
@@ -215,8 +217,13 @@ public final class BotGame {
                 feedback.participantDecided(name);
                 try {
                     String accepted = BotDecisionFallback.decide(game, name, decision, answer);
-                    if (!accepted.equals(answer))
+                    if (!accepted.equals(answer)) {
                         rejected.merge(name, 1, Integer::sum);
+                        if (answer != null)
+                            BOT_REJECTED.merge(name + ": " + decision.getDecisionType() + " " + decision.getText()
+                                    + " answered '" + (answer.length() > 30 ? answer.substring(0, 30) : answer) + "'",
+                                    1, Integer::sum);
+                    }
                     steps.add(new Step(name, question, accepted));
                     if (log != null)
                         log.decided(game, name, decision, accepted);
