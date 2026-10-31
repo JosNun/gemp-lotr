@@ -285,6 +285,23 @@ public class BotVsBot {
     }
 
     private static final boolean FIXED_DECKS = Boolean.getBoolean("bvb.fixedDecks");
+    /**
+     * -Dbvb.boards=&lt;file&gt;: board records of one seat's decisions with its answers (Recording) -- the trees' choices
+     * for the network; -Dbvb.boardsSeat=A|B|both (A), -Dbvb.boardsRate (1.0: every decision), -Dbvb.outcomes=&lt;file&gt;
+     * how each game ended, for the outcome head.
+     */
+    private static final java.io.PrintWriter BOARDS = Recording.open(System.getProperty("bvb.boards")),
+            OUTCOMES = Recording.open(System.getProperty("bvb.outcomes"));
+    private static final String BOARDS_SEAT = System.getProperty("bvb.boardsSeat", "A");
+    private static final double BOARDS_RATE = Double.parseDouble(System.getProperty("bvb.boardsRate", "1.0"));
+
+    static {
+        if (BOARDS != null) {
+            BoardDump.TRUE_DECK = true;
+            BoardDump.LIVE = true;
+        }
+    }
+
     /** -Dbvb.gameLog=&lt;file&gt;: one JSON line per game -- how it ended and how each side played (GameLog). */
     private static final java.io.PrintWriter GAME_LOG = gameLog(System.getProperty("bvb.gameLog"));
 
@@ -308,6 +325,16 @@ public class BotVsBot {
         int aSeat = FIXED_DECKS || game % 2 == 0 ? 1 : 2;
         BotPlayer a = CardUse.wrap(bot(opts.kindA(), BOT_A, ctx), "A");
         BotPlayer b = CardUse.wrap(bot(opts.kindB(), BOT_B, ctx), "B");
+        String gameId = null;
+        if (BOARDS != null || OUTCOMES != null) {
+            gameId = "bvb-" + Long.toHexString(java.util.concurrent.ThreadLocalRandom.current().nextLong()) + "-" + matchup
+                    + "-" + game;
+            BoardDump.GAME.set(gameId);
+        }
+        if (BOARDS != null && (BOARDS_SEAT.equals("A") || BOARDS_SEAT.equals("both")))
+            a = new Recording(a, BOARDS, BOARDS_RATE);
+        if (BOARDS != null && (BOARDS_SEAT.equals("B") || BOARDS_SEAT.equals("both")))
+            b = new Recording(b, BOARDS, BOARDS_RATE);
         Map<String, LotroDeck> decks = new HashMap<>();
         decks.put(BOT_A, aSeat == 1 ? deck1 : deck2);
         decks.put(BOT_B, aSeat == 1 ? deck2 : deck1);
@@ -326,6 +353,8 @@ public class BotVsBot {
             GameLog.CURRENT.remove();
         }
         long cpu = threads.getCurrentThreadCpuTime() - cpu0;
+        if (r.finished())
+            Recording.outcome(OUTCOMES, gameId, r.winner(), r.reason());
         if (log != null) {
             var line = log.finish(r, new java.util.LinkedHashMap<>(Map.of(BOT_A, "A", BOT_B, "B")));
             line.put("matchup", matchup);

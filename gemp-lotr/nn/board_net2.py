@@ -113,18 +113,20 @@ def encode(path, rows, seen, grow, routes, kinds=None):
             oe[j] = same.setdefault(key, len(same))
         y = -100
         am = np.full(MAX_MIN, -1, np.int8); af = np.full(MAX_FPC, -1, np.int8); ay = np.full(MAX_MIN, -100, np.int8)
+        unanswered = 'chosen' not in r  # a position kept for its outcome only (the league's games)
         if kind == 'assign':
             fp, mins = r['asg']['fp'], r['asg']['min']
             if len(fp) > MAX_FPC or len(mins) > MAX_MIN or any(not (0 <= x < MAX_CARDS) for x in fp + mins):
                 continue
             af[:len(fp)] = fp
             am[:len(mins)] = mins
-            for i, t in enumerate(r['chosen']):
+            for i, t in enumerate(r.get('chosen', [])):
                 ay[i] = t if t >= 0 else MAX_FPC
         elif kind == 'action':
             om[MAX_OPTS] = True  # pass
-            y = r['chosen'] if r['chosen'] >= 0 else MAX_OPTS
-        else:
+            if not unanswered:
+                y = r['chosen'] if r['chosen'] >= 0 else MAX_OPTS
+        elif not unanswered:
             y = r['chosen']
             if not (0 <= y < len(opts)):
                 continue
@@ -260,7 +262,7 @@ def losses(model, b):
     searched = ~torch.isnan(b['sv'])
     soft = searched.any(1)
     has_y = (b['y'] >= 0) & ~soft
-    lo = F.cross_entropy(s, b['y'].clamp(min=0), reduction='none') * has_y
+    lo = F.cross_entropy(s, b['y'].clamp(min=0), reduction='none') * has_y * b.get('tw', 1.0)
     if soft.any():
         # what people would do (the starting network, frozen), tilted toward what the search says wins, over the
         # options the search tried: target ~ p0 * exp(value / lambda); the network's log-probabilities renormalised there
@@ -355,6 +357,11 @@ def main():
     ap.add_argument('--teacher', default=None, help='searched teacher boards (BotTeach --boards), comma separated')
     ap.add_argument('--teacher-weight', type=float, default=1.0)
     ap.add_argument('--lam', type=float, default=0.1, help='the search temperature for the soft targets')
+    ap.add_argument('--extra-boards', default=None,
+                    help='more board files, comma separated: labelled like people\'s (the trees\' choices), or positions '
+                         'without a choice that only teach the outcome (the league\'s games)')
+    ap.add_argument('--extra-routes', default=None, help='how those games ended (Recording.outcome), comma separated')
+    ap.add_argument('--extra-weight', type=float, default=1.0)
     ap.add_argument('--people-frac', type=float, default=1.0,
                     help='each epoch, this share of people\'s decisions (all teacher boards): a quicker round')
     ap.add_argument('--per-game', type=int, default=0,
@@ -375,6 +382,15 @@ def main():
         if os.path.exists(p):
             d, g = encode(p, rows, seen, init is None, routes)
             parts.append(d); games.extend(g)
+    for path in (args.extra_routes.split(',') if args.extra_routes else []):
+        routes.update(load_routes(path))
+    for path in (args.extra_boards.split(',') if args.extra_boards else []):
+        d, g = encode(path, rows, seen, False, routes)
+        if d:
+            d['tw_extra'] = np.full(len(d['cx']), args.extra_weight, np.float32)
+            parts.append(d); games.extend(g)
+            print(f'{len(d["cx"])} extra boards from {path} ({(d["y"] >= 0).mean():.0%} with a choice, '
+                  f'{(d["win"] >= 0).mean():.0%} with an outcome)', flush=True)
     n_people = sum(len(p['cx']) for p in parts)
     for path in (args.teacher.split(',') if args.teacher else []):
         d, g = encode(path, rows, seen, False, {})
@@ -382,7 +398,12 @@ def main():
             parts.append(d); games.extend(g)
             print(f'{len(d["cx"])} searched teacher boards from {path}', flush=True)
     for p in parts:
-        p['tw'] = np.full(len(p['cx']), args.teacher_weight, np.float32)
+        # the weight of a row's decision loss: the teacher's boards (their soft targets), the extra boards', else 1
+        if 'tw_extra' in p:
+            p['tw'] = p.pop('tw_extra')
+        else:
+            searched_part = bool(np.isfinite(p['sv']).any())
+            p['tw'] = np.full(len(p['cx']), args.teacher_weight if searched_part else 1.0, np.float32)
         p['lp0'] = np.zeros((len(p['cx']), MAX_OPTS + 1), np.float32)
     train = {k: np.concatenate([p[k] for p in parts]) for k in parts[0]}
     test, _ = encode(os.path.join(args.data, f'{args.prefix}-{args.test}.jsonl'), rows, seen, False, routes)
