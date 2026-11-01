@@ -1746,6 +1746,29 @@ At 16 games a matchup **against sel10-net6 51.0% +- 0.9**; the pool 46.1% (racer
 (70.9%). No weaker, more human-like: **sp-g07 is the bot to use** (trees with the combined network mixed in at 0.4 --
 trees alone at move again and skirmish plays -- `board-net2-mix`; the outcome-only judge alongside for search).
 
+## Order, assignments, and the network's ceiling (2026-11-01)
+
+**Agreement forgives order where it made no difference** (Counterfactual LATER_PLAYS / orderFree): when the bot plays a
+card the person played later in the same phase, both orders are played on copies, and they agree when both can be
+played and leave the same game -- the user's rule, a card that pays for or makes possible the next keeps its order. July
+on this measure: sel10-big5 75.1%, sel10-net6 75.3%, **sp-g07 76.1%**, sel10-n2 76.4% (4-5 points over the strict one;
+the strict files are kept as hl-<bot>.strict.tsv). The dashboard shows this measure from now on.
+
+**Order-free training targets** (board_net2.py --order-alpha): at a Fellowship or Shadow play the chosen card 0.6, the
+cards the person played later that phase and could play already (so needed nothing the first gave) sharing 0.4; 39% of
+those plays get one. The same fine-tune from distill2 with and without: July (order-forgiving) 75.8% against 75.6%, the
+network alone against sel10-net6 43.5% against 42.4% (+-1.2 each). Small, the same way on both; kept.
+
+**The trees with the search on** (BotTeach --play from sel10-net6, half the card actions and every move searched, the
+league-taught judge): 460 games, 74,536 searched decisions in 4.7 h (the search overruled the network on 72%, median value
+gap 0.029); trained on with lambda 0.005 on top of the trees' 836,017 decisions: the network alone 42.6% (41.7 without).
+The network alone has gone 34.6 -> 39.9 -> 41.7 -> 42.6 -> 43.5: more of the trees' and the search's choices give less
+and less -- likely what the trees see that it does not (the skirmish and assignment probes' play-aheads).
+
+**Assignments:** the trainer wrote characters with no minion ("155 ,156 ,..."); fixed, but sp-g07 against itself
+unfixed is 50.1% +- 0.9 and both still have ~2.2 refused answers a game -- single pairings ('189 198') the engine
+refuses that AssignmentLegality passes (rules it does not model); the fallback trims them. Left.
+
 ## How human is "agreement with people", and play by precedent (2026-10-31)
 
 **The measure rewards the consensus.** The user asked whether a real person would score higher on it than the bot. No:
