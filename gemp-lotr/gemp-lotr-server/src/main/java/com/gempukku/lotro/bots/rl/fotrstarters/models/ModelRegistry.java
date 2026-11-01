@@ -132,6 +132,17 @@ public class ModelRegistry {
     private java.util.List<String> cardText;
 
     /** The board network (board-net.onnx) and the trees' share when the two are mixed (board-net-mix, 0.4). */
+    private boolean legacyAssignFormat;
+
+    /** "assign-legacy-format": assignments name characters left without a minion, as before the fix (to measure it). */
+    public boolean isLegacyAssignFormat() {
+        return legacyAssignFormat;
+    }
+
+    public void setLegacyAssignFormat(boolean legacy) {
+        this.legacyAssignFormat = legacy;
+    }
+
     private com.gempukku.lotro.bots.rl.fotrstarters.BoardNet2 boardNet2;
 
     /** The combined network (board-net2.onnx), mixed into card actions, moves, reconcile and FP assignments. */

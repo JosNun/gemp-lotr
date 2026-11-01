@@ -92,6 +92,16 @@ final class Counterfactual {
     }
 
     /** Before the human's answer is adopted: the bot's own, and if it differs, the two played out. */
+    /**
+     * The cards the deciding player puts into play later in this phase, from the recording (HumanReplay sets it before
+     * each decision): a card play the bot makes first that the person made later is the same plan in another order --
+     * two-thirds of the Fellowship disagreements, 40% of the Shadow ones (2026-11-01). Whether the order mattered is
+     * played out on copies: see orderFree.
+     */
+    static final ThreadLocal<List<String>> LATER_PLAYS = new ThreadLocal<>();
+    static final java.util.concurrent.atomic.AtomicLong orderChecked = new java.util.concurrent.atomic.AtomicLong(),
+            orderFree = new java.util.concurrent.atomic.AtomicLong();
+
     static void consider(DefaultLotroGame live, GameCopier copier, BotVsBot.Context ctx, String gameName,
                          List<String> players, String player, AwaitingDecision decision, String humanAnswer,
                          Random sampler) {
@@ -121,6 +131,17 @@ final class Counterfactual {
             agreed.incrementAndGet();
             write(gs, gameName, player, bucket, decision, humanAnswer, botAnswer, -1, -1, 0);
             return;
+        }
+        if (decision.getDecisionType() == AwaitingDecisionType.CARD_ACTION_CHOICE && !humanAnswer.isEmpty()
+                && laterPlay(gs, decision, botAnswer)) {
+            orderChecked.incrementAndGet();
+            if (orderFree(live, copier, ctx, players, player, humanAnswer, botAnswer, sampler.nextLong())) {
+                // the same plan in another order, and the order made no difference: agreement
+                orderFree.incrementAndGet();
+                agreed.incrementAndGet();
+                write(gs, gameName, player, bucket, decision, humanAnswer, botAnswer, -1, -1, 0, "order-free");
+                return;
+            }
         }
         if (DEATHS) {
             int[] h = new int[2], b = new int[2];
@@ -667,6 +688,114 @@ final class Counterfactual {
      */
     private static void write(GameState gs, String game, String player, String bucket, AwaitingDecision d, String human,
                               String bot, int humanWins, int botWins, int n) {
+        write(gs, game, player, bucket, d, human, bot, humanWins, botWins, n, "");
+    }
+
+    /** Whether the bot's answer plays a card the person put into play later in this phase. */
+    private static boolean laterPlay(GameState gs, AwaitingDecision d, String botAnswer) {
+        List<String> later = LATER_PLAYS.get();
+        if (later == null || later.isEmpty() || botAnswer.isEmpty())
+            return false;
+        String did = describeAction(gs, d, botAnswer);
+        int bar = did.indexOf('|');
+        if (bar < 0 || !did.substring(bar + 1).startsWith("Play"))
+            return false;
+        return later.contains(BoardDump.base(did.substring(0, bar)));
+    }
+
+    /**
+     * Played both ways on copies -- the person's card then the bot's, the bot's then the person's, everything asked in
+     * between answered by the same bot from the same seed -- the order made no difference when both orders can be
+     * played and leave the same game: twilight, burdens, threats, each card in play (its zone, wounds, what it is on),
+     * and each player's hand, deck, discard and dead pile sizes. A card that pays for, cheapens or makes possible the
+     * next (the user's rule) leaves a different game or none.
+     */
+    private static boolean orderFree(DefaultLotroGame live, GameCopier copier, BotVsBot.Context ctx, List<String> players,
+                                     String player, String human, String bot, long seed) {
+        String a = afterBoth(live, copier, ctx, players, player, human, bot, seed);
+        String b = afterBoth(live, copier, ctx, players, player, bot, human, seed);
+        return a != null && a.equals(b);
+    }
+
+    /** The game after {@code first} now and the same card and action as {@code second} at the player's next card action. */
+    private static String afterBoth(DefaultLotroGame live, GameCopier copier, BotVsBot.Context ctx, List<String> players,
+                                    String player, String first, String second, long seed) {
+        try {
+            AwaitingDecision now = GameCopier.feedback(live).getAwaitingDecision(player);
+            String want = describeAction(live.getGameState(), now, second);
+            DefaultLotroGame copy = copier.copy(live);
+            GameState gs = copy.getGameState();
+            gs.setDeckShuffler(null);
+            gs.setRandomSeed(seed);
+            com.gempukku.lotro.bots.BotRandom.current().setSeed(seed ^ 0x5DEECE66DL);
+            var feedback = GameCopier.feedback(copy);
+            AwaitingDecision pending = feedback.getAwaitingDecision(player);
+            if (pending == null)
+                return null;
+            feedback.participantDecided(player);
+            BotDecisionFallback.decide(copy, player, pending, first);
+            copy.carryOutPendingActionsUntilDecisionNeeded();
+            Map<String, BotPlayer> bots = new HashMap<>();
+            for (String p : players)
+                bots.put(p, BotVsBot.bot(KIND, p, ctx));
+            var phase = gs.getCurrentPhase();
+            boolean secondPlayed = false;
+            for (int step = 0; step < 200 && !copy.isFinished(); step++) {
+                String who = null;
+                AwaitingDecision d = null;
+                for (String p : players)
+                    if ((d = feedback.getAwaitingDecision(p)) != null) {
+                        who = p;
+                        break;
+                    }
+                if (d == null || copy.getGameState().getCurrentPhase() != phase)
+                    return secondPlayed ? summary(copy.getGameState(), players) : null;
+                if (who.equals(player) && d.getDecisionType() == AwaitingDecisionType.CARD_ACTION_CHOICE) {
+                    if (secondPlayed) // the player's next choice after both: the game as both orders leave it
+                        return summary(copy.getGameState(), players);
+                    String answer = null;
+                    String[] ids = d.getDecisionParameters().getOrDefault("actionId", new String[0]);
+                    for (String id : ids)
+                        if (describeAction(copy.getGameState(), d, id).equals(want))
+                            answer = id;
+                    if (answer == null)
+                        return null; // the second card cannot be played after the first: the order mattered
+                    feedback.participantDecided(who);
+                    BotDecisionFallback.decide(copy, who, d, answer);
+                    copy.carryOutPendingActionsUntilDecisionNeeded();
+                    secondPlayed = true;
+                    continue;
+                }
+                String a = bots.get(who).chooseAction(copy.getGameState(), d);
+                feedback.participantDecided(who);
+                BotDecisionFallback.decide(copy, who, d, a);
+                copy.carryOutPendingActionsUntilDecisionNeeded();
+            }
+            return null;
+        } catch (Exception e) {
+            return null;
+        }
+    }
+
+    private static String summary(GameState gs, List<String> players) {
+        StringBuilder sb = new StringBuilder();
+        sb.append("tw").append(gs.getTwilightPool()).append(" b").append(gs.getBurdens()).append(" t").append(gs.getThreats());
+        List<String> cards = new ArrayList<>();
+        for (var c : gs.getInPlay()) {
+            var on = c.getAttachedTo() != null ? c.getAttachedTo() : c.getStackedOn();
+            cards.add(c.getOwner() + ":" + BoardDump.base(c.getBlueprintId()) + "@" + c.getZone() + ":w" + gs.getWounds(c)
+                    + (on != null ? ">" + BoardDump.base(on.getBlueprintId()) : ""));
+        }
+        Collections.sort(cards);
+        sb.append(' ').append(cards);
+        for (String p : players)
+            sb.append(' ').append(p).append(":h").append(gs.getHand(p).size()).append("d").append(gs.getDeck(p).size())
+                    .append("x").append(gs.getDiscard(p).size()).append("k").append(gs.getDeadPile(p).size());
+        return sb.toString();
+    }
+
+    private static void write(GameState gs, String game, String player, String bucket, AwaitingDecision d, String human,
+                              String bot, int humanWins, int botWins, int n, String note) {
         PrintWriter out = OUT;
         if (out == null)
             return;
@@ -687,7 +816,7 @@ final class Counterfactual {
                     bot.replace('\t', ' '), String.valueOf(humanWins), String.valueOf(botWins), String.valueOf(n),
                     side, humanDid.replace('\t', ' '), botDid.replace('\t', ' '), margin,
                     String.valueOf(gs.getTurnNumber()), String.valueOf(gs.getCurrentPhase()), assignmentContext(gs, d),
-                    actions ? offered(gs, d) : ""));
+                    actions ? offered(gs, d) : "", note));
             out.flush();
         }
     }

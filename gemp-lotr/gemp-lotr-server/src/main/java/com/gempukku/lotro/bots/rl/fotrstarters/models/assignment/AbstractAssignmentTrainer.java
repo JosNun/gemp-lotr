@@ -231,7 +231,7 @@ public abstract class AbstractAssignmentTrainer extends AbstractTrainer {
         legal.sort(Map.Entry.<Double, Map<String, List<String>>>comparingByKey().reversed());
         List<String> answers = new ArrayList<>();
         for (var entry : legal) {
-            String answer = format(entry.getValue());
+            String answer = format(entry.getValue(), modelRegistry.isLegacyAssignFormat());
             // the best may be to assign nothing ("" -- getAnswer's answer then, as it always was); a search adds
             // that option itself, so candidates leave it out
             if (!answers.contains(answer) && (trimIllegal || !answer.isEmpty()))
@@ -240,14 +240,26 @@ public abstract class AbstractAssignmentTrainer extends AbstractTrainer {
                 break;
         }
         if (legal.isEmpty() && trimIllegal && bestIllegalAssignment != null)
-            answers.add(format(legality.keepLegal(side, freeCharIds, minionIds, bestIllegalAssignment)));
+            answers.add(format(legality.keepLegal(side, freeCharIds, minionIds, bestIllegalAssignment),
+                    modelRegistry.isLegacyAssignFormat()));
         return answers;
     }
 
+    /**
+     * A candidate as the answer the engine takes. Characters left without a minion are left out, as
+     * AssignmentLegality.format leaves them: written as "155 ," the engine refused the answer -- about two Free Peoples
+     * assignments a game, for every tree bot -- and the fallback trimmed it. A model directory's "assign-legacy-format"
+     * (ModelRegistry) writes them as before, to measure the fix.
+     */
     private static String format(Map<String, List<String>> assignment) {
+        return format(assignment, false);
+    }
+
+    private static String format(Map<String, List<String>> assignment, boolean legacy) {
         if (assignment == null || assignment.isEmpty())
             return "";
         return assignment.entrySet().stream()
+                .filter(entry -> legacy || !entry.getValue().isEmpty())
                 .map(entry -> entry.getKey() + " " + String.join(" ", entry.getValue()))
                 .collect(Collectors.joining(","));
     }
