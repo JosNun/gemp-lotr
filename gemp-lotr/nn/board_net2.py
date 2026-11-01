@@ -68,10 +68,35 @@ def load_routes(path):
     return {x['game']: x for x in map(json.loads, open(path))} if path and os.path.exists(path) else {}
 
 
+ORDER_ALPHA = 0.0  # --order-alpha: the share of a card play's target for cards the person played later this phase
+
+
+def later_plays(path):
+    """Per line of a boards file: the (card, action) keys the same player chose later in the same phase of the same
+    turn -- the board records of a game are written in the order they were asked."""
+    groups = collections.defaultdict(list)
+    keys = []
+    for n, line in enumerate(open(path)):
+        r = json.loads(line)
+        if r.get('kind', 'action') != 'action' or r.get('chosen', -1) is None or r.get('chosen', -1) < 0:
+            keys.append(None)
+            continue
+        o = r['opts'][r['chosen']]
+        src = o['src']
+        keys.append((base(r['cards'][src]['bp']) if 0 <= src < len(r['cards']) else '?', o['text']))
+        groups[(r.get('game'), r.get('player'), int(r['state'][2]), r.get('ctx'))].append(n)
+    later = {}
+    for idx in groups.values():
+        for i, n in enumerate(idx):
+            later[n] = {keys[m] for m in idx[i + 1:]}
+    return later
+
+
 def encode(path, rows, seen, grow, routes, kinds=None):
     """A month's boards as fixed-size arrays (int8/int16 where they fit: a million boards in ~6 GB)."""
     out = collections.defaultdict(list)
-    for line in (open(path) if isinstance(path, str) else path):  # a file, or the lines themselves
+    later = later_plays(path) if ORDER_ALPHA > 0 and isinstance(path, str) else {}
+    for line_no, line in enumerate(open(path) if isinstance(path, str) else path):  # a file, or the lines themselves
         r = json.loads(line)
         kind = r.get('kind', 'action')
         if kinds and kind not in kinds:
@@ -139,6 +164,17 @@ def encode(path, rows, seen, grow, routes, kinds=None):
                 bc[k, i] = min(n, 127)
         known = len(bags.get('myDeck', []))
         extra = [known / 20, bags.get('myDeckUnknown', 0) / 20, 1.0 if 'myDeck' in bags else 0.0]
+        # order-free targets: at a Fellowship or Shadow play, the chosen card ORDER_ALPHA less, and the cards the person
+        # played later this phase that are on offer now (so needed nothing the chosen one gave) sharing ORDER_ALPHA
+        ot = np.zeros(MAX_OPTS + 1, np.float32)
+        if ORDER_ALPHA > 0 and kind == 'action' and line_no in later and context(r) in ('fellowship', 'shadow'):
+            here = [j for j, o in enumerate(opts) if 0 <= o['src'] < len(cards) and j != r['chosen']
+                    and (base(cards[o['src']]['bp']), o['text']) in later[line_no]
+                    and o['text'].lower().startswith('play')]
+            if here:
+                ot[r['chosen']] = 1 - ORDER_ALPHA
+                for j in here:
+                    ot[j] = ORDER_ALPHA / len(here)
         sv = np.full(MAX_OPTS + 1, np.nan, np.float32)  # the search's value per option (teacher boards), pass last
         for i, v in r.get('searched', []):
             i = int(i)
@@ -153,7 +189,7 @@ def encode(path, rows, seen, grow, routes, kinds=None):
         for k, v in (('state', np.array(r['state'] + extra, np.float32)), ('cf', cf), ('ci', ci), ('cm', cm),
                      ('cd', cd), ('cz', cz), ('ck', ck), ('os', os_), ('ok', ok), ('oc', oc), ('ti', ti), ('tv', tv),
                      ('om', om), ('oe', oe), ('y', y), ('am', am), ('af', af), ('ay', ay), ('bg', bg), ('bc', bc),
-                     ('cx', CONTEXTS.index(context(r))), ('win', win), ('route', route), ('sv', sv)):
+                     ('cx', CONTEXTS.index(context(r))), ('win', win), ('route', route), ('sv', sv), ('ot', ot)):
             out[k].append(v)
         out['player'].append(r.get('player', '')); out['game'].append(r.get('game', ''))
     if not out:
@@ -263,6 +299,11 @@ def losses(model, b):
     soft = searched.any(1)
     has_y = (b['y'] >= 0) & ~soft
     lo = F.cross_entropy(s, b['y'].clamp(min=0), reduction='none') * has_y * b.get('tw', 1.0)
+    if 'ot' in b:
+        spread = b['ot'].sum(-1) > 0  # an order-free target replaces the one-card target
+        if spread.any():
+            soft_ce = -(b['ot'] * torch.log_softmax(s, -1).clamp(min=-1e4)).sum(-1)
+            lo = torch.where(spread & has_y, soft_ce * b.get('tw', 1.0), lo)
     if soft.any():
         # what people would do (the starting network, frozen), tilted toward what the search says wins, over the
         # options the search tried: target ~ p0 * exp(value / lambda); the network's log-probabilities renormalised there
@@ -362,6 +403,8 @@ def main():
                          'without a choice that only teach the outcome (the league\'s games)')
     ap.add_argument('--extra-routes', default=None, help='how those games ended (Recording.outcome), comma separated')
     ap.add_argument('--extra-weight', type=float, default=1.0)
+    ap.add_argument('--order-alpha', type=float, default=0.0,
+                    help='share of a Fellowship/Shadow play\'s target for the cards played later that phase (0: off)')
     ap.add_argument('--people-frac', type=float, default=1.0,
                     help='each epoch, this share of people\'s decisions (all teacher boards): a quicker round')
     ap.add_argument('--per-game', type=int, default=0,
@@ -369,8 +412,9 @@ def main():
     args = ap.parse_args()
     torch.manual_seed(1); random.seed(1); np.random.seed(1)
     device = 'mps' if torch.backends.mps.is_available() else 'cpu'
-    global LAMBDA
+    global LAMBDA, ORDER_ALPHA
     LAMBDA = args.lam
+    ORDER_ALPHA = args.order_alpha
     rows, table, width = load_cards(os.path.join(args.data, 'cards.tsv'))
     routes = load_routes(args.routes or os.path.join(args.data, 'routes-2022.jsonl'))
     init = torch.load(args.init, weights_only=False, map_location='cpu') if args.init else None
