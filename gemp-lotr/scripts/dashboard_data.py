@@ -19,7 +19,7 @@ ORDER = ['sel10-f', 'sel10-gr', 'sel10-gf', 'sel10-ar1', 'sel10-big5', 'sel10-ne
 ANCHOR = 'sel10-net6'
 # the bots the page shows (the rest are history; their results still go into the Elo fit). Self-play generations are
 # added as they are made. Override with a file dashboard/data/main-bots.txt, one name a line.
-MAIN = ['sel10-big5', 'sel10-net6', 'sel10-n2', 'sel10-n2p']
+MAIN = ['sel10-big5', 'sel10-net6', 'sp-g07', 'sel10-n2']
 CONTEXTS = ['fellowship', 'shadow', 'maneuver', 'archery', 'skirmish', 'regroup', 'optional', 'reconcile', 'move',
             'assign fp']
 KIND_NAMES = {  # the counterfactual file's decision labels -> the network's kinds
