@@ -1,0 +1,217 @@
+package com.gempukku.lotro.bots.simulation;
+
+import com.gempukku.lotro.bots.BotDecisionFallback;
+import com.gempukku.lotro.bots.BotPlayer;
+import com.gempukku.lotro.bots.rl.fotrstarters.BoardNet2;
+import com.gempukku.lotro.game.PhysicalCard;
+import com.gempukku.lotro.game.state.GameState;
+import com.gempukku.lotro.logic.decisions.AwaitingDecision;
+import com.gempukku.lotro.logic.timing.DefaultLotroGame;
+
+import java.util.*;
+import java.util.function.Function;
+
+/**
+ * Search at play time, only where it pays (BOT-NOTES, 2026-11-01): the bot answers as usual unless the decision is of a
+ * kind search helps (skirmish plays, "move again?", Fellowship and Shadow plays -- search.contexts) and the network is
+ * unsure (its top option under search.gate). Then its top search.k options and the bot's own answer are each played
+ * out search.rollouts times on copies of the game -- the opponent's hand dealt again from what this player has not
+ * seen, every option into the same futures, the bot playing both sides -- for a phase (a turn for moves and Fellowship
+ * plays), and scored by the judge. The answer is the option with the most log-probability (what people would do) plus
+ * value / search.lambda (what wins): the human anchor of the training targets, at play time. search.maxPerGame caps the
+ * cost.
+ */
+public final class Searching implements BotPlayer {
+    static final int K = Integer.getInteger("search.k", 3), ROLLOUTS = Integer.getInteger("search.rollouts", 4),
+            MAX_PER_GAME = Integer.getInteger("search.maxPerGame", 60);
+    static final double GATE = Double.parseDouble(System.getProperty("search.gate", "0.6")),
+            LAMBDA = Double.parseDouble(System.getProperty("search.lambda", "0.05"));
+    static final Set<String> CONTEXTS = new HashSet<>(List.of(System.getProperty("search.contexts",
+            "skirmish,move,fellowship,shadow").split(",")));
+    static final Set<String> TURN_LONG = Set.of("move", "fellowship");
+
+    /** Searches made, decisions seen, by the bots of this run. */
+    static final java.util.concurrent.atomic.AtomicLong searched = new java.util.concurrent.atomic.AtomicLong(),
+            changed = new java.util.concurrent.atomic.AtomicLong(), nanos = new java.util.concurrent.atomic.AtomicLong(),
+            playOuts = new java.util.concurrent.atomic.AtomicLong(), steps = new java.util.concurrent.atomic.AtomicLong(),
+            judged = new java.util.concurrent.atomic.AtomicLong();
+
+    private final BotPlayer inner;
+    private final BoardNet2 net;
+    private final GameCopier copier;
+    private final Function<String, BotPlayer> policy;
+    private final Map<Object, int[]> perGame = new WeakHashMap<>();
+
+    public Searching(BotPlayer inner, BoardNet2 net, GameCopier copier, Function<String, BotPlayer> policy) {
+        this.inner = inner;
+        this.net = net;
+        this.copier = copier;
+        this.policy = policy;
+    }
+
+    @Override
+    public String getName() {
+        return inner.getName();
+    }
+
+    @Override
+    public String chooseAction(GameState gs, AwaitingDecision d) {
+        String own = inner.chooseAction(gs, d);
+        try {
+            String kind = BoardDump.kind(d);
+            if (own == null || net == null || !("action".equals(kind) || "move".equals(kind)))
+                return own;
+            BoardNet2.Result r = net.read(gs, d, getName());
+            if (r == null || !CONTEXTS.contains(r.context()))
+                return own;
+            int[] used = perGame.computeIfAbsent(gs.getGame(), k -> new int[1]);
+            if (used[0] >= MAX_PER_GAME)
+                return own;
+            double[] lp = BoardNet2.logSoftmax(r.options());
+            if (Math.exp(Arrays.stream(lp).max().orElse(0)) >= GATE)
+                return own; // the network is sure: no search
+            List<String> answers = answers(d, kind, lp.length);
+            if (answers == null)
+                return own;
+            // the candidates: the network's top K, and the bot's own answer
+            Integer[] order = new Integer[lp.length];
+            for (int i = 0; i < order.length; i++)
+                order[i] = i;
+            Arrays.sort(order, (a, b) -> Double.compare(lp[b], lp[a]));
+            LinkedHashSet<Integer> cands = new LinkedHashSet<>();
+            int ownIndex = answers.indexOf(own);
+            if (ownIndex >= 0)
+                cands.add(ownIndex); // the bot's own answer, and the network's top K
+            for (int i = 0; i < Math.min(K, order.length); i++)
+                cands.add(order[i]);
+            if (cands.size() < 2)
+                return own;
+            used[0]++;
+            searched.incrementAndGet();
+            long t0 = System.nanoTime();
+            boolean turnLong = TURN_LONG.contains(r.context());
+            long[] worlds = new SplittableRandom().longs(ROLLOUTS).toArray();
+            int best = -1;
+            double bestScore = Double.NEGATIVE_INFINITY;
+            for (int c : cands) {
+                double q = 0;
+                int n = 0;
+                for (long w : worlds) {
+                    Double v = playOut(gs, d, answers.get(c), w, turnLong);
+                    if (v != null) {
+                        q += v;
+                        n++;
+                    }
+                }
+                if (n == 0)
+                    continue;
+                double score = lp[c] + (q / n) / LAMBDA;
+                if (score > bestScore) {
+                    bestScore = score;
+                    best = c;
+                }
+            }
+            nanos.addAndGet(System.nanoTime() - t0);
+            if (best < 0)
+                return own;
+            String pick = answers.get(best);
+            if (!pick.equals(own))
+                changed.incrementAndGet();
+            return pick;
+        } catch (RuntimeException e) {
+            return own;
+        }
+    }
+
+    /** Each option's answer, in the network's order: a card action's actions then pass, or move again's two results. */
+    private static List<String> answers(AwaitingDecision d, String kind, int n) {
+        List<String> out = new ArrayList<>();
+        if ("action".equals(kind)) {
+            String[] ids = d.getDecisionParameters().getOrDefault("actionId", new String[0]);
+            if (ids.length + 1 != n)
+                return null;
+            out.addAll(Arrays.asList(ids));
+            out.add(""); // pass
+        } else {
+            for (int i = 0; i < n; i++)
+                out.add(String.valueOf(i));
+        }
+        return out;
+    }
+
+    /**
+     * One play-out of {@code answer}: on a copy, the opponent's hand dealt again from the cards this player has not seen
+     * and both decks shuffled from {@code world}, the answer given, the bot playing both sides; at the end of the phase
+     * (or the turn) the judge reads the first decision of this player's it can, from this player's side. A game that
+     * ends scores 1 or 0.
+     */
+    private Double playOut(GameState live, AwaitingDecision d, String answer, long world, boolean turnLong) {
+        String me = getName();
+        try {
+            DefaultLotroGame copy = copier.copy((DefaultLotroGame) live.getGame());
+            GameState gs = copy.getGameState();
+            gs.setDeckShuffler(null);
+            gs.setRandomSeed(world);
+            if (gs.isInit())
+                for (String p : gs.getPlayerNames()) {
+                    if (p.equals(me))
+                        continue;
+                    List<PhysicalCard> hand = new ArrayList<>(gs.getHand(p));
+                    gs.removeCardsFromZone(null, hand);
+                    gs.shuffleCardsIntoDeck(hand, p);
+                    for (int i = 0; i < hand.size(); i++)
+                        gs.playerDrawsCard(p);
+                }
+            java.util.Random previous = com.gempukku.lotro.bots.BotRandom.use(new java.util.Random(world ^ 0x5DEECE66DL));
+            try {
+                for (String p : gs.getPlayerNames())
+                    gs.shuffleDeck(p);
+                var feedback = GameCopier.feedback(copy);
+                AwaitingDecision pending = feedback.getAwaitingDecision(me);
+                if (pending == null)
+                    return null;
+                feedback.participantDecided(me);
+                BotDecisionFallback.decide(copy, me, pending, answer);
+                copy.carryOutPendingActionsUntilDecisionNeeded();
+                Map<String, BotPlayer> bots = new HashMap<>();
+                for (String p : gs.getPlayerNames())
+                    bots.put(p, policy.apply(p));
+                var phase = gs.getCurrentPhase();
+                int turn = gs.getTurnNumber();
+                playOuts.incrementAndGet();
+                for (int step = 0; step < 600; step++) {
+                    steps.incrementAndGet();
+                    if (copy.isFinished())
+                        return me.equals(copy.getWinnerPlayerId()) ? 1.0 : 0.0;
+                    String who = null;
+                    AwaitingDecision next = null;
+                    for (String p : gs.getPlayerNames())
+                        if ((next = feedback.getAwaitingDecision(p)) != null) {
+                            who = p;
+                            break;
+                        }
+                    if (next == null)
+                        return null;
+                    boolean far = turnLong ? gs.getTurnNumber() > turn : gs.getCurrentPhase() != phase || gs.getTurnNumber() > turn;
+                    if (far && who.equals(me) && BoardDump.kind(next) != null) {
+                        double[] st = BoardNet2.state(gs, next, me);
+                        double[] o = st == null ? null : net.outcome(copy, next, me, st);
+                        if (o != null) {
+                            judged.incrementAndGet();
+                            return o[0] + o[1] + o[2];
+                        }
+                    }
+                    String a = bots.get(who).chooseAction(gs, next);
+                    feedback.participantDecided(who);
+                    BotDecisionFallback.decide(copy, who, next, a);
+                    copy.carryOutPendingActionsUntilDecisionNeeded();
+                }
+                return null;
+            } finally {
+                com.gempukku.lotro.bots.BotRandom.use(previous);
+            }
+        } catch (Exception e) {
+            return null;
+        }
+    }
+}

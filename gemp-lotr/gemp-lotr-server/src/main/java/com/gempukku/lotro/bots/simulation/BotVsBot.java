@@ -119,7 +119,21 @@ public class BotVsBot {
      * A kind from --a/--b: a name in {@link #KINDS}, or "fotr@dir" / "general@dir" for that bot on the models in
      * dir. "general" is FotrStarterBot with its extensions on (see FotrStarterBot.extended).
      */
+    /** Game copies for search@ bots' play-outs: one per run, shared by the game threads. */
+    private static volatile GameCopier searchCopier;
+
     static BotPlayer bot(String kind, String name, Context ctx) {
+        if (kind.startsWith("search@")) {
+            // the general bot on that directory, searching where it is unsure (Searching; search.* properties)
+            String dir = kind.substring("search@".length());
+            if (searchCopier == null)
+                synchronized (BotVsBot.class) {
+                    if (searchCopier == null)
+                        searchCopier = new GameCopier(ctx.library(), ctx.formats());
+                }
+            return new Searching(bot("general@" + dir, name, ctx), ctx.models(Path.of(dir)).getBoardNet2(),
+                    searchCopier, n -> bot("general@" + dir, n, ctx));
+        }
         int at = kind.indexOf('@');
         if (at > 0) {
             BotPlayer bot = new FotrStarterBot(new FotrStartersRLGameStateFeatures(), name,
@@ -139,7 +153,7 @@ public class BotVsBot {
     static boolean knownKind(String kind) {
         int at = kind.indexOf('@');
         if (at > 0)
-            return List.of("fotr", "general", "safe", "careful").contains(kind.substring(0, at))
+            return List.of("fotr", "general", "safe", "careful", "search").contains(kind.substring(0, at))
                     && Files.isDirectory(Path.of(kind.substring(at + 1)));
         return KINDS.containsKey(kind);
     }
@@ -281,6 +295,11 @@ public class BotVsBot {
         summarise(all, matchups, opts, unknown, (System.nanoTime() - t0) / 1e9);
         CardUse.report(System.out);
         standings(all, matchups);
+        if (Searching.searched.get() > 0)
+            System.out.printf("search: %d decisions searched, %d answered differently from the bot; %.1f s a search, "
+                            + "%d play-outs, %.0f steps each, %d judged%n", Searching.searched.get(), Searching.changed.get(),
+                    Searching.nanos.get() / 1e9 / Searching.searched.get(), Searching.playOuts.get(),
+                    (double) Searching.steps.get() / Math.max(1, Searching.playOuts.get()), Searching.judged.get());
         System.exit(0); // ends any game thread still spinning in the engine
     }
 
