@@ -43,7 +43,7 @@ public final class BotGame {
      * second, and the first one found spun in TurnProcedure.carryOutPendingActionsUntilDecisionNeeded for over ten
      * minutes without asking anyone anything. That loop only stops once there is a winner, so the watchdog makes one.
      */
-    private static final long STUCK_SECONDS = 60;
+    private static final long STUCK_SECONDS = Long.getLong("bvb.stuckSeconds", 60); // a searching bot thinks longer
 
     /**
      * Exceptions bots threw while choosing, by exception and the bot frame it came from. The game goes on with the
