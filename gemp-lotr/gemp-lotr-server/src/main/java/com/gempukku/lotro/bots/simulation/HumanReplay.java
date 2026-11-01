@@ -841,8 +841,22 @@ public class HumanReplay {
                 if (t.match == null)
                     return stop(t.error != null ? "engine error" : "no valid answer",
                             t.error != null ? t.error : lastQuestion + " candidates " + cands);
-                if (t.match.full() && !t.ambiguous && !engineOnly(decision))
+                if (t.match.full() && !t.ambiguous && !engineOnly(decision)) {
+                    // the cards this player puts into play from here to the end of the phase, as recorded
+                    List<String> later = new ArrayList<>();
+                    for (int j = rec + 1; j < recEvents.size(); j++) {
+                        Ev e = recEvents.get(j);
+                        if (e.type().equals("GPC"))
+                            break;
+                        String zone = e.attr("zone");
+                        if (e.type().equals("PCIP") && p.equals(e.attr("participantId")) && e.attr("blueprintId") != null
+                                && zone != null && !zone.equals("HAND") && !zone.equals("ADVENTURE_PATH")
+                                && !zone.equals("DECK") && !zone.equals("DEAD")) // an event played goes to DISCARD
+                            later.add(BoardDump.base(e.attr("blueprintId")));
+                    }
+                    Counterfactual.LATER_PLAYS.set(later);
                     Counterfactual.consider(game, copier, ctx, m.name(), m.players(), p, decision, t.answer, cfSampler);
+                }
                 if (t.match.full() && !t.ambiguous && !engineOnly(decision) && Counterfactual.ASSIGN_TEACH != null)
                     Counterfactual.teachAssignment(game, copier, ctx, m.players(), p, decision,
                             state != null ? state : TrainingSteps.stateOf(game, decision, p), t.answer, cfSampler);
@@ -1495,6 +1509,9 @@ public class HumanReplay {
         if (Counterfactual.KIND != null) {
             out.printf("counterfactual: %d decisions asked, bot agreed with the human on %d, %d played out%n",
                     Counterfactual.asked.get(), Counterfactual.agreed.get(), Counterfactual.compared.get());
+            if (Counterfactual.orderChecked.get() > 0)
+                out.printf("order: %d disagreements were a card the person played later in the phase; %d of them the order made no difference (counted as agreement)%n",
+                        Counterfactual.orderChecked.get(), Counterfactual.orderFree.get());
             if (Counterfactual.OUT != null)
                 Counterfactual.OUT.close();
         }

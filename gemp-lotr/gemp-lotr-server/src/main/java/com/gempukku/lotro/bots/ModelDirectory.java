@@ -81,6 +81,7 @@ public final class ModelDirectory {
         registry.setResponseForecast(Files.exists(dir.resolve("response-forecast")));
         registry.setOppFeatures(Files.exists(dir.resolve("opp-features")));
         registry.setBoardNet2(com.gempukku.lotro.bots.rl.fotrstarters.BoardNet2.load(dir));
+        registry.setLegacyAssignFormat(Files.exists(dir.resolve("assign-legacy-format")));
         var net = com.gempukku.lotro.bots.rl.fotrstarters.BoardNet.load(dir);
         if (net != null)
             registry.setBoardNet(net, Files.exists(dir.resolve("board-net-mix"))
