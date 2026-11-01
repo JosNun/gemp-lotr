@@ -1736,6 +1736,16 @@ Generations 7-10 continue from it, recording every league position with its outc
 judge retrained on those and the trees' games each round (JUDGE_RETRAIN), turn-long play-outs for moves and Fellowship
 plays (-Dsearch.turnCutFor) -- the user's point that the payoff of a decision can come turns later than the phase.
 
+## A new best bot: sp-g07 (2026-11-01)
+
+Generation 7 (from sp-distill-mix: the network trained on sel10-net6's decisions and people's, then one round with the
+judge retrained on the league's and the trees' games and turn-long play-outs for moves and Fellowship plays): against
+its parent 50.4% +- 1.2; the network alone against sel10-net6 41.1% (39.9 before the round, 34.6 before the trees).
+At 16 games a matchup **against sel10-net6 51.0% +- 0.9**; the pool 46.1% (racer 46.1, builder 46.9, wide fellowship
+55.5, big minions 43.0, swarm grinder 39.1; sel10-net6 45.7, sel10-big5 46.3); July agreement through the bot **71.6%**
+(70.9%). No weaker, more human-like: **sp-g07 is the bot to use** (trees with the combined network mixed in at 0.4 --
+trees alone at move again and skirmish plays -- `board-net2-mix`; the outcome-only judge alongside for search).
+
 ## How human is "agreement with people", and play by precedent (2026-10-31)
 
 **The measure rewards the consensus.** The user asked whether a real person would score higher on it than the bot. No:
