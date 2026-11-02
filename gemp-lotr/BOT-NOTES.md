@@ -1784,6 +1784,21 @@ giving the network the probes' numbers would buy about 2 points for the network 
 Mixed like sp-g07 (trees 0.6, trees alone at move and skirmish): 50.1% +- 1.2, July 76.0%; trees 0.4: 49.6%, 76.2%;
 sp-g07 51.0% +- 0.9, 76.1%. All within noise: **sp-g07 stays** the bot to use.
 
+## Play-time search (2026-11-01)
+
+`search@<dir>` (Searching): where the bot is unsure (the network's top option under 0.6) at a decision of
+search.contexts, its top 3 options and its own answer are played out 4 times each on copies (the opponent's hand dealt
+again, the same futures, a phase long; a turn for moves and Fellowship plays) and judged; answer = argmax log-prob +
+value / lambda. **Skirmish plays, lambda 0.05: sp-g07 with it against sp-g07 52.1% +- 1.2** (6,336 games; 28,273
+searches, 53% answered differently, 0.8 s a search, 6.0 CPU-seconds a game against ~1.6). Shadow plays cost 2.5 s a
+search (25.8 CPU-seconds a game); turn-long play-outs everywhere made a search take over a minute.
+
+Open: in a few matchups (e.g. movie 52bede7916 against db60b88746) both bots meet an ARBITRARY_CARDS "Choose card to
+put on top of deck" with no cards and nothing selectable, refused and asked again ~40 times a game (the searching bot,
+which plays into it more, up to 966 a game in one matchup -- the 26.3 a game it averaged; the median matchup is 0).
+PutCardsFrom{Deck,Discard}OnTopOfDeck make one choice per card remembered, from a shrinking list, and
+ChooseArbitraryCardsEffect skips an empty one, so the empty prompt comes from somewhere else -- not traced.
+
 ## How human is "agreement with people", and play by precedent (2026-10-31)
 
 **The measure rewards the consensus.** The user asked whether a real person would score higher on it than the bot. No:
