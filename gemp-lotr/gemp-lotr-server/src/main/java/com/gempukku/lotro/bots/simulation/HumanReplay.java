@@ -1390,6 +1390,7 @@ public class HumanReplay {
         int limit = Integer.MAX_VALUE, jobs = 2;
         boolean verbose = false;
         String only = null, probeBot = null;
+        boolean boardProbes = false;
         for (int i = 0; i < args.length; i++) {
             switch (args[i]) {
                 case "--manifests" -> manifests = Path.of(args[++i]);
@@ -1427,13 +1428,14 @@ public class HumanReplay {
                 case "--boards" -> BoardDump.OUT = new PrintWriter(Files.newBufferedWriter(Path.of(args[++i]), StandardCharsets.UTF_8));
                 case "--steps-players" -> ONLY_PLAYERS = new java.util.HashSet<>(Files.readAllLines(Path.of(args[++i])));
                 case "--probe-bot" -> probeBot = args[++i];
+                case "--board-probes" -> boardProbes = true;
                 case "--probe-value" -> EffectProbe.VALUE = BotVsBot.readModel(Path.of(args[++i]).resolve("value.model"));
                 case "--values" -> VALUES = new PrintWriter(Files.newBufferedWriter(Path.of(args[++i]), StandardCharsets.UTF_8));
                 case "--verbose" -> verbose = true;
                 case "--trace" -> TRACE = true;
                 case "--only" -> only = args[++i];
                 default -> BotVsBot.die("usage: HumanReplay --manifests <dir> [--limit N] [--jobs 2] [--report f.tsv] "
-                        + "[--steps f.jsonl [--steps-only <prompt regex>] [--probe-bot <bot>]] [--values f.csv] "
+                        + "[--steps f.jsonl [--steps-only <prompt regex>] [--probe-bot <bot> [--board-probes]]] [--values f.csv] "
                         + "[--only <name substring>] [--verbose]");
             }
         }
@@ -1445,6 +1447,8 @@ public class HumanReplay {
             String kind = probeBot;
             EffectProbe.FORK = copier::copy;
             TrainingSteps.PROBE_BOTS = p -> BotVsBot.bot(kind, p, ctx);
+            if (boardProbes) // the skirmish options' probe in the board records, for a network that reads it
+                BoardDump.PROBE_BOTS = TrainingSteps.PROBE_BOTS;
         }
         List<Path> files;
         try (var s = Files.list(manifests)) {

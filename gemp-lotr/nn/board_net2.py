@@ -68,6 +68,7 @@ def load_routes(path):
     return {x['game']: x for x in map(json.loads, open(path))} if path and os.path.exists(path) else {}
 
 
+PROBE_N = 22  # EffectProbe's numbers per skirmish option (LENGTH_WITHOUT_HAND): what the play did, on a copy
 ORDER_ALPHA = 0.0  # --order-alpha: the share of a card play's target for cards the person played later this phase
 
 
@@ -124,6 +125,10 @@ def encode(path, rows, seen, grow, routes, kinds=None):
         ti = np.zeros((MAX_OPTS, MAX_TOK), np.int16); tv = np.zeros((MAX_OPTS, MAX_TOK), np.int8)
         om = np.zeros(MAX_OPTS + 1, np.bool_)
         oe = np.full(MAX_OPTS + 1, -1, np.int16); oe[MAX_OPTS] = -2
+        # a skirmish option's probe (BoardDump -Dboards.probe / a net-probe bot), pass last; zeros where none was taken
+        pr = np.zeros((MAX_OPTS + 1, PROBE_N), np.int8)
+        if 'prp' in r:
+            pr[MAX_OPTS] = np.clip(np.array(r['prp'][:PROBE_N]), -127, 127)
         same = {}
         for j, o in enumerate(opts):
             src = o['src'] if 0 <= o['src'] < len(cards) else -1
@@ -133,6 +138,8 @@ def encode(path, rows, seen, grow, routes, kinds=None):
             for t, (i, v) in enumerate(o.get('tok', [])[:MAX_TOK]):
                 ti[j, t] = int(i) + 1; tv[j, t] = min(int(v), 127)
             om[j] = True
+            if 'pr' in o:
+                pr[j] = np.clip(np.array(o['pr'][:PROBE_N]), -127, 127)
             # the same card doing the same thing is the same answer (two copies of a minion in hand)
             key = (base(r['cards'][o['src']]['bp']) if src >= 0 else '?' + str(j), o['text'])
             oe[j] = same.setdefault(key, len(same))
@@ -189,7 +196,7 @@ def encode(path, rows, seen, grow, routes, kinds=None):
         for k, v in (('state', np.array(r['state'] + extra, np.float32)), ('cf', cf), ('ci', ci), ('cm', cm),
                      ('cd', cd), ('cz', cz), ('ck', ck), ('os', os_), ('ok', ok), ('oc', oc), ('ti', ti), ('tv', tv),
                      ('om', om), ('oe', oe), ('y', y), ('am', am), ('af', af), ('ay', ay), ('bg', bg), ('bc', bc),
-                     ('cx', CONTEXTS.index(context(r))), ('win', win), ('route', route), ('sv', sv), ('ot', ot)):
+                     ('cx', CONTEXTS.index(context(r))), ('win', win), ('route', route), ('sv', sv), ('ot', ot), ('pr', pr)):
             out[k].append(v)
         out['player'].append(r.get('player', '')); out['game'].append(r.get('game', ''))
     if not out:
@@ -202,8 +209,15 @@ def encode(path, rows, seen, grow, routes, kinds=None):
 
 
 class BoardNet2(nn.Module):
-    def __init__(self, table, state_width, d=256, layers=4, heads=4, id_drop=0.3, dropout=0.1, n_tok=541):
+    def __init__(self, table, state_width, d=256, layers=4, heads=4, id_drop=0.3, dropout=0.1, n_tok=541, probe=False):
         super().__init__()
+        if probe:
+            # what a skirmish option did on a copy of the game -- the trees' best numbers there, which the network
+            # alone lacked (2.2 points of its gap to sel10-net6 were skirmishes). Zero at the start and no bias: a
+            # network trained from one without it begins with exactly its answers, and a board with no probe is
+            # read as before.
+            self.probe = nn.Linear(PROBE_N, d, bias=False)
+            nn.init.zeros_(self.probe.weight)
         self.register_buffer('table', torch.from_numpy(table))
         self.register_buffer('scale', torch.tensor(SCALE, dtype=torch.float32))
         width, n_ids = table.shape[1], table.shape[0] - 1
@@ -266,6 +280,8 @@ class BoardNet2(nn.Module):
         tok = (self.tok(b['ti'].long()) * b['tv'].float().unsqueeze(-1)).sum(2)
         opt = opt + self.kind(b['ok'].long()) + self.cost(cost) + tok
         opt = torch.cat([opt, self.pass_item.expand(opt.size(0), 1, -1)], 1)
+        if hasattr(self, 'probe') and 'pr' in b:
+            opt = opt + self.probe(b['pr'].float() / 5)
         feats = torch.cat([opt, board.unsqueeze(1).expand_as(opt), pooled.unsqueeze(1).expand_as(opt)], -1)
         s = self.score(feats).squeeze(-1).masked_fill(~b['om'], -1e9)
         # assignment: minion x character, and minion alone
@@ -405,6 +421,8 @@ def main():
     ap.add_argument('--extra-weight', type=float, default=1.0)
     ap.add_argument('--order-alpha', type=float, default=0.0,
                     help='share of a Fellowship/Shadow play\'s target for the cards played later that phase (0: off)')
+    ap.add_argument('--probe', action='store_true',
+                    help='read the skirmish options\' probe numbers ("pr"); a network without them starts with them at 0')
     ap.add_argument('--people-frac', type=float, default=1.0,
                     help='each epoch, this share of people\'s decisions (all teacher boards): a quicker round')
     ap.add_argument('--per-game', type=int, default=0,
@@ -463,9 +481,11 @@ def main():
         mean = torch.from_numpy(train['state'].mean(0)).to(device)
         std = torch.from_numpy(train['state'].std(0) + 1e-3).to(device)
     model = BoardNet2(table, train['state'].shape[1], d=args.d, layers=args.layers, id_drop=args.id_drop,
-                      dropout=args.dropout).to(device)
+                      dropout=args.dropout, probe=args.probe or init is not None and init['args'].get('probe', False)).to(device)
     if init:
-        model.load_state_dict(init['model'])
+        missing, unexpected = model.load_state_dict(init['model'], strict=False)
+        if unexpected or [k for k in missing if not k.startswith('probe.')]:
+            raise SystemExit(f'--init does not fit: missing {missing}, unexpected {unexpected}')
         # the starting network's choices on the teacher boards: the people-like prior the soft targets tilt
         teach = np.arange(n_people, len(train['cx']))
         if len(teach):

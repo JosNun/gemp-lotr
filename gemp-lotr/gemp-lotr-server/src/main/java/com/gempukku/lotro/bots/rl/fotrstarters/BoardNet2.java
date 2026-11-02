@@ -48,6 +48,8 @@ public final class BoardNet2 {
 
     private final OrtEnvironment env = OrtEnvironment.getEnvironment();
     private final OrtSession session, judge;
+    /** Whether the network reads the skirmish options' probe ("pr" input, board_net2.py --probe). */
+    private final boolean probe;
     /** The same models exported for boards of at most K cards (board-net2-cK.onnx): padding costs as much as cards. */
     private final java.util.TreeMap<Integer, OrtSession> sessionBySize = new java.util.TreeMap<>(),
             judgeBySize = new java.util.TreeMap<>();
@@ -74,6 +76,7 @@ public final class BoardNet2 {
         var options = new OrtSession.SessionOptions();
         options.setIntraOpNumThreads(1); // the bot plays many games side by side
         session = env.createSession(dir.resolve("board-net2.onnx").toString(), options);
+        probe = session.getInputNames().contains("pr");
         Path j = dir.resolve("board-net2-judge.onnx");
         judge = Files.exists(j) ? env.createSession(j.toString(), options) : null;
         for (int k = 8; k < MAX_CARDS; k += 8) {
@@ -170,13 +173,13 @@ public final class BoardNet2 {
 
     /** The network's reading of {@code d}, unanswered; null if it does not take this decision or cannot read it. */
     public Result read(LotroGame game, AwaitingDecision d, String player, double[] state) {
-        JSONObject rec = BoardDump.record(game, d, player, null, state);
+        JSONObject rec = BoardDump.record(game, d, player, null, state, probe ? BoardDump.PROBE_BOTS : null);
         return rec == null ? null : run(rec, false);
     }
 
     /** The judge's (or, without one, the network's) six outcome probabilities for the board at {@code d}. */
     public double[] outcome(LotroGame game, AwaitingDecision d, String player, double[] state) {
-        JSONObject rec = BoardDump.record(game, d, player, null, state);
+        JSONObject rec = BoardDump.record(game, d, player, null, state, null); // the outcome reads no option
         Result r = rec == null ? null : run(rec, judge != null);
         return r == null ? null : r.outcome();
     }
@@ -220,6 +223,26 @@ public final class BoardNet2 {
             if (t.startsWith(KINDS.get(i)))
                 return i;
         return 0;
+    }
+
+    /** Whether the network reads the skirmish options' probe, so its bot must take them. */
+    public boolean usesProbe() {
+        return probe;
+    }
+
+    /** board_net2.encode's "pr": each option's probe numbers, passing's last; zeros where none was taken. */
+    private static float[][] probes(JSONObject r, JSONArray opts) {
+        float[][] pr = new float[MAX_OPTS + 1][BoardDump.PROBE_N];
+        for (int j = 0; j < opts.size(); j++)
+            fill(pr[j], opts.getJSONObject(j).getJSONArray("pr"));
+        fill(pr[MAX_OPTS], r.getJSONArray("prp"));
+        return pr;
+    }
+
+    private static void fill(float[] row, JSONArray v) {
+        if (v != null)
+            for (int k = 0; k < Math.min(row.length, v.size()); k++)
+                row[k] = Math.max(-127, Math.min(127, v.getIntValue(k)));
     }
 
     private static long clamp(long v) {
@@ -366,6 +389,8 @@ public final class BoardNet2 {
             in.put("af", t(af, 1, MAX_FPC));
             in.put("bg", t(bg, 1, BAGS.size(), MAX_BAG));
             in.put("bc", t(bc, 1, BAGS.size(), MAX_BAG));
+            if (!asJudge && probe)
+                in.put("pr", OnnxTensor.createTensor(env, new float[][][]{probes(r, opts)}));
             try (OrtSession.Result res = s.run(in)) {
                 float[] lp = ((float[][]) res.get(0).getValue())[0];
                 float[][] la = ((float[][][]) res.get(1).getValue())[0];

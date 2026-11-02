@@ -80,7 +80,14 @@ public final class ModelDirectory {
         registry.setAnyPhaseRich(Files.exists(dir.resolve("any-phase-rich")));
         registry.setResponseForecast(Files.exists(dir.resolve("response-forecast")));
         registry.setOppFeatures(Files.exists(dir.resolve("opp-features")));
-        registry.setBoardNet2(com.gempukku.lotro.bots.rl.fotrstarters.BoardNet2.load(dir));
+        var net2 = com.gempukku.lotro.bots.rl.fotrstarters.BoardNet2.load(dir);
+        registry.setBoardNet2(net2);
+        // a network that reads the skirmish probe needs bots to answer on the probe's copies; -Dboards.probe=true
+        // gives the boards a bot records (BotVsBot -Dbvb.boards, -Dsearch.boards) the probes too
+        if (net2 != null && (net2.usesProbe() || Boolean.getBoolean("boards.probe"))
+                && com.gempukku.lotro.bots.simulation.BoardDump.PROBE_BOTS == null)
+            com.gempukku.lotro.bots.simulation.BoardDump.PROBE_BOTS = p -> new com.gempukku.lotro.bots.rl.fotrstarters.FotrStarterBot(
+                    new com.gempukku.lotro.bots.rl.fotrstarters.FotrStartersRLGameStateFeatures(), p, registry, null, 0.0, true);
         registry.setLegacyAssignFormat(Files.exists(dir.resolve("assign-legacy-format")));
         var net = com.gempukku.lotro.bots.rl.fotrstarters.BoardNet.load(dir);
         if (net != null)
