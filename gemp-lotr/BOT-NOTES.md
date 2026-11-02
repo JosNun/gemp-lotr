@@ -1793,7 +1793,10 @@ value / lambda. **Skirmish plays, lambda 0.05: sp-g07 with it against sp-g07 52.
 searches, 53% answered differently, 0.8 s a search, 6.0 CPU-seconds a game against ~1.6). Skirmish plays, lambda 0.1: 50.5% +- 1.2 (50% answered
 differently; the two lambdas differ less in practice than in value). **Shadow plays, lambda 0.05: 52.0% +- 1.7** (3,168
 games; ~10 searches a game, 30% answered differently, 1.4 s a search, 15.4 CPU-seconds a game). Each kind is worth about
-2 points, on different decisions; turn-long play-outs everywhere made a search take over a minute.
+2 points, on different decisions; turn-long play-outs everywhere made a search take over a minute. **Both together:
+52.5% +- 1.2** against sp-g07 (not additive; 90,299 searches, 36% answered differently, 17.8 CPU-seconds a game),
+July agreement 75.8% (sp-g07 76.1%). Clearly stronger, human-likeness within 0.3: **search@sp-g07 with
+search.contexts=skirmish,shadow, k 3, 4 play-outs, lambda 0.05 is the strongest bot**; sp-g07 stays the cheap one.
 
 Open: in a few matchups (e.g. movie 52bede7916 against db60b88746) both bots meet an ARBITRARY_CARDS "Choose card to
 put on top of deck" with no cards and nothing selectable, refused and asked again ~40 times a game (the searching bot,
