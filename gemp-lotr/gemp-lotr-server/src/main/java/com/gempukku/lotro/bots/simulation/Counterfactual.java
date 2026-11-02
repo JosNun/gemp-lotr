@@ -736,8 +736,10 @@ final class Counterfactual {
             BotDecisionFallback.decide(copy, player, pending, first);
             copy.carryOutPendingActionsUntilDecisionNeeded();
             Map<String, BotPlayer> bots = new HashMap<>();
+            // the bot without its search, if it has one: the order check plays the same game both ways, not a search
+            String kind = KIND.startsWith("search@") ? "general@" + KIND.substring("search@".length()) : KIND;
             for (String p : players)
-                bots.put(p, BotVsBot.bot(KIND, p, ctx));
+                bots.put(p, BotVsBot.bot(kind, p, ctx));
             var phase = gs.getCurrentPhase();
             boolean secondPlayed = false;
             for (int step = 0; step < 200 && !copy.isFinished(); step++) {
