@@ -14,7 +14,9 @@ import com.gempukku.lotro.logic.timing.DefaultLotroGame;
 import com.gempukku.lotro.game.DefaultUserFeedback;
 
 import java.util.Arrays;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.function.Function;
 import java.util.function.UnaryOperator;
 
@@ -107,6 +109,29 @@ public final class EffectProbe {
         UnaryOperator<DefaultLotroGame> fork = FORK;
         if (fork == null || !(gs.getGame() instanceof DefaultLotroGame live))
             return null;
+        // the trees and the network's record both probe a skirmish's options: once per decision on this thread
+        Object asked = live.getUserFeedback() instanceof DefaultUserFeedback f ? f.getAwaitingDecision(me) : null;
+        Object[] cache = CACHE.get();
+        if (asked == null || cache == null || cache[0] != asked || !me.equals(cache[1])) {
+            cache = new Object[]{asked, me, new HashMap<String, double[]>()};
+            CACHE.set(cache);
+        }
+        @SuppressWarnings("unchecked") Map<String, double[]> done = (Map<String, double[]>) cache[2];
+        if (asked != null && done.containsKey(answer)) {
+            double[] f = done.get(answer);
+            return f == null ? null : f.clone();
+        }
+        double[] f = probeOnce(gs, me, answer, bots, fork, live);
+        if (asked != null)
+            done.put(answer, f == null ? null : f.clone());
+        return f;
+    }
+
+    /** The last decision probed on this thread: {decision, player, answer -> numbers}. */
+    private static final ThreadLocal<Object[]> CACHE = new ThreadLocal<>();
+
+    private static double[] probeOnce(GameState gs, String me, String answer, Function<String, BotPlayer> bots,
+                                      UnaryOperator<DefaultLotroGame> fork, DefaultLotroGame live) {
         try {
             Board before = Board.read(gs, me);
             DefaultLotroGame copy = fork.apply(live);

@@ -26,13 +26,13 @@ TYPES = {'state': np.float32, 'cm': np.bool_, 'om': np.bool_}
 # the Java encoder sends only the cards there are
 # The cards axis cannot be left open (the attention's reshapes keep the traced length), so the model is exported again
 # for smaller boards: board-net2-cK.onnx runs K cards, and the Java encoder picks the smallest K that holds the board.
-AXES = {n: {0: 'batch'} for n in NAMES + ['opt', 'asg', 'win']}
+AXES = {n: {0: 'batch'} for n in NAMES + ['pr', 'opt', 'asg', 'win']}
 CARD_INPUTS = ('cf', 'ci', 'cm', 'cd', 'cz', 'ck')
 BUCKETS = (16, 24, 32, 40, 48)
 
 
 def cut(tensors, k):
-    return [t[:, :k] if n in CARD_INPUTS else t for n, t in zip(NAMES, tensors)]
+    return [t[:, :k] if n in CARD_INPUTS else t for n, t in zip(NAMES + ['pr'], tensors)]
 
 
 class Exported(torch.nn.Module):
@@ -42,30 +42,37 @@ class Exported(torch.nn.Module):
         self.register_buffer('mean', mean)
         self.register_buffer('std', std)
 
-    def forward(self, state, cx, cf, ci, cm, cd, cz, ck, os_, ok, oc, ti, tv, om, am, af, bg, bc):
-        b = dict(state=(state - self.mean) / self.std, raw_tw=state[:, bn.TWILIGHT], cx=cx, cf=cf, ci=ci, cm=cm, cd=cd,
-                 cz=cz, ck=ck, os=os_, ok=ok, oc=oc, ti=ti, tv=tv, om=om, am=am, af=af, bg=bg, bc=bc)
+    def forward(self, *xs):
+        b = dict(zip(names(self.model), xs))
+        state = b['state']
+        b['state'], b['raw_tw'] = (state - self.mean) / self.std, state[:, bn.TWILIGHT]
         s, a, o = self.model(b)
         return torch.log_softmax(s, -1), torch.log_softmax(a, -1), torch.softmax(o, -1)
 
 
-def inputs(data, idx):
-    return [torch.from_numpy(np.ascontiguousarray(data[k][idx]).astype(TYPES.get(k, np.int64))) for k in NAMES]
+def names(model):
+    """The inputs: a network that reads the skirmish probe takes "pr" (float, [options + pass, PROBE_N]) last."""
+    return NAMES + (['pr'] if hasattr(model, 'probe') else [])
+
+
+def inputs(data, idx, model=None):
+    return [torch.from_numpy(np.ascontiguousarray(data[k][idx]).astype(np.float32 if k == 'pr' else TYPES.get(k, np.int64)))
+            for k in (names(model) if model is not None else NAMES)]
 
 
 def export(ck_path, table, data, path, buckets=True):
     ck = torch.load(ck_path, weights_only=False, map_location='cpu')
     a = ck['args']
-    model = bn.BoardNet2(table, data['state'].shape[1], d=a['d'], layers=a['layers'])
+    model = bn.BoardNet2(table, data['state'].shape[1], d=a['d'], layers=a['layers'], probe=a.get('probe', False))
     model.load_state_dict(ck['model'])
     model.eval()
     ex = Exported(model, ck['mean'], ck['std']).eval()
-    sample = inputs(data, np.arange(4))
-    torch.onnx.export(ex, tuple(sample), path, input_names=NAMES, output_names=['opt', 'asg', 'win'],
+    sample = inputs(data, np.arange(4), model)
+    torch.onnx.export(ex, tuple(sample), path, input_names=names(model), output_names=['opt', 'asg', 'win'],
                       dynamic_axes=AXES, opset_version=17, dynamo=False)
     if buckets:
         for k in BUCKETS:
-            torch.onnx.export(ex, tuple(cut(sample, k)), path.replace('.onnx', f'-c{k}.onnx'), input_names=NAMES,
+            torch.onnx.export(ex, tuple(cut(sample, k)), path.replace('.onnx', f'-c{k}.onnx'), input_names=names(model),
                               output_names=['opt', 'asg', 'win'], dynamic_axes=AXES, opset_version=17, dynamo=False)
     return ex, ck
 
@@ -101,10 +108,10 @@ def main():
     import onnxruntime as ort
     sess = ort.InferenceSession(os.path.join(args.out, 'board-net2.onnx'))
     idx = np.arange(len(data['cx']))
-    feeds = {n: t.numpy() for n, t in zip(NAMES, inputs(data, idx))}
+    feeds = {n: t.numpy() for n, t in zip(names(ex.model), inputs(data, idx, ex.model))}
     got = sess.run(None, feeds)
     with torch.no_grad():
-        want = [t.numpy() for t in ex(*inputs(data, idx))]
+        want = [t.numpy() for t in ex(*inputs(data, idx, ex.model))]
     om = feeds['om']
     d_opt = np.abs(np.where(om, got[0] - want[0], 0)).max()
     # each smaller model on the boards that fit it: the same answers as the full one

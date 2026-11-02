@@ -95,6 +95,21 @@ public final class BoardDump {
      * bot reading the board to choose: no "chosen"). Null if the network does not take this decision.
      */
     public static JSONObject record(LotroGame game, AwaitingDecision d, String player, String answer, double[] state) {
+        return record(game, d, player, answer, state, PROBE_BOTS);
+    }
+
+    /**
+     * Bots that answer what a skirmish option asks on its copy: set, each skirmish option carries "pr", EffectProbe's
+     * first {@link #PROBE_N} numbers (what the play did), and the record "prp", passing's. Set by HumanReplay
+     * --board-probes, by a bot whose network reads them (ModelDirectory) and by -Dboards.probe=true. One per JVM: the
+     * probe's bots only answer the targets and costs on the way, so whose they are hardly matters.
+     */
+    public static volatile java.util.function.Function<String, com.gempukku.lotro.bots.BotPlayer> PROBE_BOTS;
+    public static final int PROBE_N = com.gempukku.lotro.bots.rl.fotrstarters.EffectProbe.LENGTH_WITHOUT_HAND;
+
+    /** As {@link #record(LotroGame, AwaitingDecision, String, String, double[])}, probing with {@code probeBots} (null: no probes). */
+    public static JSONObject record(LotroGame game, AwaitingDecision d, String player, String answer, double[] state,
+                                    java.util.function.Function<String, com.gempukku.lotro.bots.BotPlayer> probeBots) {
         try {
             GameState gs = game.getGameState();
             observe(game);
@@ -177,7 +192,7 @@ public final class BoardDump {
             rec.put("ctx", d.getText());
             switch (kind) {
                 case "action" -> {
-                    if (!action(game, d, answer, index, rec))
+                    if (!action(game, d, player, answer, index, rec, probeBots))
                         return null;
                     double[] tree = OUT != null ? treeScores(game, d, player) : null;
                     if (tree != null)
@@ -218,6 +233,16 @@ public final class BoardDump {
         }
     }
 
+    /** The probe's first PROBE_N numbers, whole (they are counts and differences) and clamped as the encoders read them. */
+    private static void putProbe(JSONObject o, String key, double[] f) {
+        if (f == null)
+            return;
+        int[] v = new int[PROBE_N];
+        for (int k = 0; k < Math.min(PROBE_N, f.length); k++)
+            v[k] = (int) Math.max(-127, Math.min(127, Math.round(f[k])));
+        o.put(key, v);
+    }
+
     /** Writes a record built elsewhere (BotTeach's searched boards). */
     static void writeRecord(JSONObject rec) {
         PrintWriter out = OUT;
@@ -243,8 +268,10 @@ public final class BoardDump {
         return null;
     }
 
-    private static boolean action(LotroGame game, AwaitingDecision d, String answer, Map<Integer, Integer> index,
-                                  JSONObject rec) {
+    private static boolean action(LotroGame game, AwaitingDecision d, String player, String answer,
+                                  Map<Integer, Integer> index, JSONObject rec,
+                                  java.util.function.Function<String, com.gempukku.lotro.bots.BotPlayer> probeBots) {
+        boolean probe = probeBots != null && com.gempukku.lotro.bots.rl.fotrstarters.EffectProbe.applies(d);
         GameState gs = game.getGameState();
         var params = d.getDecisionParameters();
         String[] ids = params.getOrDefault("actionId", new String[0]);
@@ -278,11 +305,15 @@ public final class BoardDump {
                         tok.add(new double[]{k, t[k]});
                 o.put("tok", tok);
             }
+            if (probe)
+                putProbe(o, "pr", com.gempukku.lotro.bots.rl.fotrstarters.EffectProbe.probe(gs, player, ids[i], probeBots));
             opts.add(o);
             if (ids[i].equals(answer))
                 chosen = i;
         }
         rec.put("opts", opts);
+        if (probe)
+            putProbe(rec, "prp", com.gempukku.lotro.bots.rl.fotrstarters.EffectProbe.pass(gs, player));
         if (answer != null) {
             if (chosen < 0 && !answer.isEmpty())
                 return false;
