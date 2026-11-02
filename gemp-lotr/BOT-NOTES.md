@@ -1790,8 +1790,10 @@ sp-g07 51.0% +- 0.9, 76.1%. All within noise: **sp-g07 stays** the bot to use.
 search.contexts, its top 3 options and its own answer are played out 4 times each on copies (the opponent's hand dealt
 again, the same futures, a phase long; a turn for moves and Fellowship plays) and judged; answer = argmax log-prob +
 value / lambda. **Skirmish plays, lambda 0.05: sp-g07 with it against sp-g07 52.1% +- 1.2** (6,336 games; 28,273
-searches, 53% answered differently, 0.8 s a search, 6.0 CPU-seconds a game against ~1.6). Shadow plays cost 2.5 s a
-search (25.8 CPU-seconds a game); turn-long play-outs everywhere made a search take over a minute.
+searches, 53% answered differently, 0.8 s a search, 6.0 CPU-seconds a game against ~1.6). Skirmish plays, lambda 0.1: 50.5% +- 1.2 (50% answered
+differently; the two lambdas differ less in practice than in value). **Shadow plays, lambda 0.05: 52.0% +- 1.7** (3,168
+games; ~10 searches a game, 30% answered differently, 1.4 s a search, 15.4 CPU-seconds a game). Each kind is worth about
+2 points, on different decisions; turn-long play-outs everywhere made a search take over a minute.
 
 Open: in a few matchups (e.g. movie 52bede7916 against db60b88746) both bots meet an ARBITRARY_CARDS "Choose card to
 put on top of deck" with no cards and nothing selectable, refused and asked again ~40 times a game (the searching bot,
