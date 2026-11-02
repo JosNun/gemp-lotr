@@ -1775,7 +1775,10 @@ The newest network (order-free targets; alone 43.5% against sel10-net6) with the
 time, 8 games a matchup against sel10-net6: skirmish plays (the trees with the skirmish probe) **45.7%** (+2.2); move
 again 44.0% (+0.5; the network moves again 5.8% of the time now, sel10-net6 9.7%, against <1% before the trees'
 decisions); Free Peoples assignments (the assignment probe) 42.5% (none). So the probes explain about 2 of the 6.5
-points, through skirmishes; ~4 are in the card plays of other phases or reconcile, not localised. The day-long build
+points, through skirmishes. The rest, one decision at a time (8 games a matchup): Shadow plays 43.1%, Fellowship plays
+42.2%, reconcile 43.4% -- none; the ~4 points are spread thinner than a screen can see (maneuver, regroup, archery,
+responses). sel10-net6 with the rating-weighted first network (board_net3-d256-rated) against sel10-net6: 49.2% +- 1.2,
+level -- leaning on strong players' decisions helps neither agreement nor play. The day-long build
 giving the network the probes' numbers would buy about 2 points for the network alone, which is not the bot in use.
 
 Mixed like sp-g07 (trees 0.6, trees alone at move and skirmish): 50.1% +- 1.2, July 76.0%; trees 0.4: 49.6%, 76.2%;
