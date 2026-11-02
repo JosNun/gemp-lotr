@@ -469,6 +469,12 @@ public class BotVsBot {
                     .limit(10).forEach(e -> System.out.printf("    %5d  %s%n", e.getValue(), e.getKey()));
         }
         if (!BotGame.BOT_REJECTED.isEmpty()) {
+            // by bot and kind of decision, whatever the answer was
+            Map<String, Integer> byKind = new TreeMap<>();
+            BotGame.BOT_REJECTED.forEach((k, n) -> byKind.merge(k.replaceAll(" answered '.*'$", ""), n, Integer::sum));
+            System.out.println("  answers the engine refused, by bot and decision (count):");
+            byKind.entrySet().stream().sorted(Map.Entry.<String, Integer>comparingByValue().reversed()).limit(12)
+                    .forEach(e -> System.out.printf("    %5d  %s%n", e.getValue(), e.getKey()));
             System.out.println("  answers the engine refused (count, bot: decision) -- the fallback answered:");
             BotGame.BOT_REJECTED.entrySet().stream().sorted(Map.Entry.<String, Integer>comparingByValue().reversed())
                     .limit(15).forEach(e -> System.out.printf("    %5d  %s%n", e.getValue(), e.getKey()));
