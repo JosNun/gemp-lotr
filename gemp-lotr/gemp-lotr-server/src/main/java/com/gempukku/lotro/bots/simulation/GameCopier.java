@@ -265,6 +265,14 @@ public final class GameCopier {
 
     // ---- the copy ----
 
+    /** Every game made by {@link #copy}, held weakly: what a probe or a play-out decides, not the game being played. */
+    private static final Set<Object> COPIES = Collections.synchronizedSet(Collections.newSetFromMap(new WeakHashMap<>()));
+
+    /** Whether {@code game} is a copy (of the played game, or of a copy): a probe's or a search's, not a real one. */
+    public static boolean isCopy(Object game) {
+        return game != null && COPIES.contains(game);
+    }
+
     /**
      * A copy of {@code game}, at the decision it is waiting on, sharing nothing mutable with it. Listeners the harness
      * attached (game results, game-state listeners) are not carried over; the card-creation callback and the deck shuffler
@@ -308,6 +316,7 @@ public final class GameCopier {
                 });
             if (copy.getGameState() == state(game) || copy.getUserFeedback() == game.getUserFeedback())
                 throw new IllegalStateException("the copy shares its state with the original");
+            COPIES.add(copy);
             return copy;
         } finally {
             frozenLock.readLock().unlock();

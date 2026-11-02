@@ -1798,11 +1798,15 @@ games; ~10 searches a game, 30% answered differently, 1.4 s a search, 15.4 CPU-s
 July agreement 75.8% (sp-g07 76.1%). Clearly stronger, human-likeness within 0.3: **search@sp-g07 with
 search.contexts=skirmish,shadow, k 3, 4 play-outs, lambda 0.05 is the strongest bot**; sp-g07 stays the cheap one.
 
-Open: in a few matchups (e.g. movie 52bede7916 against db60b88746) both bots meet an ARBITRARY_CARDS "Choose card to
-put on top of deck" with no cards and nothing selectable, refused and asked again ~40 times a game (the searching bot,
-which plays into it more, up to 966 a game in one matchup -- the 26.3 a game it averaged; the median matchup is 0).
-PutCardsFrom{Deck,Discard}OnTopOfDeck make one choice per card remembered, from a shrinking list, and
-ChooseArbitraryCardsEffect skips an empty one, so the empty prompt comes from somewhere else -- not traced.
+Not a loop (traced 2026-11-02, `-Dbvb.trace=<file>` writes every decision a game answers): the "Choose card to put on
+top of deck" prompts that matchup logged ~40 times a game were Gandalf, Manager of Wizards (7_37), whose skirmish
+ability puts 3 cards from hand on top of the deck, and the Shadow player may answer with 3 of theirs. "cards=,
+selectable=" is the tally stripping the lists, not empty prompts, and they were guesses, not refusals. 144 of 150
+guesses came from EffectProbe playing the ability out on a copy before the bot chose it, and the searching bot's
+play-outs multiplied them again (its 966 a game). Copies are now marked (`GameCopier.isCopy`) and the bot logs no guess
+made on one: the matchup's tally fell from 56 to 1.6 a game for the plain bot (6 guesses in 4 games, the 6 real prompts
+in the trace) and from 43 to 7.8 for the searching one. The real prompts stay at random, since the order made no
+difference when it was measured (above, deck order).
 
 ## How human is "agreement with people", and play by precedent (2026-10-31)
 

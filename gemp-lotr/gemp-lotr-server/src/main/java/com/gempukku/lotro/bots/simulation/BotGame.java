@@ -51,6 +51,8 @@ public final class BotGame {
      */
     public static final Map<String, Integer> BOT_ERRORS = new java.util.concurrent.ConcurrentHashMap<>();
     /** Answers the engine refused (not exceptions: an answer given and rejected), by decision type and prompt. */
+    /** -Dbvb.trace=file: every decision answered, one line each (turn, phase, player, hand size, prompt, answer). */
+    static final PrintWriter TRACE = Recording.open(System.getProperty("bvb.trace"));
     public static final Map<String, Integer> BOT_REJECTED = new java.util.concurrent.ConcurrentHashMap<>();
     private static final ScheduledExecutorService WATCHDOG = Executors.newSingleThreadScheduledExecutor(r -> {
         Thread t = new Thread(r, "bot-game-watchdog");
@@ -225,6 +227,15 @@ public final class BotGame {
                                     1, Integer::sum);
                     }
                     steps.add(new Step(name, question, accepted));
+                    if (TRACE != null) {
+                        var gs = game.getGameState();
+                        synchronized (TRACE) {
+                            TRACE.println(gs.getTurnNumber() + "\t" + gs.getCurrentPhase() + "\t" + name + "\thand "
+                                    + (gs.isInit() ? gs.getHand(name).size() : -1) + "\t" + decision.getDecisionType() + "\t"
+                                    + decision.getText() + "\t" + accepted + "\t" + String.join(",",
+                                    decision.getDecisionParameters().getOrDefault("blueprintId", new String[0])));
+                        }
+                    }
                     if (log != null)
                         log.decided(game, name, decision, accepted);
                 } catch (DecisionResultInvalidException e) {

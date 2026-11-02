@@ -17,6 +17,7 @@ import com.gempukku.lotro.bots.rl.fotrstarters.models.multiplechoice.AnotherMove
 import com.gempukku.lotro.bots.rl.fotrstarters.models.multiplechoice.GoFirstTrainer;
 import com.gempukku.lotro.bots.rl.fotrstarters.models.multiplechoice.MulliganTrainer;
 import com.gempukku.lotro.bots.rl.semanticaction.*;
+import com.gempukku.lotro.bots.simulation.GameCopier;
 import com.gempukku.lotro.common.Phase;
 import com.gempukku.lotro.game.PhysicalCard;
 import com.gempukku.lotro.game.state.GameState;
@@ -218,7 +219,10 @@ public class FotrStarterBot extends RandomDecisionBot implements LearningBotPlay
             }
         }
 
-        System.out.println("Unknown assign minions decision: "
+        // a guess on a copy is a probe's or a search's, not an answer given: logged, they were 9 in 10 of a Gandalf
+        // deck's "put on top of deck" guesses (EffectProbe playing his skirmish ability out), and read as a loop
+        if (!GameCopier.isCopy(gameState.getGame()))
+            System.out.println("Unknown assign minions decision: "
                 + gameState.getCurrentPhase() + " - "
                 + decision.getText()
                 + "; freeCharacters=" + Arrays.toString(decision.getDecisionParameters().get("freeCharacters"))
@@ -281,7 +285,8 @@ public class FotrStarterBot extends RandomDecisionBot implements LearningBotPlay
             return chosenAnswer;
         }
 
-        System.out.println("Unknown card action decision: "
+        if (!GameCopier.isCopy(gameState.getGame()))
+            System.out.println("Unknown card action decision: "
                 + gameState.getCurrentPhase() + " - "
                 + decision.getText()
                 + "; actionId=" + Arrays.toString(decision.getDecisionParameters().get("actionId"))
@@ -328,7 +333,8 @@ public class FotrStarterBot extends RandomDecisionBot implements LearningBotPlay
         }
 
         // Fallback to random decision
-        System.out.println("Unknown arbitrary card selection action: "
+        if (!GameCopier.isCopy(gameState.getGame()))
+            System.out.println("Unknown arbitrary card selection action: "
                 + gameState.getCurrentPhase() + " - "
                 + decision.getText()
                 + " (" + decision.getDecisionParameters().get("min")[0]
@@ -408,7 +414,8 @@ public class FotrStarterBot extends RandomDecisionBot implements LearningBotPlay
         }
 
         // Fallback to random decision
-        System.out.println("Unknown card selection action: " + gameState.getCurrentPhase() + " - " + decision.getText() + " (" + decision.getDecisionParameters().get("min")[0] + ";" + decision.getDecisionParameters().get("max")[0] + ") " + Arrays.toString(decision.getDecisionParameters().get("cardId")));
+        if (!GameCopier.isCopy(gameState.getGame()))
+            System.out.println("Unknown card selection action: " + gameState.getCurrentPhase() + " - " + decision.getText() + " (" + decision.getDecisionParameters().get("min")[0] + ";" + decision.getDecisionParameters().get("max")[0] + ") " + Arrays.toString(decision.getDecisionParameters().get("cardId")));
         return super.chooseAction(gameState, decision);
     }
 
@@ -429,7 +436,8 @@ public class FotrStarterBot extends RandomDecisionBot implements LearningBotPlay
             return decision.getDecisionParameters().get("max")[0];
         }
 
-        System.out.println("Unknown integer action: " + decision.getText());
+        if (!GameCopier.isCopy(gameState.getGame()))
+            System.out.println("Unknown integer action: " + decision.getText());
         return super.chooseAction(gameState, decision);
     }
 
@@ -456,7 +464,8 @@ public class FotrStarterBot extends RandomDecisionBot implements LearningBotPlay
             return new MultipleChoiceAction("Exert Frodo").toDecisionString(decision, gameState);
         }
 
-        System.out.println("Unknown multiple choice action: " + decision.getText() + " - " + Arrays.toString(options));
+        if (!GameCopier.isCopy(gameState.getGame()))
+            System.out.println("Unknown multiple choice action: " + decision.getText() + " - " + Arrays.toString(options));
         return super.chooseAction(gameState, decision);
     }
 
