@@ -30,6 +30,13 @@ public final class Searching implements BotPlayer {
             "skirmish,move,fellowship,shadow").split(",")));
     static final Set<String> TURN_LONG = Set.of("move", "fellowship");
 
+    /**
+     * -Dsearch.boards=&lt;file&gt;: every searched decision as a board record with the search's answer and each candidate's
+     * value ("searched": [option index, -1 for pass; value]), the soft targets board_net2.py --teacher reads -- what the
+     * search knows, taught to the network that plays without it. Games are named as BotVsBot names them for outcomes.
+     */
+    static final java.io.PrintWriter BOARDS = Recording.open(System.getProperty("search.boards"));
+
     /** Searches made, decisions seen, by the bots of this run. */
     static final java.util.concurrent.atomic.AtomicLong searched = new java.util.concurrent.atomic.AtomicLong(),
             changed = new java.util.concurrent.atomic.AtomicLong(), nanos = new java.util.concurrent.atomic.AtomicLong(),
@@ -93,6 +100,7 @@ public final class Searching implements BotPlayer {
             long[] worlds = new SplittableRandom().longs(ROLLOUTS).toArray();
             int best = -1;
             double bestScore = Double.NEGATIVE_INFINITY;
+            Map<Integer, Double> values = new LinkedHashMap<>();
             for (int c : cands) {
                 double q = 0;
                 int n = 0;
@@ -105,6 +113,7 @@ public final class Searching implements BotPlayer {
                 }
                 if (n == 0)
                     continue;
+                values.put(c, q / n);
                 double score = lp[c] + (q / n) / LAMBDA;
                 if (score > bestScore) {
                     bestScore = score;
@@ -117,9 +126,31 @@ public final class Searching implements BotPlayer {
             String pick = answers.get(best);
             if (!pick.equals(own))
                 changed.incrementAndGet();
+            if (BOARDS != null && values.size() > 1)
+                record(gs, d, kind, pick, values, answers.size());
             return pick;
         } catch (RuntimeException e) {
             return own;
+        }
+    }
+
+    private void record(GameState gs, AwaitingDecision d, String kind, String pick, Map<Integer, Double> values, int n) {
+        try {
+            double[] st = BoardNet2.state(gs, d, getName());
+            var rec = st == null ? null : BoardDump.record(gs.getGame(), d, getName(), pick, st);
+            if (rec == null)
+                return;
+            com.alibaba.fastjson2.JSONArray searched = new com.alibaba.fastjson2.JSONArray();
+            // a card action's last option is pass, which the records index -1
+            values.forEach((c, v) -> searched.add(new double[]{"action".equals(kind) && c == n - 1 ? -1 : c, v}));
+            rec.put("searched", searched);
+            rec.put("rollouts", ROLLOUTS);
+            String line = rec.toString();
+            synchronized (BOARDS) {
+                BOARDS.println(line);
+            }
+        } catch (RuntimeException ignored) {
+            // a board the dump cannot describe is left out
         }
     }
 
