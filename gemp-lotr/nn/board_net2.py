@@ -14,7 +14,7 @@ shown this game; the own deck's remainder) with one transformer and answers thro
 
 usage (from nn/):  uv run python board_net2.py --data ~/dev/gemp-replays/labels/nn [--epochs 8]
 """
-import argparse, collections, json, math, os, random, re, time
+import argparse, collections, gzip, json, math, os, random, re, time, zlib
 
 import numpy as np
 import torch
@@ -64,6 +64,11 @@ def option_kind(r, o):
     return next((i for i, kind in enumerate(KINDS) if i and t.startswith(kind)), 0)
 
 
+def opener(path):
+    """A boards file, plain or gzipped (the older months are kept gzipped: ~20x smaller)."""
+    return gzip.open(path, 'rt') if path.endswith('.gz') else open(path)
+
+
 def load_routes(path):
     return {x['game']: x for x in map(json.loads, open(path))} if path and os.path.exists(path) else {}
 
@@ -77,7 +82,7 @@ def later_plays(path):
     turn -- the board records of a game are written in the order they were asked."""
     groups = collections.defaultdict(list)
     keys = []
-    for n, line in enumerate(open(path)):
+    for n, line in enumerate(opener(path)):
         r = json.loads(line)
         if r.get('kind', 'action') != 'action' or r.get('chosen', -1) is None or r.get('chosen', -1) < 0:
             keys.append(None)
@@ -93,11 +98,15 @@ def later_plays(path):
     return later
 
 
-def encode(path, rows, seen, grow, routes, kinds=None):
-    """A month's boards as fixed-size arrays (int8/int16 where they fit: a million boards in ~6 GB)."""
+def encode(path, rows, seen, grow, routes, kinds=None, keep=1.0):
+    """A month's boards as fixed-size arrays (int8/int16 where they fit: a million boards in ~6 GB); {keep}: the
+    share of its lines kept, drawn before parsing (2020-22 together are ~5 million boards, more than memory holds)."""
     out = collections.defaultdict(list)
+    draw = random.Random(zlib.crc32(str(path).encode())).random  # the same lines every run
     later = later_plays(path) if ORDER_ALPHA > 0 and isinstance(path, str) else {}
-    for line_no, line in enumerate(open(path) if isinstance(path, str) else path):  # a file, or the lines themselves
+    for line_no, line in enumerate(opener(path) if isinstance(path, str) else path):  # a file, or the lines themselves
+        if keep < 1 and draw() >= keep:
+            continue
         r = json.loads(line)
         kind = r.get('kind', 'action')
         if kinds and kind not in kinds:
@@ -440,10 +449,16 @@ def main():
     t0 = time.time()
     parts, games = [], []
     for m in args.train.split(','):
+        # "21-05:0.5": an older month (gzipped, its own routes file), half its boards
+        m, keep = (m.split(':')[0], float(m.split(':')[1])) if ':' in m else (m, 1.0)
         p = os.path.join(args.data, f'{args.prefix}-{m}.jsonl')
+        p = p if os.path.exists(p) else p + '.gz'
+        routes.update(load_routes(os.path.join(args.data, f'routes-{m}.jsonl')))
         if os.path.exists(p):
-            d, g = encode(p, rows, seen, init is None, routes)
-            parts.append(d); games.extend(g)
+            d, g = encode(p, rows, seen, init is None, routes, keep=keep)
+            if d:
+                parts.append(d); games.extend(g)
+                print(f'{len(d["cx"])} boards from {os.path.basename(p)}', flush=True)
     for path in (args.extra_routes.split(',') if args.extra_routes else []):
         routes.update(load_routes(path))
     for path in (args.extra_boards.split(',') if args.extra_boards else []):
