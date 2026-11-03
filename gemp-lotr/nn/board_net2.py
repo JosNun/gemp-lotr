@@ -391,6 +391,16 @@ def evaluate(model, data, device, mean, std):
     return hit, n, auc(pw, wl), rh / max(rn, 1)
 
 
+def feed(stream, **fields):
+    """A record for the dashboard's live panels (scripts/feed.py; stream named by --feed)."""
+    if not stream:
+        return
+    d = os.path.expanduser('~/dev/gemp-replays/labels/feed')
+    os.makedirs(d, exist_ok=True)
+    with open(os.path.join(d, stream + '.jsonl'), 'a') as f:
+        f.write(json.dumps({'t': round(time.time(), 3), **fields}, separators=(',', ':')) + '\n')
+
+
 def report(hit, n):
     acts = [c for c in CONTEXTS[:10] if n[c]]
     a = sum(hit[c] for c in acts) / max(1, sum(n[c] for c in acts))
@@ -430,6 +440,7 @@ def main():
     ap.add_argument('--extra-weight', type=float, default=1.0)
     ap.add_argument('--order-alpha', type=float, default=0.0,
                     help='share of a Fellowship/Shadow play\'s target for the cards played later that phase (0: off)')
+    ap.add_argument('--feed', default=None, help='a dashboard stream for each check: losses, July agreement, AUC')
     ap.add_argument('--probe', action='store_true',
                     help='read the skirmish options\' probe numbers ("pr"); a network without them starts with them at 0')
     ap.add_argument('--people-frac', type=float, default=1.0,
@@ -561,6 +572,12 @@ def main():
             at = f'{epoch + step / per_epoch:.2f}' if args.evals > 1 else f'{epoch + 1}'
             print(f'epoch {at}: train decision loss {tot_d / seen_rows:.4f}, outcome loss {tot_o / seen_rows:.4f}; '
                   f'July: {report(hit, n)}; win AUC {a:.3f}, route {r:.1%} ({time.time() - t0:.0f}s)', flush=True)
+            acts = [c for c in CONTEXTS[:10] if n[c]]
+            feed(args.feed, epoch=float(at), done=step + epoch * per_epoch, total=args.epochs * per_epoch,
+                 loss=round(tot_d / seen_rows, 4), outcome_loss=round(tot_o / seen_rows, 4),
+                 card_plays=round(100 * sum(hit[c] for c in acts) / max(1, sum(n[c] for c in acts)), 2),
+                 **{c.replace(' ', '_'): round(100 * hit[c] / n[c], 2) for c in ('fellowship', 'shadow', 'skirmish', 'move')
+                    if n[c]}, auc=round(a, 4))
             if args.save_best_auc and a > best_auc:
                 best_auc = a
                 save(args.save_best_auc)

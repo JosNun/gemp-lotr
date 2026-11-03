@@ -254,6 +254,12 @@ public class BotVsBot {
 
         ExecutorService pool = Executors.newFixedThreadPool(opts.jobs());
         List<List<Future<Outcome>>> futures = new ArrayList<>();
+        FEED_TOTAL = matchups.size() * opts.games();
+        if (FEED == null)
+            FEED = ("bvb-" + opts.kindA().replaceAll(".*/", "") + "-vs-" + opts.kindB().replaceAll(".*/", "") + "-"
+                    + new java.text.SimpleDateFormat("MMdd-HHmm").format(new Date())).replaceAll("[^A-Za-z0-9._-]", "_");
+        else if (FEED.equals("off"))
+            FEED = null;
         for (int mi = 0; mi < matchups.size(); mi++) {
             Matchup m = matchups.get(mi);
             LotroFormat format = formats.getFormat(m.format());
@@ -309,6 +315,16 @@ public class BotVsBot {
      * for the network; -Dbvb.boardsSeat=A|B|both (A), -Dbvb.boardsRate (1.0: every decision), -Dbvb.outcomes=&lt;file&gt;
      * how each game ended, for the outcome head.
      */
+    /**
+     * A record per finished game for the dashboard's live panels (Feed): to the stream -Dfeed names, by default
+     * bvb-&lt;A&gt;-vs-&lt;B&gt;-&lt;when it started&gt;; -Dfeed=off for none.
+     */
+    static String FEED = System.getProperty("feed");
+    static final java.util.concurrent.atomic.AtomicInteger FEED_DONE = new java.util.concurrent.atomic.AtomicInteger(),
+            FEED_FINISHED = new java.util.concurrent.atomic.AtomicInteger(),
+            FEED_A_WINS = new java.util.concurrent.atomic.AtomicInteger();
+    static volatile int FEED_TOTAL;
+
     private static final java.io.PrintWriter BOARDS = Recording.open(System.getProperty("bvb.boards")),
             OUTCOMES = Recording.open(System.getProperty("bvb.outcomes"));
     private static final String BOARDS_SEAT = System.getProperty("bvb.boardsSeat", "A");
@@ -389,6 +405,23 @@ public class BotVsBot {
         }
         random[0] += r.rejected().getOrDefault(BOT_A, 0);
         random[1] += r.rejected().getOrDefault(BOT_B, 0);
+        if (FEED != null) {
+            // the dashboard's live panel: progress, A's win rate as games come in, and how each one ended
+            int done = FEED_DONE.incrementAndGet();
+            String w = seat(r.winner());
+            int fin = w == null ? FEED_FINISHED.get() : FEED_FINISHED.incrementAndGet();
+            int wins = "a".equals(w) ? FEED_A_WINS.incrementAndGet() : FEED_A_WINS.get();
+            Map<String, Object> rec = new LinkedHashMap<>();
+            rec.put("done", done);
+            rec.put("total", FEED_TOTAL);
+            rec.put("a", opts.kindA());
+            rec.put("b", opts.kindB());
+            rec.put("wins", wins);
+            rec.put("games", fin);
+            rec.put("route", w == null ? "unfinished" : GameLog.route(r.reason()));
+            rec.put("turns", r.turns());
+            Feed.emit(FEED, rec);
+        }
         return new Outcome(matchup, game, aSeat, seat(r.winner()), seat(r.first()), r.reason(), r.turns(),
                 random.clone(), r.decisions(), r.error(), cpu);
     }
