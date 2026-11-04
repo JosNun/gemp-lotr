@@ -1808,6 +1808,41 @@ made on one: the matchup's tally fell from 56 to 1.6 a game for the plain bot (6
 in the trace) and from 43 to 7.8 for the searching one. The real prompts stay at random, since the order made no
 difference when it was measured (above, deck order).
 
+## What search knows, without search; more people; a better judge (2026-11-02/04)
+
+**Search stays off the server** -- the host's CPU, not a person's wait, is the limit (the user does not host it) -- so
+what it knows was to go into the network. **It did not.** search@sp-g07 against itself, 1,600 games recorded 44,369
+searched decisions with each candidate's value (`-Dsearch.boards`); search overrules the network on 60% of them, but
+best and second-best are within 0.001 on half and more than 0.05 apart on only 10%: mostly tie-breaks. sp-g07's
+network trained on all of them (sp-s1): 49.3 / 49.7 (network half the skirmish) +- 1.2 against sp-g07; also reading
+the skirmish probe (sp-s1p, `--probe`, people's boards re-replayed with probes): 49.8 / 49.6 / 47.3 (network alone at
+skirmishes). Only the 4,695 clear decisions, weight 8 (sp-s2): 51.1, then 49.8 on a second run. Three ties: stopped.
+
+**2020-21's games.** GEMP's full replays go back to March 2020 and 2021's Movie Block months are bigger than 2022's.
+`labels/scripts/month.sh` (download, unpack only Movie block's games, manifests, decklists, routes, HumanReplay with
+probes, then gzip / tar.zst: 2.6 GB a month to ~100 MB) over 22 months: **47,859 games, 3,288,891 boards** (33-38%
+of decisions reproduced, 28% in June 2021), 1.7 GB on disk. The summaries have no "Loser" field (the other player).
+board_net2 reads them gzipped, `--train 21-05:0.4` for a share of a month (all of it is ~30 GB of arrays).
+**sp-m1**: sp-g07's network, two epochs on 2022 + 40% of each older month (2.48M boards): July agreement card plays
+73.4 -> 74.3, Fellowship 67.3 -> 68.4, Shadow 63.5 -> 64.3, skirmish 80.3 -> 80.9, reconcile 58.2 -> 59.8, win AUC
+0.71 -> 0.735. As a bot at sp-g07's mix **50.2 +- 1.2** against sp-g07 and July agreement 76.37% (sp-g07 76.08% on the
+same 36,426 decisions): passes the adoption rule, recommended for the server -- as strong, more human, the same cost. The network given more say
+still loses (70% of most decisions 47.8; 40% of skirmishes 50.0): more data made it more human, not stronger.
+
+**The judge.** Outcome-only, two positions a game an epoch, best on July kept (judge-g07: 0.760). The same recipe on
+2022 + 40% of 2020-21 (62,968 games) and the league's positions, from judge-g07 (**judge3**): **0.776** at its best,
+0.774 over its last four epochs, route 55.6%. `--td-from <judge> --td-lambda` bootstraps the outcome target from the
+teacher's readings of the later positions in the game (TD(lambda), flipped where the next row is the other player's);
+**judge4**, judge3's data with TD 0.9 from judge3 (targets for 2,543,780 rows of 62,968 games): 0.778 at its best,
+0.776 over its last four epochs, route 56.1% -- a little over judge3 (+0.002 AUC, +0.5 route), within what epochs
+vary by. Both clear judge-g07 by ~0.015; judge4 is the one to try in search. Whether a better judge makes search stronger is not
+measured yet: search@sp-m1 with the new judge against search@sp-m1 with judge-g07, both seats searching, ~4 hours
+(labels/scripts/judge-search.sh, cancelled on 2026-11-04 for lack of time).
+
+**Dashboard feeds** (commit fb8b9c58c): any job appends JSON records to labels/feed/<stream>.jsonl (scripts/feed.py,
+simulation.Feed, board_net2 --feed, every BotVsBot run by default) and the page's Live section draws each stream from
+its fields -- progress, a matchup with its interval and a game ticker, a month calendar, counts, small charts, a log.
+
 ## How human is "agreement with people", and play by precedent (2026-10-31)
 
 **The measure rewards the consensus.** The user asked whether a real person would score higher on it than the bot. No:
