@@ -214,6 +214,7 @@ def encode(path, rows, seen, grow, routes, kinds=None, keep=1.0):
             if k not in ('player', 'game')}
     data['y'] = data['y'].astype(np.int64); data['cx'] = data['cx'].astype(np.int64)
     data['win'] = data['win'].astype(np.int64); data['route'] = data['route'].astype(np.int64)
+    data['ph'] = np.array([zlib.crc32(p.encode()) for p in out['player']], np.int64)  # whose side a row is from
     return data, out['game']
 
 
@@ -306,6 +307,45 @@ class BoardNet2(nn.Module):
         return s, a, o
 
 
+def td_targets(teacher, data, games, lam, device):
+    """Each row's outcome target bootstrapped from the teacher judge's readings later in its game (TD(lambda), 6 ways
+    the game ends, from the row's player's side): G_i = (1 - lam) V_{i+1} + lam G_{i+1}, G after the last row the
+    result. A game's rows are in the order they were played (one replay thread a game); the next row may be the other
+    player's, whose reading is flipped (my win by site 9 is their loss by site 9). Rows with no result get none."""
+    t_model, t_mean, t_std = teacher
+    probs = []
+    t_model.eval()
+    with torch.no_grad():
+        for b in batches(data, np.arange(len(data['cx'])), 1024, device, t_mean, t_std):
+            probs.append(torch.softmax(t_model(b)[2], -1).cpu().numpy())
+    v = np.concatenate(probs)
+    flip = lambda x: np.concatenate([x[..., 3:], x[..., :3]], -1)
+    vt = np.zeros((len(v), 6), np.float32)
+    by = collections.defaultdict(list)
+    for i, g in enumerate(games):
+        if g:
+            by[g].append(i)
+    n = 0
+    for rows_ in by.values():
+        last = rows_[-1]
+        if data['win'][last] < 0:
+            continue
+        if data['route'][last] >= 0:
+            g_next = np.eye(6, dtype=np.float32)[data['route'][last]]
+        else:  # who won, not how: the teacher's split of that half
+            half = slice(0, 3) if data['win'][last] == 1 else slice(3, 6)
+            g_next = np.zeros(6, np.float32); g_next[half] = v[last][half] / max(1e-6, v[last][half].sum())
+        vt[last] = g_next
+        for j in range(len(rows_) - 2, -1, -1):
+            i, k = rows_[j], rows_[j + 1]
+            same = data['ph'][i] == data['ph'][k]
+            vk, gk = (v[k], vt[k]) if same else (flip(v[k]), flip(vt[k]))
+            vt[i] = (1 - lam) * vk + lam * gk
+        n += len(rows_)
+    print(f'TD targets (lambda {lam}) for {n} rows of {len(by)} games', flush=True)
+    return vt
+
+
 def batches(data, idx, size, device, mean, std):
     for i in range(0, len(idx), size):
         j = idx[i:i + size]
@@ -347,6 +387,9 @@ def losses(model, b):
     lost = torch.logsumexp(lp[:, 3:], -1)
     l_win = -torch.where(b['win'] == 1, won, lost)
     lw = torch.where(known, l_route, l_win) * (b['win'] >= 0)
+    if 'vt' in b:  # a bootstrapped outcome target (--td-from) where there is one
+        has = b['vt'].sum(-1) > 0
+        lw = torch.where(has, -(b['vt'] * lp).sum(-1), lw)
     return lo + la, lw, (s, a, o)
 
 
@@ -441,6 +484,8 @@ def main():
     ap.add_argument('--order-alpha', type=float, default=0.0,
                     help='share of a Fellowship/Shadow play\'s target for the cards played later that phase (0: off)')
     ap.add_argument('--feed', default=None, help='a dashboard stream for each check: losses, July agreement, AUC')
+    ap.add_argument('--td-from', default=None, help='a judge whose later readings bootstrap the outcome targets')
+    ap.add_argument('--td-lambda', type=float, default=0.9, help='how much of the target is from further on')
     ap.add_argument('--probe', action='store_true',
                     help='read the skirmish options\' probe numbers ("pr"); a network without them starts with them at 0')
     ap.add_argument('--people-frac', type=float, default=1.0,
@@ -528,6 +573,15 @@ def main():
             spread = np.nanmax(sv, 1) - np.nanmin(sv, 1)
             print(f'search overrules the network on {np.mean(sv_best != lp_best):.1%} of {len(teach)} searched '
                   f'decisions (value spread: median {np.median(spread):.3f})', flush=True)
+    if args.td_from:
+        tck = torch.load(args.td_from, weights_only=False, map_location='cpu')
+        ta = tck['args']
+        teacher = BoardNet2(table, train['state'].shape[1], d=ta['d'], layers=ta['layers'],
+                            probe=ta.get('probe', False)).to(device)
+        teacher.load_state_dict(tck['model'])
+        train['vt'] = td_targets((teacher, tck['mean'].to(device), tck['std'].to(device)), train, games,
+                                 args.td_lambda, device)
+        del teacher
     opt = torch.optim.AdamW(model.parameters(), lr=args.lr, weight_decay=args.wd)
     by_game = collections.defaultdict(list)
     for i, g in enumerate(games):
