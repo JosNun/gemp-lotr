@@ -154,6 +154,10 @@ public class ReconcileChoiceTrainer extends AbstractTrainer {
                 double[] m = com.gempukku.lotro.bots.rl.fotrstarters.BoardNet2.mix(r.options(), score,
                         net2.treeWeight("reconcile"));
                 share = softmax(m);
+                if (net2.samples()) {
+                    int pick = net2.choose(m);
+                    return pick == 0 || share.length < 2 ? "" : cardIds[pick - 1];
+                }
             }
         }
         if (share[0] >= 0.5)

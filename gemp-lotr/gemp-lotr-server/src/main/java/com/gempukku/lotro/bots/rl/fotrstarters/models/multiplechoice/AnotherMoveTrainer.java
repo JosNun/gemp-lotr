@@ -48,7 +48,7 @@ public class AnotherMoveTrainer extends AbstractMultipleChoiceTrainer {
                 double w = net2.treeWeight("move");
                 double net = r.options()[0] - r.options()[1];
                 double trees = logOdds(probs[1]) - logOdds(modelRegistry.getMoveThreshold());
-                yes = (1 - w) * net + w * trees > 0;
+                yes = net2.chooseYes((1 - w) * net + w * trees);
             }
         }
         String option = yes ? getPositiveOption() : getNegativeOption();

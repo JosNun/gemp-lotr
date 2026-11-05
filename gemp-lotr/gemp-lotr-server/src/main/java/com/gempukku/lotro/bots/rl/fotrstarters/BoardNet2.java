@@ -50,6 +50,12 @@ public final class BoardNet2 {
     private final OrtSession session, judge;
     /** Whether the network reads the skirmish options' probe ("pr" input, board_net2.py --probe). */
     private final boolean probe;
+    /**
+     * board-net2-sample (a temperature): choose by sampling the network's distribution instead of taking its likeliest
+     * option -- the human-like opponent (2026-11-05): people's choices in their proportions, moving again about as
+     * often as they do, where the likeliest option is the consensus and almost never "move again". 0: likeliest.
+     */
+    private double sampleTemperature;
     /** The same models exported for boards of at most K cards (board-net2-cK.onnx): padding costs as much as cards. */
     private final java.util.TreeMap<Integer, OrtSession> sessionBySize = new java.util.TreeMap<>(),
             judgeBySize = new java.util.TreeMap<>();
@@ -77,6 +83,9 @@ public final class BoardNet2 {
         options.setIntraOpNumThreads(1); // the bot plays many games side by side
         session = env.createSession(dir.resolve("board-net2.onnx").toString(), options);
         probe = session.getInputNames().contains("pr");
+        Path sample = dir.resolve("board-net2-sample");
+        if (Files.exists(sample))
+            sampleTemperature = Double.parseDouble(Files.readString(sample).trim());
         Path j = dir.resolve("board-net2-judge.onnx");
         judge = Files.exists(j) ? env.createSession(j.toString(), options) : null;
         for (int k = 8; k < MAX_CARDS; k += 8) {
@@ -223,6 +232,32 @@ public final class BoardNet2 {
             if (t.startsWith(KINDS.get(i)))
                 return i;
         return 0;
+    }
+
+    /** Whether choices are sampled (board-net2-sample) rather than the likeliest taken. */
+    public boolean samples() {
+        return sampleTemperature > 0;
+    }
+
+    /** The option to take from these log-scores: the likeliest, or a draw at the sampling temperature. */
+    public int choose(double[] scores) {
+        if (sampleTemperature <= 0)
+            return argmax(scores);
+        double[] lp = logSoftmax(Arrays.stream(scores).map(v -> v / sampleTemperature).toArray());
+        double u = com.gempukku.lotro.bots.BotRandom.current().nextDouble(), acc = 0;
+        for (int i = 0; i < lp.length; i++) {
+            acc += Math.exp(lp[i]);
+            if (u < acc)
+                return i;
+        }
+        return argmax(scores);
+    }
+
+    /** Yes or no from log-odds: the sign, or a draw at the sampling temperature. */
+    public boolean chooseYes(double logOdds) {
+        if (sampleTemperature <= 0)
+            return logOdds > 0;
+        return com.gempukku.lotro.bots.BotRandom.current().nextDouble() < 1 / (1 + Math.exp(-logOdds / sampleTemperature));
     }
 
     /** Whether the network reads the skirmish options' probe, so its bot must take them. */
