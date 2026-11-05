@@ -27,7 +27,7 @@ public final class GameLog {
     private final Map<String, Player> players = new LinkedHashMap<>();
 
     static final class Player {
-        int moveAsked, moveYes, shadowTurns, minions, unspentSum, unspentN;
+        int moveAsked, moveYes, shadowTurns, minions, unspentSum, unspentN, minionsAtEndSum;
         final Map<String, int[]> passes = new TreeMap<>(); // context -> {asked, passed}
         final Map<String, Integer> played = new TreeMap<>();
         final Set<Integer> shadowTurnSeen = new HashSet<>();
@@ -72,6 +72,11 @@ public final class GameLog {
                     if ("Play Shadow action or Pass".equals(decision.getText())) {
                         p.unspentSum += gs.getTwilightPool();
                         p.unspentN++;
+                        // the minions the Shadow player has in play as the phase ends, however they got there:
+                        // what people_style.py reads off a replay, where "played from hand" cannot be told
+                        for (PhysicalCard inPlay : gs.getInPlay())
+                            if (player.equals(inPlay.getOwner()) && inPlay.getBlueprint().getCardType() == CardType.MINION)
+                                p.minionsAtEndSum++;
                     }
                 } else {
                     String[] ids = decision.getDecisionParameters().getOrDefault("actionId", new String[0]);
@@ -134,6 +139,7 @@ public final class GameLog {
                 q.put("shadowTurns", p.shadowTurns);
                 q.put("minions", p.minions);
                 q.put("unspentTwilight", p.unspentN == 0 ? null : (double) p.unspentSum / p.unspentN);
+                q.put("minionsAtShadowEnd", p.unspentN == 0 ? null : (double) p.minionsAtEndSum / p.unspentN);
                 JSONObject pass = new JSONObject();
                 p.passes.forEach((k, v) -> pass.put(k, v));
                 q.put("passes", pass);
