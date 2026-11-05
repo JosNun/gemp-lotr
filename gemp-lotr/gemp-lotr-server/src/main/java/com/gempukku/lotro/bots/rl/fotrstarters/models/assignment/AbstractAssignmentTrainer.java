@@ -222,8 +222,10 @@ public abstract class AbstractAssignmentTrainer extends AbstractTrainer {
                 double[] mixed = com.gempukku.lotro.bots.rl.fotrstarters.BoardNet2.mix(net, trees,
                         net2.treeWeight("assign fp"));
                 List<Map.Entry<Double, Map<String, List<String>>>> rescored = new ArrayList<>();
+                // sampling (board-net2-sample): the drawn candidate goes first, the rest by score after it
+                int drawn = net2.samples() ? net2.choose(mixed) : -1;
                 for (int c = 0; c < legal.size(); c++)
-                    rescored.add(Map.entry(mixed[c], legal.get(c).getValue()));
+                    rescored.add(Map.entry(c == drawn ? Double.POSITIVE_INFINITY : mixed[c], legal.get(c).getValue()));
                 legal = rescored;
             }
         }

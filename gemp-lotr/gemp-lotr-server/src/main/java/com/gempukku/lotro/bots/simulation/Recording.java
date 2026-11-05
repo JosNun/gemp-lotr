@@ -28,6 +28,10 @@ import java.util.concurrent.ThreadLocalRandom;
  * game_routes.py's output (game, winner, route, how, conf).
  */
 final class Recording implements BotPlayer {
+    /** -Dbvb.boardsKinds=move,assign,...: record only these kinds of decision (BoardDump.kind); all by default. */
+    static final java.util.Set<String> KINDS = System.getProperty("bvb.boardsKinds") == null ? null
+            : java.util.Set.of(System.getProperty("bvb.boardsKinds").split(","));
+
     private final BotPlayer inner;
     private final PrintWriter out;
     private final double rate;
@@ -52,7 +56,8 @@ final class Recording implements BotPlayer {
     @Override
     public String chooseAction(GameState gameState, AwaitingDecision decision) {
         String answer = inner.chooseAction(gameState, decision);
-        if (out != null && answer != null && BoardDump.kind(decision) != null
+        String kind = BoardDump.kind(decision);
+        if (out != null && answer != null && kind != null && (KINDS == null || KINDS.contains(kind))
                 && ThreadLocalRandom.current().nextDouble() < rate)
             try {
                 // (the callers set BoardDump.TRUE_DECK and LIVE once: a bot knows its own deck, and remembers what it saw)

@@ -198,7 +198,7 @@ public class AnyPhaseCardActionTrainer extends AbstractTrainer {
             // in a pure-network bot's play-outs they were half the time and decided nothing
             var r = alone.read(gameState, decision, playerName);
             if (r != null && alone.treeWeight(r.context()) == 0) {
-                int pick = com.gempukku.lotro.bots.rl.fotrstarters.BoardNet2.argmax(r.options());
+                int pick = alone.choose(r.options());
                 int n = decision.getDecisionParameters().getOrDefault("actionId", new String[0]).length;
                 if (pick >= 0 && r.options().length == n + 1)
                     return pick == n ? "" : String.valueOf(pick);
@@ -270,7 +270,7 @@ public class AnyPhaseCardActionTrainer extends AbstractTrainer {
                 for (int i = 0; i < scores.length; i++)
                     t[i] = scores[i] == Double.NEGATIVE_INFINITY ? Double.NEGATIVE_INFINITY : logit(scores[i]);
                 t[scores.length] = logit(passScore);
-                int pick = com.gempukku.lotro.bots.rl.fotrstarters.BoardNet2.argmax(
+                int pick = net2.choose(
                         com.gempukku.lotro.bots.rl.fotrstarters.BoardNet2.mix(r.options(), t, net2.treeWeight(r.context())));
                 if (pick >= 0)
                     return pick == scores.length ? "" : String.valueOf(pick);
