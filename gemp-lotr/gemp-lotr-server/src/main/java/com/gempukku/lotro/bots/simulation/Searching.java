@@ -127,14 +127,15 @@ public final class Searching implements BotPlayer {
             if (!pick.equals(own))
                 changed.incrementAndGet();
             if (BOARDS != null && values.size() > 1)
-                record(gs, d, kind, pick, values, answers.size());
+                record(gs, d, kind, pick, values, answers.size(), ownIndex, Math.exp(lp[order[0]]));
             return pick;
         } catch (RuntimeException e) {
             return own;
         }
     }
 
-    private void record(GameState gs, AwaitingDecision d, String kind, String pick, Map<Integer, Double> values, int n) {
+    private void record(GameState gs, AwaitingDecision d, String kind, String pick, Map<Integer, Double> values, int n,
+                        int own, double top) {
         try {
             double[] st = BoardNet2.state(gs, d, getName());
             var rec = st == null ? null : BoardDump.record(gs.getGame(), d, getName(), pick, st);
@@ -145,6 +146,10 @@ public final class Searching implements BotPlayer {
             values.forEach((c, v) -> searched.add(new double[]{"action".equals(kind) && c == n - 1 ? -1 : c, v}));
             rec.put("searched", searched);
             rec.put("rollouts", ROLLOUTS);
+            // what the bot would have answered without the search, and how sure the network was: what a gate on
+            // where search pays is learned from (search's gain = its pick's value - the bot's own answer's)
+            rec.put("own", own < 0 ? null : "action".equals(kind) && own == n - 1 ? -1 : own);
+            rec.put("netTop", top);
             String line = rec.toString();
             synchronized (BOARDS) {
                 BOARDS.println(line);

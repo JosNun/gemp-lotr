@@ -73,6 +73,7 @@ def load_routes(path):
     return {x['game']: x for x in map(json.loads, open(path))} if path and os.path.exists(path) else {}
 
 
+SEED = 1  # --seed: the run's randomness, and which share of a sampled month is kept
 PROBE_N = 22  # EffectProbe's numbers per skirmish option (LENGTH_WITHOUT_HAND): what the play did, on a copy
 ORDER_ALPHA = 0.0  # --order-alpha: the share of a card play's target for cards the person played later this phase
 
@@ -102,7 +103,7 @@ def encode(path, rows, seen, grow, routes, kinds=None, keep=1.0):
     """A month's boards as fixed-size arrays (int8/int16 where they fit: a million boards in ~6 GB); {keep}: the
     share of its lines kept, drawn before parsing (2020-22 together are ~5 million boards, more than memory holds)."""
     out = collections.defaultdict(list)
-    draw = random.Random(zlib.crc32(str(path).encode())).random  # the same lines every run
+    draw = random.Random(zlib.crc32(str(path).encode()) ^ SEED).random  # the same lines every run of a seed
     later = later_plays(path) if ORDER_ALPHA > 0 and isinstance(path, str) else {}
     for line_no, line in enumerate(opener(path) if isinstance(path, str) else path):  # a file, or the lines themselves
         if keep < 1 and draw() >= keep:
@@ -483,6 +484,7 @@ def main():
     ap.add_argument('--extra-weight', type=float, default=1.0)
     ap.add_argument('--order-alpha', type=float, default=0.0,
                     help='share of a Fellowship/Shadow play\'s target for the cards played later that phase (0: off)')
+    ap.add_argument('--seed', type=int, default=1, help='a different seed draws other lines of sampled months, other batches')
     ap.add_argument('--feed', default=None, help='a dashboard stream for each check: losses, July agreement, AUC')
     ap.add_argument('--td-from', default=None, help='a judge whose later readings bootstrap the outcome targets')
     ap.add_argument('--td-lambda', type=float, default=0.9, help='how much of the target is from further on')
@@ -493,7 +495,9 @@ def main():
     ap.add_argument('--per-game', type=int, default=0,
                     help='each epoch, only this many random positions of each game (a judge that cannot memorise games)')
     args = ap.parse_args()
-    torch.manual_seed(1); random.seed(1); np.random.seed(1)
+    global SEED
+    SEED = args.seed
+    torch.manual_seed(SEED); random.seed(SEED); np.random.seed(SEED)
     device = 'mps' if torch.backends.mps.is_available() else 'cpu'
     global LAMBDA, ORDER_ALPHA
     LAMBDA = args.lam
