@@ -31,6 +31,10 @@ public final class GameLog {
         final Map<String, int[]> passes = new TreeMap<>(); // context -> {asked, passed}
         final Map<String, Integer> played = new TreeMap<>();
         final Set<Integer> shadowTurnSeen = new HashSet<>();
+        /** Turns (the engine's numbers) on which this player moved again, and companions this player lost by turn. */
+        final Set<Integer> movedAgainOn = new TreeSet<>();
+        final Map<Integer, Integer> deadByTurn = new TreeMap<>();
+        int deadSeen;
     }
 
     /** BotGame: the game this log follows, if it has none yet. */
@@ -47,6 +51,15 @@ public final class GameLog {
             GameState gs = g.getGameState();
             Player p = players.computeIfAbsent(player, k -> new Player());
             boolean fp = player.equals(gs.getCurrentPlayerId());
+            // companions lost, by the turn they died on: each player's dead pile, read at every decision of the game
+            if (gs.isInit())
+                for (String name : gs.getPlayerNames()) {
+                    Player q = players.computeIfAbsent(name, k -> new Player());
+                    int dead = gs.getDeadPile(name).size();
+                    if (dead > q.deadSeen)
+                        q.deadByTurn.merge(gs.getTurnNumber(), dead - q.deadSeen, Integer::sum);
+                    q.deadSeen = dead;
+                }
             if (!fp && gs.isInit())
                 if (p.shadowTurnSeen.add(gs.getTurnNumber()))
                     p.shadowTurns++;
@@ -55,8 +68,10 @@ public final class GameLog {
                 p.moveAsked++;
                 String[] results = decision.getDecisionParameters().getOrDefault("results", new String[0]);
                 try {
-                    if ("Yes".equals(results[Integer.parseInt(answer.trim())]))
+                    if ("Yes".equals(results[Integer.parseInt(answer.trim())])) {
                         p.moveYes++;
+                        p.movedAgainOn.add(gs.getTurnNumber());
+                    }
                 } catch (RuntimeException ignored) {
                 }
             }
@@ -139,6 +154,10 @@ public final class GameLog {
                 q.put("shadowTurns", p.shadowTurns);
                 q.put("minions", p.minions);
                 q.put("unspentTwilight", p.unspentN == 0 ? null : (double) p.unspentSum / p.unspentN);
+                q.put("movedAgainOn", new ArrayList<>(p.movedAgainOn));
+                Map<String, Integer> deadByTurn = new TreeMap<>(); // string keys: number keys are not JSON
+                p.deadByTurn.forEach((t, n) -> deadByTurn.put(String.valueOf(t), n));
+                q.put("deadByTurn", deadByTurn);
                 q.put("minionsAtShadowEnd", p.unspentN == 0 ? null : (double) p.minionsAtEndSum / p.unspentN);
                 JSONObject pass = new JSONObject();
                 p.passes.forEach((k, v) -> pass.put(k, v));
