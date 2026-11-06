@@ -1843,6 +1843,35 @@ measured yet: search@sp-m1 with the new judge against search@sp-m1 with judge-g0
 simulation.Feed, board_net2 --feed, every BotVsBot run by default) and the page's Live section draws each stream from
 its fields -- progress, a matchup with its interval and a game ticker, a month calendar, counts, small charts, a log.
 
+## Why the bots do not race (2026-11-05)
+
+**The style gap.** `scripts/people_style.py` reads people's 2022 games (19,439) into BotVsBot's `-Dbvb.gameLog`
+shape, `scripts/style_compare.py` sets them side by side (turns counted at Fellowship phases: a replay changes player
+~6 times in setup). sp-m2 against itself: the player going first wins 50.3% (people 54.2%); "move again?" answered yes
+10-11% (people 24-26%); board-ended games end with the Ring-bearer killed 61% (42%), at site 9 24% (38%); companions
+dead 2.1-2.3 (1.7-1.9). Minions in play as the Shadow phase ends -- the one count both sides read alike -- 1.80 (1.85).
+
+**Not the move decision alone, not the assignments.** The network decides moves badly in bot games (alone 0.3-1.8%
+yes, 47.1 +- 1.2 against sp-m2) though on people's July positions it is calibrated (P(yes) 25.0% where they said yes
+23.9%): the positions differ. `-Dbvb.boardsKinds=move` records a bot's move positions; `scripts/move_positions.py`:
+at the same site the bots' fellowship has 2-4x the companions dead (site 2: 0.19 against 0.05; site 4: 0.67 against
+0.23), more exhausted, the Ring-bearer ~0.5 vitality lower -- and at matched site, vitality or burdens the bots still say
+yes about half as often. The counterfactual on people's own July games and decks (sp-m2, `--cf-deaths --cf-phases
+ASSIGNMENT,SKIRMISH`): its Free Peoples choices cost +0.020 +- 0.014 companions where they differ, assignments +0.001
+-- the deaths in bot games are the 2024-25 test decks and the bots' Shadow side, not the assignments. Moves
+(`--cf-only "another move"`, played to the end, 16 times): where the person moved and the bot would not, the bot's
+answer -12.1 +- 2.4 points; where the person stopped and the bot would move, +13.9 +- 2.6 (October's sel10-e: -11.1 /
++12.9). The play-outs are the bots', whose Shadow side lets a moving fellowship off.
+
+**A move threshold between.** `move-threshold` 0.35 / 0.25 on sp-m2: against sp-m2 49.6 / 48.8 and 48.1 +- 1.2;
+yes 17-19% / 25%; the move counterfactual on September (held out) bot - human where they differ: sp-m2 -5.7 +- 4.5,
+0.35 **+5.2 +- 4.4**, 0.25 +9.5 +- 3.3; July agreement 0.35 76.36% (sp-m2 76.48%). **sp-m3 = sp-m2 with 0.35**: level
+with the bots, better than people on moves. Where 0.25 loses (GameLog's movedAgainOn and deadByTurn,
+`scripts/double_moves.py`, 6,334 games): not in its double-move turns (companions lost that turn 0.43, the turn after
+0.37, against 0.47 / 0.40 in its other turns) but in ordinary turns (0.47 against sp-m2's 0.39) -- it meets harder
+sites sooner with fewer Fellowship phases behind it. Whether that pays against people the bot league cannot say: the
+sampled network (`board-net2-sample`, a temperature) is the human-like opponent being tried.
+
 ## How human is "agreement with people", and play by precedent (2026-10-31)
 
 **The measure rewards the consensus.** The user asked whether a real person would score higher on it than the bot. No:
