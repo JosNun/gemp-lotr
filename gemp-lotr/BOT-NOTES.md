@@ -1869,8 +1869,14 @@ yes 17-19% / 25%; the move counterfactual on September (held out) bot - human wh
 with the bots, better than people on moves. Where 0.25 loses (GameLog's movedAgainOn and deadByTurn,
 `scripts/double_moves.py`, 6,334 games): not in its double-move turns (companions lost that turn 0.43, the turn after
 0.37, against 0.47 / 0.40 in its other turns) but in ordinary turns (0.47 against sp-m2's 0.39) -- it meets harder
-sites sooner with fewer Fellowship phases behind it. Whether that pays against people the bot league cannot say: the
-sampled network (`board-net2-sample`, a temperature) is the human-like opponent being tried.
+sites sooner with fewer Fellowship phases behind it. Whether that pays against people the bot league cannot say.
+
+**The sampled network is not a human stand-in.** `board-net2-sample` (a temperature) makes the network's choices
+draws from its distribution; sp-m2's network deciding alone that way won 26.5% (T 1.0), 36.7% (0.3), 34.6% (0.5)
+against sp-m2 and moved again 0.4-2% of the time -- in the positions bot games reach the network rarely gives moving
+much probability, and a lower temperature sharpens that. Against it (T 0.3 / 0.5, 4 games a matchup, +- 1.7): sp-m2
+63.9 / 64.6, sp-m3 62.6 / 63.6, t25 61.0 / 60.9. A cautious opponent again, and racing costs against it too; the
+racing question needs people at the table.
 
 ## How human is "agreement with people", and play by precedent (2026-10-31)
 
