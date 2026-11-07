@@ -73,6 +73,7 @@ def load_routes(path):
     return {x['game']: x for x in map(json.loads, open(path))} if path and os.path.exists(path) else {}
 
 
+PLAN_DROP = 0.3  # --plan: the share of training rows given no plan, so the network still plays without one
 SEED = 1  # --seed: the run's randomness, and which share of a sampled month is kept
 PROBE_N = 22  # EffectProbe's numbers per skirmish option (LENGTH_WITHOUT_HAND): what the play did, on a copy
 ORDER_ALPHA = 0.0  # --order-alpha: the share of a card play's target for cards the person played later this phase
@@ -220,8 +221,17 @@ def encode(path, rows, seen, grow, routes, kinds=None, keep=1.0):
 
 
 class BoardNet2(nn.Module):
-    def __init__(self, table, state_width, d=256, layers=4, heads=4, id_drop=0.3, dropout=0.1, n_tok=541, probe=False):
+    def __init__(self, table, state_width, d=256, layers=4, heads=4, id_drop=0.3, dropout=0.1, n_tok=541, probe=False,
+                 plan=False):
         super().__init__()
+        if plan:
+            # the plan (2026-11-06): how this player's game ended -- won or lost by site 9, kill or corruption -- as an
+            # input, zero at the start. Training gives the true one (hidden PLAN_DROP of the time); at play the judge
+            # would pick it. plan_mode: 'none', 'true' (the ceiling: knowing the ending), 'judge' (its own outcome
+            # head's likeliest win)
+            self.plan = nn.Embedding(1 + 2 * len(ROUTES), d)
+            nn.init.zeros_(self.plan.weight)
+            self.plan_mode = 'none'
         if probe:
             # what a skirmish option did on a copy of the game -- the trees' best numbers there, which the network
             # alone lacked (2.2 points of its gap to sel10-net6 were skirmishes). Zero at the start and no bias: a
@@ -266,6 +276,20 @@ class BoardNet2(nn.Module):
                  + self.ids(ids.long()))
         ctx = F.one_hot(b['cx'], len(CONTEXTS)).float()
         st = self.state(torch.cat([b['state'], ctx], -1)).unsqueeze(1)
+        if hasattr(self, 'plan'):
+            mode = 'train' if self.training else self.plan_mode
+            if mode == 'judge':
+                self.plan_mode = 'none'
+                o0 = self.forward(b)[2]
+                self.plan_mode = 'judge'
+                idx = o0[:, :len(ROUTES)].argmax(-1) + 1
+            elif mode in ('train', 'true'):
+                idx = (b['route'] + 1).clamp(min=0)
+                if mode == 'train':
+                    idx = idx.masked_fill(torch.rand(idx.shape, device=idx.device) < PLAN_DROP, 0)
+            else:
+                idx = torch.zeros_like(b['route'])
+            st = st + self.plan(idx.long()).unsqueeze(1)
         # the piles: each one item, its distinct cards weighted by how many copies, plus what pile and how big
         bg = b['bg'].long()
         bm = (bg != 0).float()
@@ -484,6 +508,7 @@ def main():
     ap.add_argument('--extra-weight', type=float, default=1.0)
     ap.add_argument('--order-alpha', type=float, default=0.0,
                     help='share of a Fellowship/Shadow play\'s target for the cards played later that phase (0: off)')
+    ap.add_argument('--plan', action='store_true', help='the plan (how the game ended) as an input; see BoardNet2')
     ap.add_argument('--seed', type=int, default=1, help='a different seed draws other lines of sampled months, other batches')
     ap.add_argument('--feed', default=None, help='a dashboard stream for each check: losses, July agreement, AUC')
     ap.add_argument('--td-from', default=None, help='a judge whose later readings bootstrap the outcome targets')
@@ -556,10 +581,11 @@ def main():
         mean = torch.from_numpy(train['state'].mean(0)).to(device)
         std = torch.from_numpy(train['state'].std(0) + 1e-3).to(device)
     model = BoardNet2(table, train['state'].shape[1], d=args.d, layers=args.layers, id_drop=args.id_drop,
-                      dropout=args.dropout, probe=args.probe or init is not None and init['args'].get('probe', False)).to(device)
+                      dropout=args.dropout, probe=args.probe or init is not None and init['args'].get('probe', False),
+                      plan=args.plan or init is not None and init['args'].get('plan', False)).to(device)
     if init:
         missing, unexpected = model.load_state_dict(init['model'], strict=False)
-        if unexpected or [k for k in missing if not k.startswith('probe.')]:
+        if unexpected or [k for k in missing if not k.startswith(('probe.', 'plan.'))]:
             raise SystemExit(f'--init does not fit: missing {missing}, unexpected {unexpected}')
         # the starting network's choices on the teacher boards: the people-like prior the soft targets tilt
         teach = np.arange(n_people, len(train['cx']))

@@ -24,6 +24,16 @@ import java.util.function.Function;
 public final class Searching implements BotPlayer {
     static final int K = Integer.getInteger("search.k", 3), ROLLOUTS = Integer.getInteger("search.rollouts", 4),
             MAX_PER_GAME = Integer.getInteger("search.maxPerGame", 60);
+    /** search.stage1: play-outs a candidate in a first round (0: all of them at once); search.spread: go on past it. */
+    static final int STAGE1 = Integer.getInteger("search.stage1", 0);
+    static final double SPREAD = Double.parseDouble(System.getProperty("search.spread", "0.1"));
+    /**
+     * search.stage1Mode=judge: the first round only applies each candidate and judges the next position of this
+     * player's (no play-out), and the second round is then all search.rollouts play-outs; "playout" (the default): the
+     * first round is the first play-out. search.keep: candidates carried into the second round, the best first.
+     */
+    static final boolean STAGE1_JUDGE = "judge".equals(System.getProperty("search.stage1Mode"));
+    static final int KEEP = Integer.getInteger("search.keep", 99);
     static final double GATE = Double.parseDouble(System.getProperty("search.gate", "0.6")),
             LAMBDA = Double.parseDouble(System.getProperty("search.lambda", "0.05"));
     static final Set<String> CONTEXTS = new HashSet<>(List.of(System.getProperty("search.contexts",
@@ -41,7 +51,7 @@ public final class Searching implements BotPlayer {
     static final java.util.concurrent.atomic.AtomicLong searched = new java.util.concurrent.atomic.AtomicLong(),
             changed = new java.util.concurrent.atomic.AtomicLong(), nanos = new java.util.concurrent.atomic.AtomicLong(),
             playOuts = new java.util.concurrent.atomic.AtomicLong(), steps = new java.util.concurrent.atomic.AtomicLong(),
-            judged = new java.util.concurrent.atomic.AtomicLong();
+            judged = new java.util.concurrent.atomic.AtomicLong(), stoppedEarly = new java.util.concurrent.atomic.AtomicLong();
 
     private final BotPlayer inner;
     private final BoardNet2 net;
@@ -101,16 +111,57 @@ public final class Searching implements BotPlayer {
             int best = -1;
             double bestScore = Double.NEGATIVE_INFINITY;
             Map<Integer, Double> values = new LinkedHashMap<>();
+            // two rounds (search.stage1 > 0): the first play-outs of every candidate, and the rest only where they
+            // spread the candidates by search.spread or more -- the searches that pay are the ones whose options
+            // come out far apart, and nothing known before searching tells which (scripts/search_gate.py)
+            Map<Integer, double[]> sums = new LinkedHashMap<>(); // candidate -> {value sum, play-outs}
+            int first = STAGE1 > 0 ? Math.min(STAGE1, worlds.length) : worlds.length;
             for (int c : cands) {
-                double q = 0;
-                int n = 0;
-                for (long w : worlds) {
-                    Double v = playOut(gs, d, answers.get(c), w, turnLong);
+                double[] qn = new double[2];
+                for (int i = 0; i < first; i++) {
+                    Double v = playOut(gs, d, answers.get(c), worlds[i], turnLong, STAGE1_JUDGE);
                     if (v != null) {
-                        q += v;
-                        n++;
+                        qn[0] += v;
+                        qn[1]++;
                     }
                 }
+                sums.put(c, qn);
+            }
+            if (first < worlds.length) {
+                double lo = Double.POSITIVE_INFINITY, hi = Double.NEGATIVE_INFINITY;
+                for (double[] qn : sums.values())
+                    if (qn[1] > 0) {
+                        lo = Math.min(lo, qn[0] / qn[1]);
+                        hi = Math.max(hi, qn[0] / qn[1]);
+                    }
+                if (!(hi - lo >= SPREAD)) {
+                    stoppedEarly.incrementAndGet();
+                    nanos.addAndGet(System.nanoTime() - t0);
+                    return own; // the options look alike: the bot's own answer
+                }
+                // the best KEEP by the first round's score go on; a first round of judged positions is not reused
+                List<Integer> ranked = new ArrayList<>(sums.keySet());
+                java.util.function.ToDoubleFunction<Integer> sc = c -> sums.get(c)[1] == 0 ? Double.NEGATIVE_INFINITY
+                        : lp[c] + sums.get(c)[0] / sums.get(c)[1] / LAMBDA;
+                ranked.sort((x, y) -> Double.compare(sc.applyAsDouble(y), sc.applyAsDouble(x)));
+                if (STAGE1_JUDGE)
+                    sums.replaceAll((c, qn) -> new double[2]);
+                if (ranked.size() > KEEP)
+                    for (int c : ranked.subList(KEEP, ranked.size()))
+                        sums.remove(c);
+                int from = STAGE1_JUDGE ? 0 : first;
+                for (var e : sums.entrySet())
+                    for (int i = from; i < worlds.length; i++) {
+                        Double v = playOut(gs, d, answers.get(e.getKey()), worlds[i], turnLong);
+                        if (v != null) {
+                            e.getValue()[0] += v;
+                            e.getValue()[1]++;
+                        }
+                    }
+            }
+            for (var e : sums.entrySet()) {
+                int c = e.getKey();
+                double q = e.getValue()[0], n = e.getValue()[1];
                 if (n == 0)
                     continue;
                 values.put(c, q / n);
@@ -182,6 +233,12 @@ public final class Searching implements BotPlayer {
      * ends scores 1 or 0.
      */
     private Double playOut(GameState live, AwaitingDecision d, String answer, long world, boolean turnLong) {
+        return playOut(live, d, answer, world, turnLong, false);
+    }
+
+    /** As above; {@code immediate}: judge the first position of this player's after the answer, without playing on. */
+    private Double playOut(GameState live, AwaitingDecision d, String answer, long world, boolean turnLong,
+                           boolean immediate) {
         String me = getName();
         try {
             DefaultLotroGame copy = copier.copy((DefaultLotroGame) live.getGame());
@@ -228,7 +285,8 @@ public final class Searching implements BotPlayer {
                         }
                     if (next == null)
                         return null;
-                    boolean far = turnLong ? gs.getTurnNumber() > turn : gs.getCurrentPhase() != phase || gs.getTurnNumber() > turn;
+                    boolean far = immediate || (turnLong ? gs.getTurnNumber() > turn
+                            : gs.getCurrentPhase() != phase || gs.getTurnNumber() > turn);
                     if (far && who.equals(me) && BoardDump.kind(next) != null) {
                         double[] st = BoardNet2.state(gs, next, me);
                         double[] o = st == null ? null : net.outcome(copy, next, me, st);
