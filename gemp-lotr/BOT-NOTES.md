@@ -1878,6 +1878,30 @@ much probability, and a lower temperature sharpens that. Against it (T 0.3 / 0.5
 63.9 / 64.6, sp-m3 62.6 / 63.6, t25 61.0 / 60.9. A cautious opponent again, and racing costs against it too; the
 racing question needs people at the table.
 
+## Cheaper search, and two networks that add nothing (2026-11-06)
+
+**search@sp-m3 with judge4 against sp-m3: 53.6 +- 1.7 at 20.9 CPU-seconds a game** (plain sp-m3 ~2.5). Searching
+now records the bot's own answer and the network's top probability; `scripts/search_gate.py` on 32,590 searches:
+search changed the answer 28% of the time and the top 10% of searches hold 97% of the summed gain (inflated by the
+pick being the noisiest high value), but nothing known before searching finds them -- the 10/25/50% the network is
+least sure of keep 10/25/52% of the gain, a gradient-boosted gate (context, certainty, options, state) 13/34/62%; the
+spread of the play-outs' values 59/87/99%.
+
+**Two rounds** (`-Dsearch.stage1=1 -Dsearch.spread=s`): one play-out a candidate, the rest only where they spread the
+candidates by s or more, else the bot's own answer. Against sp-m3 (+- 1.7): s 0.05 **54.0 at 9.3 CPU-s/game** (77% of
+searches stopped after the first round), 0.1 52.0 at 9.3 (90%), 0.2 51.8 at 6.4 (97%). A JFR profile of it (120
+games): the network ~55% of the time (native ONNX, sampled half as often as Java), trees ~13%, engine ~13%, EffectProbe
+~8%, board records ~5%, game copies ~3%. Trees-only bots playing the play-outs (`-Dsearch.policy=<dir>`, sp-m3-trees):
+3.8 CPU-s/game against 7.3. Also `-Dsearch.stage1Mode=judge` (the first round judges each candidate's next position,
+no play-out) and `-Dsearch.keep=N` (only the best N into the second round).
+
+**Averaging networks: nothing.** Two of sp-m1's (board_net2 `--seed` draws other shares of the sampled months),
+`nn/eval_ensemble.py`: July card plays 74.3 / 74.2 -> 74.3, Fellowship+Shadow 66.7 / 66.7 -> 66.8, AUC 0.736.
+**The plan as an input: nothing.** `--plan` (how this player's game ended, six ways, hidden 30% of rows), one epoch from
+sp-m1's network, `nn/eval_plan.py`: July card plays told nothing 74.6, the true ending 74.4, its own outcome head's
+likeliest win 74.5 (sp-m1 74.3). Knowing the ending does not help predict people's choices: the network already reads
+what they are playing for off the board. No strategy-specific networks.
+
 ## How human is "agreement with people", and play by precedent (2026-10-31)
 
 **The measure rewards the consensus.** The user asked whether a real person would score higher on it than the bot. No:

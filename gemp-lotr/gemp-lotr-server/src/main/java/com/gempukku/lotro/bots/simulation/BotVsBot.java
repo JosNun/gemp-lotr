@@ -131,8 +131,11 @@ public class BotVsBot {
                     if (searchCopier == null)
                         searchCopier = new GameCopier(ctx.library(), ctx.formats());
                 }
+            // -Dsearch.policy=<dir>: the bots that play the play-outs out (default: the searching bot's own) -- the
+            // network was ~55% of a search game's time, most of it the play-outs' own decisions
+            String policy = System.getProperty("search.policy", dir);
             return new Searching(bot("general@" + dir, name, ctx), ctx.models(Path.of(dir)).getBoardNet2(),
-                    searchCopier, n -> bot("general@" + dir, n, ctx));
+                    searchCopier, n -> bot("general@" + policy, n, ctx));
         }
         int at = kind.indexOf('@');
         if (at > 0) {
@@ -303,9 +306,11 @@ public class BotVsBot {
         standings(all, matchups);
         if (Searching.searched.get() > 0)
             System.out.printf("search: %d decisions searched, %d answered differently from the bot; %.1f s a search, "
-                            + "%d play-outs, %.0f steps each, %d judged%n", Searching.searched.get(), Searching.changed.get(),
+                            + "%d play-outs, %.0f steps each, %d judged, %d stopped after the first round%n",
+                    Searching.searched.get(), Searching.changed.get(),
                     Searching.nanos.get() / 1e9 / Searching.searched.get(), Searching.playOuts.get(),
-                    (double) Searching.steps.get() / Math.max(1, Searching.playOuts.get()), Searching.judged.get());
+                    (double) Searching.steps.get() / Math.max(1, Searching.playOuts.get()), Searching.judged.get(),
+                    Searching.stoppedEarly.get());
         System.exit(0); // ends any game thread still spinning in the engine
     }
 
