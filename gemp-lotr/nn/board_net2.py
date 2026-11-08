@@ -74,6 +74,7 @@ def load_routes(path):
 
 
 PLAN_DROP = 0.3  # --plan: the share of training rows given no plan, so the network still plays without one
+PLAYERS = None  # --players: the names whose decisions are trained on (people's months only)
 SEED = 1  # --seed: the run's randomness, and which share of a sampled month is kept
 PROBE_N = 22  # EffectProbe's numbers per skirmish option (LENGTH_WITHOUT_HAND): what the play did, on a copy
 ORDER_ALPHA = 0.0  # --order-alpha: the share of a card play's target for cards the person played later this phase
@@ -100,7 +101,7 @@ def later_plays(path):
     return later
 
 
-def encode(path, rows, seen, grow, routes, kinds=None, keep=1.0):
+def encode(path, rows, seen, grow, routes, kinds=None, keep=1.0, players=None):
     """A month's boards as fixed-size arrays (int8/int16 where they fit: a million boards in ~6 GB); {keep}: the
     share of its lines kept, drawn before parsing (2020-22 together are ~5 million boards, more than memory holds)."""
     out = collections.defaultdict(list)
@@ -110,6 +111,8 @@ def encode(path, rows, seen, grow, routes, kinds=None, keep=1.0):
         if keep < 1 and draw() >= keep:
             continue
         r = json.loads(line)
+        if players is not None and r.get('player') not in players:
+            continue  # --players: only these people's decisions
         kind = r.get('kind', 'action')
         if kinds and kind not in kinds:
             continue
@@ -546,6 +549,7 @@ def main():
     ap.add_argument('--plan', action='store_true', help='the plan (how the game ended) as an input; see BoardNet2')
     ap.add_argument('--seed', type=int, default=1, help='a different seed draws other lines of sampled months, other batches')
     ap.add_argument('--feed', default=None, help='a dashboard stream for each check: losses, July agreement, AUC')
+    ap.add_argument('--players', default=None, help="a file of names: train only on these people's decisions")
     ap.add_argument('--awr-boards', default=None, help="a bot's own decisions (BotVsBot -Dbvb.boards), comma separated")
     ap.add_argument('--awr-routes', default=None, help='their games\' results (-Dbvb.outcomes), comma separated')
     ap.add_argument('--awr-judge', default=None, help='the judge whose estimate weights them (judge_credit)')
@@ -560,8 +564,9 @@ def main():
     ap.add_argument('--per-game', type=int, default=0,
                     help='each epoch, only this many random positions of each game (a judge that cannot memorise games)')
     args = ap.parse_args()
-    global SEED
+    global SEED, PLAYERS
     SEED = args.seed
+    PLAYERS = set(open(args.players).read().split()) if args.players else None
     torch.manual_seed(SEED); random.seed(SEED); np.random.seed(SEED)
     device = 'mps' if torch.backends.mps.is_available() else 'cpu'
     global LAMBDA, ORDER_ALPHA
@@ -580,7 +585,7 @@ def main():
         p = p if os.path.exists(p) else p + '.gz'
         routes.update(load_routes(os.path.join(args.data, f'routes-{m}.jsonl')))
         if os.path.exists(p):
-            d, g = encode(p, rows, seen, init is None, routes, keep=keep)
+            d, g = encode(p, rows, seen, init is None, routes, keep=keep, players=PLAYERS)
             if d:
                 parts.append(d); games.extend(g)
                 print(f'{len(d["cx"])} boards from {os.path.basename(p)}', flush=True)
