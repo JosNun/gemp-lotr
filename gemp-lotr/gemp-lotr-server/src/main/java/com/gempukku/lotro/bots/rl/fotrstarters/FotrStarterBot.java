@@ -150,6 +150,9 @@ public class FotrStarterBot extends RandomDecisionBot implements LearningBotPlay
         int previousVersion = CardFeatures.version();
         try {
             CardFeatures.setVersion(modelRegistry == null ? 1 : modelRegistry.getFeatureVersion());
+            if (decision.getDecisionType() == com.gempukku.lotro.logic.decisions.AwaitingDecisionType.ASSIGN_MINIONS && getName().equals(gameState.getCurrentPlayerId()))
+                com.gempukku.lotro.bots.rl.fotrstarters.models.multiplechoice.AnotherMoveTrainer.observeAssignment(
+                        gameState, getName(), decision);
             SemanticAction action = chooseSemanticAction(gameState, decision, legality);
 
             if (replayBuffer != null) {
