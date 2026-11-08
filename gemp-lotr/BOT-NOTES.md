@@ -1902,6 +1902,29 @@ sp-m1's network, `nn/eval_plan.py`: July card plays told nothing 74.6, the true 
 likeliest win 74.5 (sp-m1 74.3). Knowing the ending does not help predict people's choices: the network already reads
 what they are playing for off the board. No strategy-specific networks.
 
+## A judge for bot positions, and four cheap ideas (2026-11-07/08)
+
+**judge5 / judge5b**: judge4's recipe plus 282,360 positions of sp-m3 against itself (20% of decisions, 6,400 games on
+the training decks); judge5 d 256 from judge4, judge5b d 384 x 6 layers from scratch, 20 epochs (`nn/eval_judge.py`).
+Win AUC on July's people / held-out bot positions (1,584 games on the test decks): judge4 0.778 / **0.685**, judge5
+0.780 / 0.734, judge5b **0.785 / 0.750**. In two-round search against sp-m3 (+- 1.2): judge5b 54.3 at 9.3 CPU-s/game,
+judge4 that night 53.0 (54.4 the night before). A much better judge of who wins, not a clearly stronger search: telling
+apart one decision's nearly equal options is another question. Nor is it noise: 8 play-outs in the second round instead
+of 3, 54.2 +- 1.2.
+
+**Racing that adapts to the opponent** (`move-adaptive`: the threshold moved by the minions the opponent sent in this
+player's turns, from 1.8): 0.10 a minion 50.1 +- 1.2 against sp-m3, 0.20 48.1. Nothing.
+
+**The judge as teacher** (`board_net2 --awr-*`): 709,441 decisions of sp-m3 against itself (3,200 games), each weighted
+by exp(change in judge5's estimate of its player's chance / 0.05), clamped 1/5..5 (advantage sd 0.097, 9% at the cap),
+with people's games; sp-m1's network one epoch. In sp-m3's directory: 49.0 +- 1.2; the same with every weight 1:
+49.7. July 74.2 / 74.3. Nothing.
+
+**Strong players only, 2020-22** (`scripts/player_ratings_all.py`: Bradley-Terry over 67,298 games, 608 players with 20+;
+the top third, 200 at 1607+, 64% wins; `board_net2 --players`): sp-m1's network one epoch on their decisions alone.
+July (`nn/eval_players.py`) with them 74.58 -> 74.70%, with the rest 74.17 -> 73.81%; in sp-m3's directory 50.9 +- 1.2.
+October's 2022-only weighting was level; three years and a sharper cut, level again.
+
 ## How human is "agreement with people", and play by precedent (2026-10-31)
 
 **The measure rewards the consensus.** The user asked whether a real person would score higher on it than the bot. No:
