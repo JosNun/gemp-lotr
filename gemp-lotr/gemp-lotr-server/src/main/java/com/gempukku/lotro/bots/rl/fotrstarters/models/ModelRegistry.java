@@ -109,6 +109,17 @@ public class ModelRegistry {
         this.characterOutsideSkirmish = characterOutsideSkirmish;
     }
 
+    /** A "move-adaptive" file's "ref slope min max" (AnotherMoveTrainer), or null. */
+    private double[] moveAdaptive;
+
+    public double[] getMoveAdaptive() {
+        return moveAdaptive;
+    }
+
+    public void setMoveAdaptive(double[] moveAdaptive) {
+        this.moveAdaptive = moveAdaptive;
+    }
+
     /** AnotherMoveTrainer moves above this: the number in a "move-threshold" file, else 0.5. */
     private double moveThreshold = 0.5;
 

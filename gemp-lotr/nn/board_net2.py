@@ -371,6 +371,41 @@ def td_targets(teacher, data, games, lam, device):
     return vt
 
 
+def judge_credit(judge, data, rows_, games, device, beta, cap):
+    """The judge as teacher (2026-11-07): each of a bot's own decisions weighted by how the judge's estimate of its
+    player's chance moved from its position to the next one in the game (the other player's flipped), the game's
+    result after the last: weight exp(advantage / beta), clamped to [1/cap, cap] -- advantage-weighted imitation of
+    the bot's own choices, so the ones that raised its chances count more. Rows without a result keep weight 1."""
+    j_model, j_mean, j_std = judge
+    j_model.eval()
+    v = np.zeros(len(data['cx']), np.float32)
+    with torch.no_grad():
+        for idx in np.array_split(rows_, max(1, len(rows_) // 1024)):
+            for b in batches(data, idx, len(idx), device, j_mean, j_std):
+                v[idx] = torch.softmax(j_model(b)[2], -1)[:, :len(ROUTES)].sum(-1).cpu().numpy()
+    w = np.ones(len(data['cx']), np.float32)
+    by = collections.defaultdict(list)
+    for i in rows_:
+        by[games[i]].append(i)
+    adv = []
+    for seq in by.values():
+        for j, i in enumerate(seq):
+            if j + 1 < len(seq):
+                k = seq[j + 1]
+                nxt = v[k] if data['ph'][k] == data['ph'][i] else 1 - v[k]
+            elif data['win'][i] >= 0:
+                nxt = float(data['win'][i])
+            else:
+                continue
+            a = nxt - v[i]
+            adv.append(a)
+            w[i] = min(cap, max(1 / cap, math.exp(a / beta)))
+    adv = np.array(adv)
+    print(f'judge credit on {len(adv)} decisions: advantage mean {adv.mean():+.4f}, sd {adv.std():.4f}; weights '
+          f'median {np.median(w[rows_]):.2f}, at the cap {np.mean(w[rows_] >= cap - 1e-6):.1%}', flush=True)
+    return w
+
+
 def batches(data, idx, size, device, mean, std):
     for i in range(0, len(idx), size):
         j = idx[i:i + size]
@@ -511,6 +546,11 @@ def main():
     ap.add_argument('--plan', action='store_true', help='the plan (how the game ended) as an input; see BoardNet2')
     ap.add_argument('--seed', type=int, default=1, help='a different seed draws other lines of sampled months, other batches')
     ap.add_argument('--feed', default=None, help='a dashboard stream for each check: losses, July agreement, AUC')
+    ap.add_argument('--awr-boards', default=None, help="a bot's own decisions (BotVsBot -Dbvb.boards), comma separated")
+    ap.add_argument('--awr-routes', default=None, help='their games\' results (-Dbvb.outcomes), comma separated')
+    ap.add_argument('--awr-judge', default=None, help='the judge whose estimate weights them (judge_credit)')
+    ap.add_argument('--awr-beta', type=float, default=0.05)
+    ap.add_argument('--awr-cap', type=float, default=5.0)
     ap.add_argument('--td-from', default=None, help='a judge whose later readings bootstrap the outcome targets')
     ap.add_argument('--td-lambda', type=float, default=0.9, help='how much of the target is from further on')
     ap.add_argument('--probe', action='store_true',
@@ -553,6 +593,16 @@ def main():
             parts.append(d); games.extend(g)
             print(f'{len(d["cx"])} extra boards from {path} ({(d["y"] >= 0).mean():.0%} with a choice, '
                   f'{(d["win"] >= 0).mean():.0%} with an outcome)', flush=True)
+    for path in (args.awr_routes.split(',') if args.awr_routes else []):
+        routes.update(load_routes(path))
+    awr_start = sum(len(p['cx']) for p in parts)
+    for path in (args.awr_boards.split(',') if args.awr_boards else []):
+        d, g = encode(path, rows, seen, False, routes)
+        if d:
+            d['tw_extra'] = np.ones(len(d['cx']), np.float32)
+            parts.append(d); games.extend(g)
+            print(f'{len(d["cx"])} of a bot\'s own decisions from {path} ({(d["win"] >= 0).mean():.0%} with a result)', flush=True)
+    awr_end = sum(len(p['cx']) for p in parts)
     n_people = sum(len(p['cx']) for p in parts)
     for path in (args.teacher.split(',') if args.teacher else []):
         d, g = encode(path, rows, seen, False, {})
@@ -603,6 +653,15 @@ def main():
             spread = np.nanmax(sv, 1) - np.nanmin(sv, 1)
             print(f'search overrules the network on {np.mean(sv_best != lp_best):.1%} of {len(teach)} searched '
                   f'decisions (value spread: median {np.median(spread):.3f})', flush=True)
+    if args.awr_judge and awr_end > awr_start:
+        jck = torch.load(args.awr_judge, weights_only=False, map_location='cpu')
+        ja = jck['args']
+        judge = BoardNet2(table, train['state'].shape[1], d=ja['d'], layers=ja['layers'], probe=ja.get('probe', False)).to(device)
+        judge.load_state_dict(jck['model'], strict=False)
+        wgt = judge_credit((judge, jck['mean'].to(device), jck['std'].to(device)), train, np.arange(awr_start, awr_end),
+                           games, device, args.awr_beta, args.awr_cap)
+        train['tw'][awr_start:awr_end] *= wgt[awr_start:awr_end]
+        del judge
     if args.td_from:
         tck = torch.load(args.td_from, weights_only=False, map_location='cpu')
         ta = tck['args']

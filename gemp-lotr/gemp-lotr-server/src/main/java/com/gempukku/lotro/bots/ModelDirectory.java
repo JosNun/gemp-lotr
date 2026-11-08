@@ -104,6 +104,9 @@ public final class ModelDirectory {
         registry.setNoSkirmishRule(Files.exists(dir.resolve("no-skirmish-rule")));
         registry.setNumberBid(Files.exists(dir.resolve("number-bid")));
         registry.setCharacterOutsideSkirmish(Files.exists(dir.resolve("character-outside-skirmish")));
+        if (Files.exists(dir.resolve("move-adaptive")))
+            registry.setMoveAdaptive(java.util.Arrays.stream(Files.readString(dir.resolve("move-adaptive")).trim()
+                    .split("\\s+")).mapToDouble(Double::parseDouble).toArray());
         if (Files.exists(dir.resolve("move-threshold")))
             registry.setMoveThreshold(Double.parseDouble(Files.readString(dir.resolve("move-threshold")).trim()));
         // the probe's value numbers: the model directory carries the value model it was fit with
