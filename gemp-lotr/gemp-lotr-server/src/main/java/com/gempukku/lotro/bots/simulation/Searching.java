@@ -107,7 +107,10 @@ public final class Searching implements BotPlayer {
             searched.incrementAndGet();
             long t0 = System.nanoTime();
             boolean turnLong = TURN_LONG.contains(r.context());
-            long[] worlds = new SplittableRandom().longs(ROLLOUTS).toArray();
+            // from the bots' Random, which a seeded game seeds apart from the engine's: the same game searches the same
+            // futures again, and the redeals owe nothing to the real deal's draws
+            long[] worlds = new SplittableRandom(com.gempukku.lotro.bots.BotRandom.current().nextLong()).longs(ROLLOUTS)
+                    .toArray();
             int best = -1;
             double bestScore = Double.NEGATIVE_INFINITY;
             Map<Integer, Double> values = new LinkedHashMap<>();

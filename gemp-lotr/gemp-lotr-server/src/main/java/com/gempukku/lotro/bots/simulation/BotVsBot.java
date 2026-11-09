@@ -61,8 +61,14 @@ public class BotVsBot {
             ",1_178,1_179,1_179,1_179,1_180,1_180,1_180,1_180,1_181,1_181,1_181,1_187,1_187,1_187,1_191," +
             "1_191,1_191,1_196,1_196";
 
-    private static final String BOT_A = "~a";
-    private static final String BOT_B = "~b";
+    /**
+     * The engine's names for the players: by the deck they hold, not by the bot holding it. The engine draws one Random
+     * in player order and keeps players in maps keyed by name, so with the names fixed the two games of a pair deal each
+     * deck the same cards and seat the decks the same way, and only which bot answers for which deck differs.
+     */
+    private static final String DECK_1 = "~1", DECK_2 = "~2";
+    /** Which of those bot A is in the game this thread is playing, for the tally of its guesses. */
+    private static final ThreadLocal<String> A_NAME = new ThreadLocal<>();
 
     /** The format a starter is played under when a suite pairs it up, by the block of its sites. */
     private static final Map<SitesBlock, String> FORMAT_FOR_SITES = Map.of(
@@ -80,7 +86,7 @@ public class BotVsBot {
     private static final ThreadLocal<int[]> randomAnswers = ThreadLocal.withInitial(() -> new int[2]);
 
     record Options(List<String> decks, String suite, String format, String kindA, String kindB, int games, int jobs,
-                   int maxDecisions, Path resources, Path models, boolean verbose, boolean listStarters) {
+                   int maxDecisions, Path resources, Path models, boolean verbose, boolean listStarters, Long seed) {
     }
 
     record Matchup(String format, String deck1, String deck2) {
@@ -251,9 +257,9 @@ public class BotVsBot {
             if (!knownKind(kind))
                 die("Unknown bot \"" + kind + "\"; known: " + String.join(", ", KINDS.keySet()) + ", fotr@<model dir>");
 
-        System.err.printf("Loaded in %.1fs. A = %s, B = %s; %d matchup%s x %d games on %d threads%n%n",
+        System.err.printf("Loaded in %.1fs. A = %s, B = %s; %d matchup%s x %d games on %d threads; seed %s%n%n",
                 (System.nanoTime() - t0) / 1e9, opts.kindA(), opts.kindB(), matchups.size(),
-                matchups.size() == 1 ? "" : "s", opts.games(), opts.jobs());
+                matchups.size() == 1 ? "" : "s", opts.games(), opts.jobs(), opts.seed() == null ? "off" : opts.seed());
 
         ExecutorService pool = Executors.newFixedThreadPool(opts.jobs());
         List<List<Future<Outcome>>> futures = new ArrayList<>();
@@ -363,8 +369,9 @@ public class BotVsBot {
         // opponent from the pool of styles plays the decks its style was played with. Fresh bots every game:
         // FotrStarterBot keeps loop-detection state and an episode log that only endEpisode() clears.
         int aSeat = FIXED_DECKS || game % 2 == 0 ? 1 : 2;
-        BotPlayer a = CardUse.wrap(bot(opts.kindA(), BOT_A, ctx), "A");
-        BotPlayer b = CardUse.wrap(bot(opts.kindB(), BOT_B, ctx), "B");
+        String aName = aSeat == 1 ? DECK_1 : DECK_2, bName = aSeat == 1 ? DECK_2 : DECK_1;
+        BotPlayer a = CardUse.wrap(bot(opts.kindA(), aName, ctx), "A");
+        BotPlayer b = CardUse.wrap(bot(opts.kindB(), bName, ctx), "B");
         String gameId = null;
         if (BOARDS != null || OUTCOMES != null) {
             gameId = "bvb-" + Long.toHexString(java.util.concurrent.ThreadLocalRandom.current().nextLong()) + "-" + matchup
@@ -376,8 +383,14 @@ public class BotVsBot {
         if (BOARDS != null && (BOARDS_SEAT.equals("B") || BOARDS_SEAT.equals("both")))
             b = new Recording(b, BOARDS, BOARDS_RATE);
         Map<String, LotroDeck> decks = new HashMap<>();
-        decks.put(BOT_A, aSeat == 1 ? deck1 : deck2);
-        decks.put(BOT_B, aSeat == 1 ? deck2 : deck1);
+        decks.put(DECK_1, deck1);
+        decks.put(DECK_2, deck2);
+        // deck 1's player first: when both are asked at once (the bids) the game loop answers the first in the list
+        // first, and the bots' Random is drawn in that order
+        List<BotPlayer> players = aSeat == 1 ? List.of(a, b) : List.of(b, a);
+        // with fixed decks the two games of a "pair" hold the same decks, and would be the same game twice
+        int pair = FIXED_DECKS ? game : game / 2;
+        Long seed = opts.seed() == null ? null : gameSeed(opts.seed(), deck1.getDeckName(), deck2.getDeckName(), pair);
 
         int[] random = randomAnswers.get();
         Arrays.fill(random, 0);
@@ -386,34 +399,41 @@ public class BotVsBot {
         GameLog log = GAME_LOG != null ? new GameLog() : null;
         if (log != null)
             GameLog.CURRENT.set(log);
+        A_NAME.set(aName);
         BotGame.Result r;
         try {
-            r = BotGame.play(format, ctx.library(), List.of(a, b), decks, opts.maxDecisions());
+            r = BotGame.play(format, ctx.library(), players, decks, opts.maxDecisions(), seed);
         } finally {
             GameLog.CURRENT.remove();
+            A_NAME.remove();
         }
         long cpu = threads.getCurrentThreadCpuTime() - cpu0;
         if (r.finished())
             Recording.outcome(OUTCOMES, gameId, r.winner(), r.reason());
         if (log != null) {
-            var line = log.finish(r, new java.util.LinkedHashMap<>(Map.of(BOT_A, "A", BOT_B, "B")));
+            Map<String, String> names = new java.util.LinkedHashMap<>();
+            names.put(aName, "A");
+            names.put(bName, "B");
+            var line = log.finish(r, names);
             line.put("matchup", matchup);
             line.put("game", game);
+            line.put("pair", pair);
+            line.put("seed", seed);
             line.put("botA", opts.kindA());
             line.put("botB", opts.kindB());
-            line.put("deckA", decks.get(BOT_A).getDeckName());
-            line.put("deckB", decks.get(BOT_B).getDeckName());
+            line.put("deckA", decks.get(aName).getDeckName());
+            line.put("deckB", decks.get(bName).getDeckName());
             line.put("cpu", cpu / 1e9);
             synchronized (GAME_LOG) {
                 GAME_LOG.println(line);
             }
         }
-        random[0] += r.rejected().getOrDefault(BOT_A, 0);
-        random[1] += r.rejected().getOrDefault(BOT_B, 0);
+        random[0] += r.rejected().getOrDefault(aName, 0);
+        random[1] += r.rejected().getOrDefault(bName, 0);
         if (FEED != null) {
             // the dashboard's live panel: progress, A's win rate as games come in, and how each one ended
             int done = FEED_DONE.incrementAndGet();
-            String w = seat(r.winner());
+            String w = seat(r.winner(), aName);
             int fin = w == null ? FEED_FINISHED.get() : FEED_FINISHED.incrementAndGet();
             int wins = "a".equals(w) ? FEED_A_WINS.incrementAndGet() : FEED_A_WINS.get();
             Map<String, Object> rec = new LinkedHashMap<>();
@@ -427,12 +447,67 @@ public class BotVsBot {
             rec.put("turns", r.turns());
             Feed.emit(FEED, rec);
         }
-        return new Outcome(matchup, game, aSeat, seat(r.winner()), seat(r.first()), r.reason(), r.turns(),
-                random.clone(), r.decisions(), r.error(), cpu);
+        return new Outcome(matchup, game, aSeat, seat(r.winner(), aName), seat(r.first(), aName), r.reason(),
+                r.turns(), random.clone(), r.decisions(), r.error(), cpu);
     }
 
-    private static String seat(String player) {
-        return BOT_A.equals(player) ? "a" : BOT_B.equals(player) ? "b" : null;
+    /** "a" or "b" for an engine player name, given which name bot A had; null for no player. */
+    private static String seat(String player, String aName) {
+        return player == null || !(player.equals(DECK_1) || player.equals(DECK_2)) ? null
+                : player.equals(aName) ? "a" : "b";
+    }
+
+    /**
+     * A game's seed: the run's, the matchup's two decks by name, and the pair, so both games of a pair get the same
+     * deal and a matchup gets the same deals in any suite it is in -- two runs on one --seed are then matched game by
+     * game (scripts/paired.py). Hashed, not added: java.util.Random's first draws from nearby seeds are alike.
+     */
+    static long gameSeed(long base, String deck1, String deck2, int pair) {
+        long h = mix(base);
+        for (String deck : List.of(deck1, deck2)) {
+            for (byte c : deck.getBytes(StandardCharsets.UTF_8))
+                h = (h ^ (c & 0xff)) * 0x100000001B3L; // FNV-1a
+            h = mix(h); // between the names, so ("ab", "c") and ("a", "bc") differ
+        }
+        return mix(h ^ pair);
+    }
+
+    /** SplittableRandom's finaliser (Stafford's mix 13). */
+    private static long mix(long z) {
+        z = (z ^ (z >>> 30)) * 0xBF58476D1CE4E5B9L;
+        z = (z ^ (z >>> 27)) * 0x94D049BB133111EBL;
+        return z ^ (z >>> 31);
+    }
+
+    /**
+     * A's wins in each pair -- games 2j and 2j+1 of a matchup, both finished -- in which A held each deck once, so the
+     * decks' part cancels. Empty where games do not pair: fixed decks, or an odd number of games a matchup.
+     */
+    private static List<Integer> pairWins(List<Outcome> done, Options opts) {
+        if (FIXED_DECKS || opts.games() % 2 != 0)
+            return List.of();
+        Map<List<Integer>, int[]> pairs = new HashMap<>(); // (matchup, pair) -> {games, A's wins}
+        for (Outcome o : done) {
+            int[] p = pairs.computeIfAbsent(List.of(o.matchup(), o.game() / 2), k -> new int[2]);
+            p[0]++;
+            p[1] += o.winner().equals("a") ? 1 : 0;
+        }
+        return pairs.values().stream().filter(p -> p[0] == 2).map(p -> p[1]).toList();
+    }
+
+    /**
+     * The 95% half-width, in points, of a mean of per-pair scores (each in [0, 1]): from their spread, NaN under two
+     * pairs. On two 6,330-game logs (unseeded) it was +-1.06-1.08 where the binomial interval said +-1.23; seeded, so a
+     * pair is one deal played both ways round, sp-m3 vs sp-m2 over 600 games gave +-1.9 against +-3.4 unseeded by pair
+     * and +-4.0 binomial (2026-11-09, scripts/paired.py).
+     */
+    private static double pairInterval(List<Double> scores) {
+        int n = scores.size();
+        if (n < 2)
+            return Double.NaN;
+        double mean = scores.stream().mapToDouble(Double::doubleValue).sum() / n;
+        double ss = scores.stream().mapToDouble(x -> (x - mean) * (x - mean)).sum();
+        return 196 * Math.sqrt(ss / (n - 1) / n);
     }
 
     private static String describe(Outcome o, Matchup m) {
@@ -463,11 +538,24 @@ public class BotVsBot {
         System.out.println();
         System.out.printf("%d games in %.0fs, %d finished; %.2f CPU-seconds a game%n", outcomes.size(), seconds,
                 done.size(), outcomes.stream().mapToLong(Outcome::cpuNanos).sum() / 1e9 / outcomes.size());
+        System.out.println(opts.seed() == null ? "  seed off: every game dealt afresh"
+                : "  seed " + opts.seed() + " (--seed " + opts.seed() + " deals these games again)");
         if (!done.isEmpty()) {
             long aWins = done.stream().filter(o -> o.winner().equals("a")).count();
             double p = (double) aWins / done.size();
-            System.out.printf("  A (%s) won %d, B (%s) won %d: A %.1f%% +- %.1f%n", opts.kindA(), aWins, opts.kindB(),
-                    done.size() - aWins, 100 * p, 196 * Math.sqrt(p * (1 - p) / done.size()));
+            double binomial = 196 * Math.sqrt(p * (1 - p) / done.size());
+            // the decks decide most games, and within a pair they swap: scored by pair, their part of the noise goes
+            List<Integer> pairs = pairWins(done, opts);
+            double byPair = pairInterval(pairs.stream().map(w -> w / 2.0).toList());
+            // scripts grep this line up to the +- figure: keep that part as it is
+            System.out.printf("  A (%s) won %d, B (%s) won %d: A %.1f%% +- %.1f%s%n", opts.kindA(), aWins, opts.kindB(),
+                    done.size() - aWins, 100 * p, Double.isNaN(byPair) ? binomial : byPair,
+                    Double.isNaN(byPair) ? " (binomial)" : String.format(" (by pair; binomial +- %.1f)", binomial));
+            if (!pairs.isEmpty()) {
+                long both = pairs.stream().filter(w -> w == 2).count(), neither = pairs.stream().filter(w -> w == 0).count();
+                System.out.printf("  pairs: A won both %d, split %d, B won both %d%n", both,
+                        pairs.size() - both - neither, neither);
+            }
             if (matchups.size() == 1) {
                 Matchup m = matchups.get(0);
                 long deck1Wins = done.stream().filter(o -> o.winningSeat() == 1).count();
@@ -532,6 +620,9 @@ public class BotVsBot {
         if (matchups.size() < 2)
             return;
         Map<String, int[]> record = new TreeMap<>(); // deck -> {wins, games}
+        // deck -> (matchup, pair) -> {games, wins}: seeded, a pair deals the deck the same cards twice, so its two
+        // games are not two independent tries and a binomial interval would be too narrow
+        Map<String, Map<List<Integer>, int[]>> byPair = new HashMap<>();
         for (Outcome o : outcomes) {
             if (!o.finished())
                 continue;
@@ -542,16 +633,22 @@ public class BotVsBot {
                 r[1]++;
                 if (deck.equals(winner))
                     r[0]++;
+                int[] q = byPair.computeIfAbsent(deck, k -> new HashMap<>())
+                        .computeIfAbsent(List.of(o.matchup(), FIXED_DECKS ? o.game() : o.game() / 2), k -> new int[2]);
+                q[0]++;
+                q[1] += deck.equals(winner) ? 1 : 0;
             }
         }
-        System.out.println("  standings (wins / games, 95% interval):");
+        System.out.println("  standings (wins / games, 95% interval: by pair where a deck has pairs, else binomial):");
         record.entrySet().stream()
                 .sorted(Comparator.comparingDouble(e -> -(double) e.getValue()[0] / e.getValue()[1]))
                 .forEach(e -> {
                     double p = (double) e.getValue()[0] / e.getValue()[1];
+                    double ci = pairInterval(byPair.get(e.getKey()).values().stream().filter(q -> q[0] == 2)
+                            .map(q -> q[1] / 2.0).toList());
                     System.out.printf("    %5.1f%% +- %4.1f  %4d / %-4d  %s%n", 100 * p,
-                            196 * Math.sqrt(p * (1 - p) / e.getValue()[1]), e.getValue()[0], e.getValue()[1],
-                            e.getKey());
+                            Double.isNaN(ci) ? 196 * Math.sqrt(p * (1 - p) / e.getValue()[1]) : ci, e.getValue()[0],
+                            e.getValue()[1], e.getKey());
                 });
     }
 
@@ -771,6 +868,7 @@ public class BotVsBot {
         Path models = Path.of("bot-models");
         boolean verbose = false;
         boolean listStarters = false;
+        Long seed = new SplittableRandom().nextLong();
         for (int i = 0; i < args.length; i++) {
             switch (args[i]) {
                 case "--suite" -> suite = args[++i];
@@ -782,6 +880,10 @@ public class BotVsBot {
                 case "--max-decisions" -> maxDecisions = Integer.parseInt(args[++i]);
                 case "--resources" -> resources = Path.of(args[++i]);
                 case "--models" -> models = Path.of(args[++i]);
+                case "--seed" -> {
+                    String v = args[++i];
+                    seed = v.equals("off") ? null : Long.valueOf(v);
+                }
                 case "--verbose" -> verbose = true;
                 case "--list-starters" -> listStarters = true;
                 case "-h", "--help" -> die(usage());
@@ -793,7 +895,7 @@ public class BotVsBot {
         if (!Files.isDirectory(resources.resolve("cards")))
             die("No cards under " + resources.toAbsolutePath() + " -- run from gemp-lotr/, or pass --resources");
         return new Options(positional, suite, format, kindA, kindB, games, jobs, maxDecisions, resources, models,
-                verbose, listStarters);
+                verbose, listStarters, seed);
     }
 
     private static String usage() {
@@ -812,6 +914,8 @@ public class BotVsBot {
                   --jobs N              threads (default cores - 2)
                   --models bot-models   where the fotr bot's models are
                   --max-decisions 1000  per bot per game, then it concedes as on the live server
+                  --seed N|off          the deals (default: drawn at random, printed in the summary); both games
+                                        of a pair get the same one, so only the bots differ between them
                   --verbose             print the bots' own output instead of tallying it""";
     }
 
@@ -842,7 +946,7 @@ public class BotVsBot {
             String decider = BotGame.DECIDING.get();
             if (decider == null || !UNKNOWN.matcher(text).matches())
                 return;
-            int seat = decider.equals(BOT_A) ? 0 : 1;
+            int seat = decider.equals(A_NAME.get()) ? 0 : 1;
             randomAnswers.get()[seat]++;
             // with both seats the same kind, one tally for the kind; otherwise one per seat
             String bot = opts.kindA().equals(opts.kindB()) ? opts.kindA()
