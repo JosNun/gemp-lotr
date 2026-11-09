@@ -4,7 +4,13 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>GEMP bot — progress</title>
-<link rel="stylesheet" href="style.css">
+<script>
+  // http.server sends Last-Modified and no Cache-Control, so a browser keeps a script for a while on a guess: on
+  // 2026-11-09 a cached app.js met the new data.json ("Cannot convert undefined or null to object") and drew no chart.
+  // A fresh address every load; these files are 60 KB together.
+  const V = Date.now();
+  document.head.appendChild(Object.assign(document.createElement('link'), {rel: 'stylesheet', href: `style.css?v=${V}`}));
+</script>
 </head>
 <body>
 <header>
@@ -37,7 +43,9 @@
 </main>
 
 <footer>Served from the Mac (scripts/dashboard_data.py writes data/data.json, scripts/feed_index.py data/feeds/; the bot versions are hand-kept in bots.json -- to add one, add an entry as its "_how_to_add" says; nothing here leaves the LAN).</footer>
-<script src="app.js"></script>
-<script src="feeds.js"></script>
+<script>
+  for (const src of ['app.js', 'feeds.js'])  // async off: feeds.js uses app.js's helpers, so they run in this order
+    document.body.appendChild(Object.assign(document.createElement('script'), {src: `${src}?v=${V}`, async: false}));
+</script>
 </body>
 </html>
