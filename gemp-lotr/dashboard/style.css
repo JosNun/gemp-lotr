@@ -108,3 +108,8 @@ table.cal td { width: 44px; height: 24px; text-align: center; background: #1a1f2
 .flog span { color: var(--faint); margin-right: 6px; font-variant-numeric: tabular-nums; }
 details.earlier { margin-top: 12px; color: var(--dim); font-size: 13px; }
 details.earlier summary { cursor: pointer; margin-bottom: 10px; }
+
+details.stream { margin: 4px 0; padding: 6px 10px; background: var(--panel); border: 1px solid var(--edge); }
+details.stream summary { cursor: pointer; color: var(--ink); }
+details.stream summary .when { color: var(--dim); font-size: 12px; margin-left: 8px; }
+details.stream .feeds { margin-top: 10px; }
