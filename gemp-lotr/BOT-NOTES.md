@@ -1946,6 +1946,23 @@ step): the trees' share at large decisions 0.6 -> 0.865, skirmish 1.0 -> 0.93, m
 Free Peoples assignments 0.6 -> 0.60, move threshold 0.35 -> 0.377. The tuned bot against sp-m3 on the test decks:
 **50.7 +- 1.2.** The hand-set dials were already near the best; their combinations hide nothing.
 
+## The strong bot at under twice the plain bot's cost (2026-11-09)
+
+The network is ~55% of a search game's time. `nn/quantize_onnx.py`: the encoder's 24 MatMuls in 8-bit (dynamic), the
+rest in float -- all layers in 8-bit changed the top choice on 5 of 200 parity boards (log-probability drift 0.57),
+the encoder's alone on none (0.07), 1.4-1.6x faster a call (main 6.7 -> 4.8 ms, judge5b 16.9 -> 10.6). Wide two-round
+search against sp-m3 (skirmish, Shadow, maneuver, archery, assignment, regroup; judge5b):
+
+| | result | CPU-s/game |
+|---|---|---|
+| float | ~55.3 (56.2 +- 1.7, 54.8 +- 1.2) | 11.5 |
+| encoder in 8-bit (sp-m3-j5-q8e) | 54.3 +- 1.7 | 8.6 |
+| **and trees-only play-outs** (`-Dsearch.policy=bot-models-exp/sp-m3-trees`) | **54.4 +- 1.7, 54.1 +- 1.2** | **4.6-4.7** |
+
+**The strong bot: search@sp-m3-j5-q8e with trees-only play-outs, ~54.2 against sp-m3 at ~4.7 CPU-s/game (sp-m3
+~2.5).** Trees-only play-outs cost ~2 points when only skirmishes and Shadow plays were searched (52.1 against 54.4);
+searched widely, none that shows.
+
 ## How human is "agreement with people", and play by precedent (2026-10-31)
 
 **The measure rewards the consensus.** The user asked whether a real person would score higher on it than the bot. No:
