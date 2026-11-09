@@ -219,6 +219,65 @@ function mini(records, key, xKey, color, xIsLabel) {
   return s;
 }
 
+// ---- meta.grid {x, y, value, where, center}: a heatmap of value by x and y (the latest record at each cell), for a
+// tuning run's grid; cells coloured by distance from center (default the mean), green above and red below
+function grid(records, parent, g) {
+  const rs = records.filter((r) => Object.entries(g.where || {}).every(([k, v]) => r[k] === v)
+    && typeof r[g.value] === 'number' && r[g.x] !== undefined && r[g.y] !== undefined);
+  if (!rs.length) return;
+  const xs = [...new Set(rs.map((r) => r[g.x]))].sort((a, b) => a - b);
+  const ys = [...new Set(rs.map((r) => r[g.y]))].sort((a, b) => a - b);
+  const cell = {};
+  for (const r of rs) cell[`${r[g.x]}|${r[g.y]}`] = r;
+  const vals = rs.map((r) => r[g.value]);
+  const c = g.center ?? vals.reduce((a, b) => a + b, 0) / vals.length;
+  const span = Math.max(...vals.map((v) => Math.abs(v - c)), 1e-9);
+  const t = document.createElement('table');
+  t.className = 'heat';
+  t.innerHTML = `<tr><th>${g.y} \\ ${g.x}</th>` + xs.map((x) => `<th>${x}</th>`).join('') + '</tr>'
+    + ys.map((y) => `<tr><th class="row">${y}</th>` + xs.map((x) => {
+      const r = cell[`${x}|${y}`];
+      if (!r) return '<td style="color:var(--faint)">&middot;</td>';
+      const f = (r[g.value] - c) / span;
+      const bg = f >= 0 ? `rgba(79,179,122,${(0.15 + 0.6 * f).toFixed(2)})` : `rgba(208,96,90,${(0.15 - 0.6 * f).toFixed(2)})`;
+      return `<td style="background:${bg}" title="${Object.entries(r).filter(([k]) => k !== 't').map(([k, v]) => `${k}: ${v}`).join('\n')}">${fmtNum(r[g.value])}</td>`;
+    }).join('') + '</tr>').join('');
+  const box = div('', parent);
+  div('cal-label', box, g.title || `${g.value} by ${g.x} and ${g.y}`);
+  box.appendChild(t);
+}
+
+// ---- meta.scatter {x, y, ci, label: [fields], ref}: one point a record, with a +-ci bar on y if given -- a tuning
+// run's settings as strength against cost; the best y in gold
+function scatter(records, parent, g) {
+  const rs = records.filter((r) => typeof r[g.x] === 'number' && typeof r[g.y] === 'number');
+  if (!rs.length) return;
+  const ci = (r) => (typeof g.ci === 'number' ? g.ci : r[g.ci] || 0);
+  const w = 560, h = 220, s = svg(w, h);
+  const [x0, x1] = niceRange(rs.map((r) => r[g.x]), 0.1, 0.2);
+  const [y0, y1] = niceRange(rs.flatMap((r) => [r[g.y] - ci(r), r[g.y] + ci(r)]).concat(g.ref ?? []), 0.08, 0.5);
+  const X = scale(x0, x1, 46, w - 14), Y = scale(y0, y1, h - 26, 10);
+  for (let i = 0; i <= 4; i++) {
+    const v = y0 + (y1 - y0) * i / 4, u = x0 + (x1 - x0) * i / 4;
+    el('line', { x1: 46, x2: w - 14, y1: Y(v), y2: Y(v), class: 'grid' }, s);
+    text(s, 42, Y(v) + 4, fmtNum(v), { 'text-anchor': 'end' });
+    text(s, X(u), h - 8, fmtNum(u), { 'text-anchor': 'middle' });
+  }
+  if (g.ref !== undefined) el('line', { x1: 46, x2: w - 14, y1: Y(g.ref), y2: Y(g.ref), stroke: '#8a93a0', 'stroke-dasharray': '4 3' }, s);
+  const best = rs.reduce((a, b) => (b[g.y] > a[g.y] ? b : a));
+  for (const r of rs) {
+    const color = r === best ? '#d6b25e' : '#5b9bd5';
+    if (ci(r)) el('line', { x1: X(r[g.x]), x2: X(r[g.x]), y1: Y(r[g.y] - ci(r)), y2: Y(r[g.y] + ci(r)), stroke: color, opacity: 0.5 }, s);
+    const c = el('circle', { cx: X(r[g.x]), cy: Y(r[g.y]), r: 4.5, fill: color }, s);
+    const t = el('title', {}, c);
+    t.textContent = (g.label || []).map((k) => `${k} ${r[k]}`).join(', ') + ` -> ${r[g.y]}`;
+  }
+  text(s, w - 14, h - 8 - 12, g.x, { 'text-anchor': 'end' });
+  const box = div('', parent);
+  div('cal-label', box, g.title || `${g.y} against ${g.x}`);
+  box.appendChild(s);
+}
+
 // whether a series moves more from one record to the next than overall: values per event, not a quantity tracked
 function jumpy(pts) {
   let step = 0;
@@ -253,6 +312,10 @@ function renderStream({ name, records: raw, meta, total }, parent) {
   if (isMatch) matchup(records, body, prof);
   const numeric = prof.numeric.filter((k) => !(isMatch && ['wins', 'games'].includes(k)));
   if (prof.month) calendar(records, body, prof.month, meta.color || numeric[0]);
+  if (meta.grid || meta.scatter) {
+    for (const g of [].concat(meta.grid || [])) grid(records, div('', body), g);
+    for (const g of [].concat(meta.scatter || [])) scatter(records, div('', body), g);
+  }
   const cats = prof.category.filter((k) => k !== meta.x);
   if (cats.length) { const row = div('cats', body); for (const k of cats.slice(0, 3)) counts(records, row, k); }
   // the x the charts are against: meta, else epoch/step/done, else the month, else time
