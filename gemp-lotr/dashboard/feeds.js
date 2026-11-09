@@ -4,10 +4,10 @@
 //   a YYYY-MM field -> a calendar;  words with few values -> counts;  changing numbers -> small line charts;
 //   note/msg/text -> a log.  <stream>.meta.json may set title, hint, x, y (fields to chart), hide, color.
 // Uses app.js's helpers (el, svg, text, scale, niceRange, ago, PALETTE, ROUTE_COLORS, ROUTE_NAMES).
-const FEED_DIR = 'data/feed/';
+const FEEDS = 'data/feeds/';
 const SKIP = new Set(['t', 'done', 'total']);
 const LIVE_SECONDS = 600;   // a stream written to in the last 10 minutes is live
-const SHOW_DAYS = 3;        // older streams fold into "earlier"
+const RECENT_HOURS = 24, RECENT_MAX = 8;  // drawn on load; the rest are listed, and drawn when opened
 const fmtNum = (v) => (Math.abs(v) >= 1e6 ? `${(v / 1e6).toFixed(2)}M` : Math.abs(v) >= 1e4 ? `${(v / 1e3).toFixed(1)}k`
   : Number.isInteger(v) ? `${v}` : Math.abs(v) >= 100 ? v.toFixed(0) : Math.abs(v) >= 1 ? v.toFixed(2) : v.toFixed(3));
 const fmtDur = (s) => (s < 90 ? `${Math.round(s)}s` : s < 5400 ? `${Math.round(s / 60)} min`
@@ -16,25 +16,20 @@ const MONTH = /^\d{4}-\d\d$/;
 const QUIET = { unfinished: '#4a525e', other: '#6b7480', none: '#4a525e' };  // words that are not an outcome
 const colorOf = (k, i) => ROUTE_COLORS[k] || QUIET[k] || PALETTE[i % PALETTE.length];
 
-async function listStreams() {
-  // http.server's directory listing: every <stream>.jsonl
-  const page = await (await fetch(`${FEED_DIR}?t=${Date.now()}`)).text();
-  return [...new Set([...page.matchAll(/href="([^"]+)\.jsonl"/g)].map((m) => decodeURIComponent(m[1])))];
+// scripts/feed_index.py writes data/feeds/index.json (each stream's last record, newest first) and a thinned copy of
+// each stream: the page fetched 67 streams whole, 43 MB, every 15 seconds; now the index, the recent streams' copies
+// when they change, and an older stream only when it is opened.
+const cache = {};  // stream -> {t, data}
+async function loadIndex() {
+  return (await (await fetch(`${FEEDS}index.json?t=${Date.now()}`)).json()).streams;
 }
 
-async function loadStream(name) {
-  const body = await (await fetch(`${FEED_DIR}${encodeURIComponent(name)}.jsonl?t=${Date.now()}`)).text();
-  const records = [];
-  for (const line of body.split('\n')) {
-    if (!line.trim()) continue;
-    try { records.push(JSON.parse(line)); } catch (e) { /* a line being written */ }
-  }
-  let meta = {};
-  try {
-    const r = await fetch(`${FEED_DIR}${encodeURIComponent(name)}.meta.json?t=${Date.now()}`);
-    if (r.ok) meta = await r.json();
-  } catch (e) { /* none */ }
-  return { name, records, meta };
+async function loadStream(entry) {
+  const c = cache[entry.name];
+  if (c && c.t === entry.t) return c.data;
+  const data = await (await fetch(`${FEEDS}${encodeURIComponent(entry.name)}.json?t=${entry.t}`)).json();
+  cache[entry.name] = { t: entry.t, data };
+  return data;
 }
 
 // what the fields are: numbers that change, numbers that do not, words with few values, words that never change
@@ -82,7 +77,9 @@ function progress(records, parent) {
   const box = div('fprog', parent);
   div('fbar', box, `<i style="width:${(100 * p).toFixed(1)}%"></i>`);
   div('fprog-text', box, `<b>${fmtNum(last.done)}</b> of ${fmtNum(last.total)} &middot; ${(100 * p).toFixed(1)}%`
-    + (p >= 1 ? ' &middot; done' : left !== null ? ` &middot; ${fmtNum(rate * 3600)} an hour &middot; about ${fmtDur(left)} left` : ''));
+    + (p >= 1 ? ' &middot; done'
+      : Date.now() / 1000 - last.t > LIVE_SECONDS ? ` &middot; stopped ${ago(last.t)}`  // a run that ended short
+      : left !== null ? ` &middot; ${fmtNum(rate * 3600)} an hour &middot; about ${fmtDur(left)} left` : ''));
 }
 
 // ---- a matchup: A's win rate with its 95% interval as a tug of war, its path as games came in, and a game ticker
@@ -226,11 +223,13 @@ function mini(records, key, xKey, color, xIsLabel) {
 function jumpy(pts) {
   let step = 0;
   for (let i = 1; i < pts.length; i++) step += Math.abs(pts[i][1] - pts[i - 1][1]);
-  const ys = pts.map((p) => p[1]);
-  return step / (pts.length - 1) > 0.25 * (Math.max(...ys) - Math.min(...ys));
+  // the spread of the middle 80%: a few outliers (an unfinished game's 0 turns) would otherwise hide the jumpiness
+  const ys = pts.map((p) => p[1]).sort((a, b) => a - b);
+  const spread = ys[Math.floor(ys.length * 0.9)] - ys[Math.floor(ys.length * 0.1)];
+  return step / (pts.length - 1) > 0.25 * spread;
 }
 
-function renderStream({ name, records: raw, meta }, parent) {
+function renderStream({ name, records: raw, meta, total }, parent) {
   const prof0 = profile(raw, meta);
   // records keyed by a month: one a month (the latest), in calendar order
   let records = raw;
@@ -246,7 +245,7 @@ function renderStream({ name, records: raw, meta }, parent) {
   const chips = prof.constant.filter((k) => typeof last[k] === 'string' || typeof last[k] === 'number')
     .map((k) => `<span class="chip">${k} <b>${last[k]}</b></span>`).join('');
   panel.innerHTML = `<h2><span class="dot"></span>${meta.title || name}<span class="hint">${meta.hint || ''}</span>`
-    + `<span class="when">${raw.length} records &middot; ${ago(last.t)}</span></h2>`
+    + `<span class="when">${total || raw.length} records &middot; ${ago(last.t)}</span></h2>`
     + (chips ? `<div class="chips">${chips}</div>` : '');
   const body = div('body', panel);
   if (typeof last.done === 'number' && typeof last.total === 'number' && last.total > 0) progress(raw, body);
@@ -278,34 +277,47 @@ function renderStream({ name, records: raw, meta }, parent) {
 
 async function refreshFeeds() {
   const root = $('live');
-  let streams;
+  let index;
   try {
-    const names = await listStreams();
-    streams = (await Promise.all(names.map(loadStream))).filter((s) => s.records.length);
+    index = await loadIndex();
   } catch (e) {
     root.innerHTML = `<div class="empty">No live feeds (${e}).</div>`;
     return;
   }
-  streams.sort((x, y) => y.records[y.records.length - 1].t - x.records[x.records.length - 1].t);
-  const now = Date.now() / 1000;
-  const recent = streams.filter((s) => now - s.records[s.records.length - 1].t < SHOW_DAYS * 86400);
-  const older = streams.filter((s) => !recent.includes(s));
-  const open = new Set([...root.querySelectorAll('details.earlier[open]')].map(() => 'earlier'));
-  root.innerHTML = '';
-  if (!streams.length) {
+  if (!index.length) {
     root.innerHTML = '<div class="empty">No feeds yet: <code>python3 -I scripts/feed.py &lt;stream&gt; key=value ...</code></div>';
     return;
   }
+  const now = Date.now() / 1000;
+  const recent = index.filter((e) => now - e.t < RECENT_HOURS * 3600).slice(0, RECENT_MAX);
+  const older = index.filter((e) => !recent.includes(e));
+  const opened = new Set([...root.querySelectorAll('details.stream[open]')].map((d) => d.dataset.name));
+  const earlierOpen = !!root.querySelector('details.earlier[open]');
+  const drawn = await Promise.all(recent.map((e) => loadStream(e).catch(() => null)));
+  root.innerHTML = '';
   const grid = div('feeds', root);
-  for (const s of recent) renderStream(s, grid);
+  drawn.forEach((d) => { if (d && d.records.length) renderStream(d, grid); });
   if (older.length) {
-    const d = document.createElement('details');
-    d.className = 'earlier';
-    if (open.size) d.open = true;
-    d.innerHTML = `<summary>${older.length} earlier feeds</summary>`;
-    const g2 = div('feeds', d);
-    for (const s of older) renderStream(s, g2);
-    root.appendChild(d);
+    const box = document.createElement('details');
+    box.className = 'earlier';
+    box.open = earlierOpen;
+    box.innerHTML = `<summary>${older.length} earlier feeds</summary>`;
+    for (const e of older) {
+      const row = document.createElement('details');
+      row.className = 'stream';
+      row.dataset.name = e.name;
+      row.innerHTML = `<summary><b>${(e.meta && e.meta.title) || e.name}</b> <span class="when">${e.total} records &middot; ${ago(e.t)}</span></summary>`;
+      const body = div('feeds', row);
+      const draw = async () => {
+        if (body.childElementCount) return;
+        const d = await loadStream(e).catch(() => null);
+        if (d && d.records.length) renderStream(d, body);
+      };
+      row.addEventListener('toggle', () => { if (row.open) draw(); });
+      if (opened.has(e.name)) { row.open = true; draw(); }
+      box.appendChild(row);
+    }
+    root.appendChild(box);
   }
 }
 refreshFeeds();
