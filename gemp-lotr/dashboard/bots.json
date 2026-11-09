@@ -1,0 +1,2120 @@
+{
+ "_how_to_add": [
+  "One entry per bot version, hand-kept; the dashboard's Pareto panel (dashboard/app.js, renderPareto) reads this file as it is.",
+  "To add a bot: append an entry with id (its name in BOT-NOTES.md), date, kind (plain | search | network | style), parent (an id or null),",
+  "what (one or two plain sentences: what it is and what changed from its parent), and the numbers with where each came from:",
+  "  strength: {a, b, rate, ci, source} -- one BotVsBot result as printed (A's win rate, its 95% interval) between this bot and another bot in this file; null if never played on the test decks.",
+  "  cost: {total, vs, source} -- BotVsBot's 'N CPU-seconds a game' (the whole game, both bots) against vs (this bot's own id if against itself); null if not recorded.",
+  "  july: {value, measure: 'order-free' | 'strict', source} -- agreement with people on held-out July 2022; null if not measured.",
+  "  note: anything else -- an earlier run that conflicts, a number left out and why.",
+  "Never write a number that was not measured; no people's names (game ids carry them).",
+  "Strength is chained to sp-m3 through the 'strength' links; cost per bot side = game total less the opponent's own side, which comes from its mirror game."
+ ],
+ "reference": "sp-m3",
+ "bots": [
+  {
+   "id": "fotr",
+   "date": "2026-10-17",
+   "kind": "plain",
+   "parent": null,
+   "what": "The bot GEMP shipped for the FotR starters (bot-models/): logistic models trained on one matchup.",
+   "strength": null,
+   "cost": null,
+   "july": null,
+   "note": "Measured only on the starter decks: every later starters bot was scored against it (v2 65.3% +- 3.0 on held-out starters; 'What was measured', BOT-NOTES.md). Never played on the real test decks, so not on this scale."
+  },
+  {
+   "id": "general",
+   "date": "2026-10-17",
+   "kind": "plain",
+   "parent": "fotr",
+   "what": "The shipped bot with its extensions on and three more self-play generations on varied starters.",
+   "strength": null,
+   "cost": null,
+   "july": null,
+   "note": "70.1% +- 2.8 against the shipped bot on held-out starters ('What was measured'); not played on the real test decks."
+  },
+  {
+   "id": "v2",
+   "date": "2026-10-17",
+   "kind": "plain",
+   "parent": "general",
+   "what": "Feature set 2: the same self-trained linear models on a richer description of the game, retrained on varied starters.",
+   "strength": {
+    "a": "v2-real",
+    "b": "v2",
+    "rate": 68.3,
+    "ci": 1.6,
+    "source": "BOT-NOTES.md 'Training on real decks': v2-real against guarded v2 on held-out real decks"
+   },
+   "cost": null,
+   "july": null,
+   "note": "Played wrapped in Guarded for the real-deck result. Cost 0.07 CPU-s a game against itself was measured on the starters, not the real decks (BOT-NOTES.md 'Strength against cost, after copies and the engine fix')."
+  },
+  {
+   "id": "search@v2",
+   "date": "2026-10-18",
+   "kind": "search",
+   "parent": "v2",
+   "what": "v2 searching every card action: 2 rollouts a candidate, cut off a turn on and scored by a value model.",
+   "strength": null,
+   "cost": null,
+   "july": null,
+   "note": "63.6% +- 3.3 against plain v2 at 1.0 CPU-s a game, on the starters only (BOT-NOTES.md 'Strength against cost, after copies and the engine fix'). Not on this scale."
+  },
+  {
+   "id": "v2-real",
+   "date": "2026-10-18",
+   "kind": "plain",
+   "parent": "v2",
+   "what": "v2's models retrained on real players' decks instead of the starters: variety was the missing ingredient.",
+   "strength": {
+    "a": "sel10-e",
+    "b": "v2-real",
+    "rate": 83.6,
+    "ci": 1.3,
+    "source": "BOT-NOTES.md 'The three gaps left against people' (sel10-e)"
+   },
+   "cost": null,
+   "july": {
+    "value": 43.6,
+    "measure": "strict",
+    "source": "BOT-NOTES.md 'Two scores: strength and human-likeness'"
+   }
+  },
+  {
+   "id": "human22-ca-as",
+   "date": "2026-10-19",
+   "kind": "plain",
+   "parent": "v2-real",
+   "what": "Card actions and assignments fit as trees on people's 2022 decisions, re-created in the engine (HumanReplay).",
+   "strength": {
+    "a": "distill22-x10",
+    "b": "human22-ca-as",
+    "rate": 55.1,
+    "ci": 1.7,
+    "source": "BOT-NOTES.md 'A cheap bot instead of search'"
+   },
+   "cost": null,
+   "july": null
+  },
+  {
+   "id": "distill22-x10",
+   "date": "2026-10-19",
+   "kind": "plain",
+   "parent": "human22-ca-as",
+   "what": "human22-ca-as refit with the search's labels added ten times over: the first distillation of search into a plain bot.",
+   "strength": {
+    "a": "h4m-big-x3",
+    "b": "distill22-x10",
+    "rate": 52.1,
+    "ci": 1.7,
+    "source": "BOT-NOTES.md 'A cheap bot instead of search'"
+   },
+   "cost": null,
+   "july": null,
+   "note": "A JFR profile quotes 0.1 CPU-s a game for 800 of its games, opponent not named; not used."
+  },
+  {
+   "id": "h4m-big-x3",
+   "date": "2026-10-19",
+   "kind": "plain",
+   "parent": "distill22-x10",
+   "what": "Four months of people's decisions plus the teacher's labels x3, in bigger trees.",
+   "strength": {
+    "a": "h4m-d2",
+    "b": "h4m-big-x3",
+    "rate": 53.2,
+    "ci": 1.7,
+    "source": "BOT-NOTES.md 'A cheap bot instead of search'"
+   },
+   "cost": null,
+   "july": null
+  },
+  {
+   "id": "h4m-d2",
+   "date": "2026-10-20",
+   "kind": "plain",
+   "parent": "h4m-big-x3",
+   "what": "A second distillation round, its search labels taken with h4m-big-x3 as the base.",
+   "strength": {
+    "a": "h4m-d3",
+    "b": "h4m-d2",
+    "rate": 51.1,
+    "ci": 1.2,
+    "source": "BOT-NOTES.md 'A cheap bot instead of search' (8 games a matchup)"
+   },
+   "cost": null,
+   "july": null
+  },
+  {
+   "id": "h4m-d3",
+   "date": "2026-10-20",
+   "kind": "plain",
+   "parent": "h4m-d2",
+   "what": "A third distillation round: level with the second.",
+   "strength": {
+    "a": "h4m-d4a",
+    "b": "h4m-d3",
+    "rate": 51.6,
+    "ci": 1.2,
+    "source": "BOT-NOTES.md 'A cheap bot instead of search'"
+   },
+   "cost": null,
+   "july": null
+  },
+  {
+   "id": "h4m-d4a",
+   "date": "2026-10-20",
+   "kind": "plain",
+   "parent": "h4m-d3",
+   "what": "Assignments taught by the search as well as card actions.",
+   "strength": {
+    "a": "d4a-lwrc",
+    "b": "h4m-d4a",
+    "rate": 52.1,
+    "ci": 1.2,
+    "source": "BOT-NOTES.md 'A cheap bot instead of search'"
+   },
+   "cost": null,
+   "july": null
+  },
+  {
+   "id": "search@h4m-d4a",
+   "date": "2026-10-20",
+   "kind": "search",
+   "parent": "h4m-d4a",
+   "what": "h4m-d4a searching card actions, assignments and choices: 8 rollouts a candidate, up to 10 candidates, one turn deep.",
+   "strength": {
+    "a": "search@h4m-d4a",
+    "b": "h4m-d4a",
+    "rate": 67.8,
+    "ci": 2.3,
+    "source": "BOT-NOTES.md 'A cheap bot instead of search' (value-real; the +-2.3 is the same run's value-d4a line)"
+   },
+   "cost": {
+    "total": 6.0,
+    "vs": "h4m-d4a",
+    "source": "BOT-NOTES.md 'A cheap bot instead of search' (up to 10 candidates)"
+   },
+   "july": null,
+   "note": "Plain h4m-d4a's own cost was not measured, so its side of the 6.0 cannot be taken off: off the chart."
+  },
+  {
+   "id": "d4a-lwrc",
+   "date": "2026-10-20",
+   "kind": "plain",
+   "parent": "h4m-d4a",
+   "what": "One listwise card-action model per phase, comparing a decision's options against each other.",
+   "strength": {
+    "a": "d4a-lwrc-d5",
+    "b": "d4a-lwrc",
+    "rate": 51.9,
+    "ci": 1.2,
+    "source": "BOT-NOTES.md 'A cheap bot instead of search'"
+   },
+   "cost": null,
+   "july": null
+  },
+  {
+   "id": "d4a-lwrc-d5",
+   "date": "2026-10-20",
+   "kind": "plain",
+   "parent": "d4a-lwrc",
+   "what": "Distilled again from the per-phase listwise bot.",
+   "strength": {
+    "a": "d5-move",
+    "b": "d4a-lwrc-d5",
+    "rate": 52.7,
+    "ci": 1.2,
+    "source": "BOT-NOTES.md 'The bot against people, on people's games'"
+   },
+   "cost": null,
+   "july": {
+    "value": 56.7,
+    "measure": "strict",
+    "source": "BOT-NOTES.md 'Ten months, July held out' (20% of July, played out)"
+   }
+  },
+  {
+   "id": "d5-move",
+   "date": "2026-10-20",
+   "kind": "plain",
+   "parent": "d4a-lwrc-d5",
+   "what": "'Move again?' fit on people's answers: the bot had almost never raced.",
+   "strength": {
+    "a": "d5-move-sel",
+    "b": "d5-move",
+    "rate": 56.1,
+    "ci": 1.2,
+    "source": "BOT-NOTES.md 'The bot against people, on people's games'"
+   },
+   "cost": null,
+   "july": null
+  },
+  {
+   "id": "d5-move-sel",
+   "date": "2026-10-20",
+   "kind": "plain",
+   "parent": "d5-move",
+   "what": "The 13 card-selection models fit on people's choices instead of self-play.",
+   "strength": {
+    "a": "sel10",
+    "b": "d5-move-sel",
+    "rate": 51.4,
+    "ci": 1.2,
+    "source": "BOT-NOTES.md 'The bot against people, on people's games'"
+   },
+   "cost": null,
+   "july": null
+  },
+  {
+   "id": "sel10",
+   "date": "2026-10-21",
+   "kind": "plain",
+   "parent": "d5-move-sel",
+   "what": "Moves, selections and a new card-from-deck model refit on ten months of 2022, July held out.",
+   "strength": {
+    "a": "sel10-gc",
+    "b": "sel10",
+    "rate": 51.0,
+    "ci": 1.2,
+    "source": "BOT-NOTES.md 'The bot against people, on people's games'"
+   },
+   "cost": null,
+   "july": {
+    "value": 63.0,
+    "measure": "strict",
+    "source": "BOT-NOTES.md 'Ten months, July held out'"
+   }
+  },
+  {
+   "id": "sel10-gc",
+   "date": "2026-10-21",
+   "kind": "plain",
+   "parent": "sel10",
+   "what": "A model for a card's choice of costs, which had been answered at random.",
+   "strength": {
+    "a": "sel10-probe",
+    "b": "sel10-gc",
+    "rate": 53.1,
+    "ci": 1.2,
+    "source": "BOT-NOTES.md 'Skirmish plays: what a card does, found by doing it'"
+   },
+   "cost": {
+    "total": 0.16,
+    "vs": "sel10-gc",
+    "source": "BOT-NOTES.md 'Skirmish plays...', Cost: plain bots on the test suite, 'neither probing' (read here as sel10-gc against itself)"
+   },
+   "july": {
+    "value": 63.4,
+    "measure": "strict",
+    "source": "BOT-NOTES.md 'Two scores'"
+   }
+  },
+  {
+   "id": "sel10-probe",
+   "date": "2026-10-21",
+   "kind": "plain",
+   "parent": "sel10-gc",
+   "what": "The skirmish model told what each play does, found by playing it on a copy of the game (EffectProbe).",
+   "strength": {
+    "a": "sel10-rec",
+    "b": "sel10-probe",
+    "rate": 50.3,
+    "ci": 0.9,
+    "source": "BOT-NOTES.md 'Reconcile: keeping the hand is an option' (second, longer run; the first was 50.9 +- 1.2)"
+   },
+   "cost": {
+    "total": 0.23,
+    "vs": "sel10-probe",
+    "source": "BOT-NOTES.md 'Skirmish plays...', Cost: plain bots on the test suite, 'both probing' (read here as sel10-probe against itself)"
+   },
+   "july": {
+    "value": 63.9,
+    "measure": "strict",
+    "source": "BOT-NOTES.md 'Two scores'"
+   }
+  },
+  {
+   "id": "sel10-rec",
+   "date": "2026-10-22",
+   "kind": "plain",
+   "parent": "sel10-probe",
+   "what": "Reconcile can keep the hand: it had always discarded a card.",
+   "strength": {
+    "a": "sel10-c",
+    "b": "sel10-rec",
+    "rate": 52.5,
+    "ci": 0.9,
+    "source": "BOT-NOTES.md 'The three gaps left against people'"
+   },
+   "cost": null,
+   "july": {
+    "value": 66.1,
+    "measure": "strict",
+    "source": "BOT-NOTES.md 'Two scores'"
+   }
+  },
+  {
+   "id": "sel10-c",
+   "date": "2026-10-22",
+   "kind": "plain",
+   "parent": "sel10-rec",
+   "what": "Probed Free Peoples assignments and an exert model that weighs vitality.",
+   "strength": {
+    "a": "sel10-d",
+    "b": "sel10-c",
+    "rate": 52.2,
+    "ci": 0.9,
+    "source": "BOT-NOTES.md 'The three gaps left against people'"
+   },
+   "cost": null,
+   "july": {
+    "value": 66.5,
+    "measure": "strict",
+    "source": "BOT-NOTES.md 'Two scores'"
+   }
+  },
+  {
+   "id": "sel10-d",
+   "date": "2026-10-22",
+   "kind": "plain",
+   "parent": "sel10-c",
+   "what": "Number prompts, the burden bid and mulligans fit on people; the Guarded wrapper dropped.",
+   "strength": {
+    "a": "sel10-e",
+    "b": "sel10-d",
+    "rate": 51.7,
+    "ci": 0.9,
+    "source": "BOT-NOTES.md 'The three gaps left against people'"
+   },
+   "cost": null,
+   "july": {
+    "value": 67.1,
+    "measure": "strict",
+    "source": "BOT-NOTES.md 'The three gaps left against people'"
+   }
+  },
+  {
+   "id": "sel10-e",
+   "date": "2026-10-23",
+   "kind": "plain",
+   "parent": "sel10-d",
+   "what": "Skirmish order and character picks chosen from the board as it stands.",
+   "strength": {
+    "a": "sel10-f",
+    "b": "sel10-e",
+    "rate": 50.5,
+    "ci": 1.2,
+    "source": "BOT-NOTES.md 'A teacher for the Shadow side's skirmishes'"
+   },
+   "cost": null,
+   "july": {
+    "value": 67.4,
+    "measure": "strict",
+    "source": "BOT-NOTES.md 'The three gaps left against people'"
+   }
+  },
+  {
+   "id": "sel10-f",
+   "date": "2026-10-23",
+   "kind": "plain",
+   "parent": "sel10-e",
+   "what": "Shadow skirmish plays also taught by companions killed (W = 10): kills as people do.",
+   "strength": {
+    "a": "sel10-ctt2",
+    "b": "sel10-f",
+    "rate": 51.6,
+    "ci": 0.9,
+    "source": "BOT-NOTES.md 'What a card does, read from its definition'"
+   },
+   "cost": null,
+   "july": {
+    "value": 67.3,
+    "measure": "strict",
+    "source": "BOT-NOTES.md 'A teacher for the Shadow side's skirmishes'"
+   }
+  },
+  {
+   "id": "sel10-ctt2",
+   "date": "2026-10-24",
+   "kind": "plain",
+   "parent": "sel10-f",
+   "what": "Card actions refit with each card's text read from its definition (CardTextFeatures).",
+   "strength": {
+    "a": "sel10-gs",
+    "b": "sel10-ctt2",
+    "rate": 50.4,
+    "ci": 0.9,
+    "source": "BOT-NOTES.md 'What a card does, read from its definition'"
+   },
+   "cost": null,
+   "july": {
+    "value": 68.2,
+    "measure": "strict",
+    "source": "BOT-NOTES.md 'What a card does, read from its definition'"
+   }
+  },
+  {
+   "id": "sel10-gs",
+   "date": "2026-10-24",
+   "kind": "plain",
+   "parent": "sel10-ctt2",
+   "what": "The six card selections refit with card text too.",
+   "strength": {
+    "a": "sel10-gr",
+    "b": "sel10-gs",
+    "rate": 50.2,
+    "ci": 0.9,
+    "source": "BOT-NOTES.md 'What a card does, read from its definition'"
+   },
+   "cost": null,
+   "july": {
+    "value": 68.5,
+    "measure": "strict",
+    "source": "BOT-NOTES.md 'What a card does, read from its definition'"
+   }
+  },
+  {
+   "id": "sel10-gr",
+   "date": "2026-10-24",
+   "kind": "plain",
+   "parent": "sel10-gs",
+   "what": "Reconcile refit with card text.",
+   "strength": {
+    "a": "sel10-gf",
+    "b": "sel10-gr",
+    "rate": 48.8,
+    "ci": 0.6,
+    "source": "BOT-NOTES.md 'Going first, as people do' (32 games a matchup)"
+   },
+   "cost": null,
+   "july": {
+    "value": 68.6,
+    "measure": "strict",
+    "source": "BOT-NOTES.md 'What a card does, read from its definition'"
+   }
+  },
+  {
+   "id": "sel10-gf",
+   "date": "2026-10-24",
+   "kind": "plain",
+   "parent": "sel10-gr",
+   "what": "Goes first, as people do; costs a point between bots, kept for play against people.",
+   "strength": {
+    "a": "sel10-ar1",
+    "b": "sel10-gf",
+    "rate": 50.3,
+    "ci": 0.9,
+    "source": "BOT-NOTES.md 'The race, priced as people's results price it' (archery, W = 1)"
+   },
+   "cost": null,
+   "july": {
+    "value": 69.6,
+    "measure": "strict",
+    "source": "BOT-NOTES.md 'Going first, as people do'"
+   }
+  },
+  {
+   "id": "sel10-ar1",
+   "date": "2026-10-25",
+   "kind": "plain",
+   "parent": "sel10-gf",
+   "what": "Archery answers taught by companions lost (W = 1), kept at the user's call.",
+   "strength": {
+    "a": "sel10-big",
+    "b": "sel10-ar1",
+    "rate": 50.1,
+    "ci": 0.9,
+    "source": "BOT-NOTES.md 'The race, priced...' (bigger trees)"
+   },
+   "cost": null,
+   "july": {
+    "value": 69.5,
+    "measure": "strict",
+    "source": "BOT-NOTES.md 'The race, priced...' (bigger trees)"
+   }
+  },
+  {
+   "id": "sel10-big",
+   "date": "2026-10-26",
+   "kind": "plain",
+   "parent": "sel10-ar1",
+   "what": "Fellowship and Shadow slots in bigger trees (500 x 96 leaves).",
+   "strength": {
+    "a": "sel10-big3",
+    "b": "sel10-big",
+    "rate": 51.6,
+    "ci": 0.9,
+    "source": "BOT-NOTES.md 'The race, priced...'"
+   },
+   "cost": null,
+   "july": {
+    "value": 69.9,
+    "measure": "strict",
+    "source": "BOT-NOTES.md 'The race, priced...'"
+   }
+  },
+  {
+   "id": "sel10-big3",
+   "date": "2026-10-26",
+   "kind": "plain",
+   "parent": "sel10-big",
+   "what": "The skirmish slot in bigger trees as well.",
+   "strength": {
+    "a": "sel10-big4",
+    "b": "sel10-big3",
+    "rate": 50.1,
+    "ci": 0.9,
+    "source": "BOT-NOTES.md 'The race, priced...'"
+   },
+   "cost": null,
+   "july": {
+    "value": 69.9,
+    "measure": "strict",
+    "source": "BOT-NOTES.md 'The race, priced...'"
+   }
+  },
+  {
+   "id": "sel10-big4",
+   "date": "2026-10-26",
+   "kind": "plain",
+   "parent": "sel10-big3",
+   "what": "Assignment, reconcile and selection models in bigger trees.",
+   "strength": {
+    "a": "sel10-big5",
+    "b": "sel10-big4",
+    "rate": 49.5,
+    "ci": 0.9,
+    "source": "BOT-NOTES.md 'The race, priced...'"
+   },
+   "cost": null,
+   "july": {
+    "value": 70.1,
+    "measure": "strict",
+    "source": "BOT-NOTES.md 'The race, priced...'"
+   }
+  },
+  {
+   "id": "sel10-big5",
+   "date": "2026-10-27",
+   "kind": "plain",
+   "parent": "sel10-big4",
+   "what": "The Shadow slot refit on ten months of people's Shadow plays: the last trees-only bot adopted.",
+   "strength": {
+    "a": "sel10-net6",
+    "b": "sel10-big5",
+    "rate": 49.5,
+    "ci": 0.9,
+    "source": "BOT-NOTES.md 'A neural network that sees the board's cards'"
+   },
+   "cost": null,
+   "july": {
+    "value": 75.1,
+    "measure": "order-free",
+    "source": "BOT-NOTES.md 'Order, assignments, and the network's ceiling' (strict measure: 70.3%)"
+   }
+  },
+  {
+   "id": "pool-racer",
+   "date": "2026-10-27",
+   "kind": "style",
+   "parent": "sel10-big5",
+   "what": "A style bot: sel10-big5 with its Fellowship, Shadow, move-again and starting-fellowship models fit on one cluster of players (moves again 54% of the time). An opponent for testing, not a candidate.",
+   "strength": {
+    "a": "pool-racer",
+    "b": "sel10-big5",
+    "rate": 41.8,
+    "ci": 1.2,
+    "source": "BOT-NOTES.md 'Structure from the game... a pool of styles'"
+   },
+   "cost": {
+    "total": 0.55,
+    "vs": "sel10-net6",
+    "source": "labels/nn/after7.log, sel10-net6 recording its games against the style bots on the training decks"
+   },
+   "july": null
+  },
+  {
+   "id": "pool-builder",
+   "date": "2026-10-27",
+   "kind": "style",
+   "parent": "sel10-big5",
+   "what": "A style bot: sel10-big5 with its Fellowship, Shadow, move-again and starting-fellowship models fit on one cluster of players (builds the fellowship before moving). An opponent for testing, not a candidate.",
+   "strength": {
+    "a": "pool-builder",
+    "b": "sel10-big5",
+    "rate": 43.8,
+    "ci": 1.2,
+    "source": "BOT-NOTES.md 'Structure from the game... a pool of styles'"
+   },
+   "cost": {
+    "total": 0.59,
+    "vs": "sel10-net6",
+    "source": "labels/nn/after7.log, sel10-net6 recording its games against the style bots on the training decks"
+   },
+   "july": null
+  },
+  {
+   "id": "pool-wide-fellowship",
+   "date": "2026-10-27",
+   "kind": "style",
+   "parent": "sel10-big5",
+   "what": "A style bot: sel10-big5 with its Fellowship, Shadow, move-again and starting-fellowship models fit on one cluster of players (plays many companions). An opponent for testing, not a candidate.",
+   "strength": {
+    "a": "pool-wide-fellowship",
+    "b": "sel10-big5",
+    "rate": 42.4,
+    "ci": 1.2,
+    "source": "BOT-NOTES.md 'Structure from the game... a pool of styles'"
+   },
+   "cost": {
+    "total": 0.63,
+    "vs": "sel10-net6",
+    "source": "labels/nn/after7.log, sel10-net6 recording its games against the style bots on the training decks"
+   },
+   "july": null
+  },
+  {
+   "id": "pool-big-minions",
+   "date": "2026-10-27",
+   "kind": "style",
+   "parent": "sel10-big5",
+   "what": "A style bot: sel10-big5 with its Fellowship, Shadow, move-again and starting-fellowship models fit on one cluster of players (plays few, big minions). An opponent for testing, not a candidate.",
+   "strength": {
+    "a": "pool-big-minions",
+    "b": "sel10-big5",
+    "rate": 45.8,
+    "ci": 1.2,
+    "source": "BOT-NOTES.md 'Structure from the game... a pool of styles'"
+   },
+   "cost": {
+    "total": 0.57,
+    "vs": "sel10-net6",
+    "source": "labels/nn/after7.log, sel10-net6 recording its games against the style bots on the training decks"
+   },
+   "july": null
+  },
+  {
+   "id": "pool-swarm-grinder",
+   "date": "2026-10-27",
+   "kind": "style",
+   "parent": "sel10-big5",
+   "what": "A style bot: sel10-big5 with its Fellowship, Shadow, move-again and starting-fellowship models fit on one cluster of players (plays many cheap minions). An opponent for testing, not a candidate.",
+   "strength": {
+    "a": "pool-swarm-grinder",
+    "b": "sel10-big5",
+    "rate": 44.9,
+    "ci": 1.2,
+    "source": "BOT-NOTES.md 'Structure from the game... a pool of styles'"
+   },
+   "cost": {
+    "total": 0.59,
+    "vs": "sel10-net6",
+    "source": "labels/nn/after7.log, sel10-net6 recording its games against the style bots on the training decks"
+   },
+   "july": null
+  },
+  {
+   "id": "sel10-net",
+   "date": "2026-10-29",
+   "kind": "plain",
+   "parent": "sel10-big5",
+   "what": "sel10-big5 with the first board network (a transformer over every card in play) mixed in at 0.6: more like people, weaker.",
+   "strength": {
+    "a": "sel10-net",
+    "b": "sel10-big5",
+    "rate": 48.6,
+    "ci": 0.9,
+    "source": "BOT-NOTES.md 'A neural network that sees the board's cards'"
+   },
+   "cost": null,
+   "july": null
+  },
+  {
+   "id": "sel10-net6",
+   "date": "2026-10-29",
+   "kind": "plain",
+   "parent": "sel10-big5",
+   "what": "The board network mixed in at 0.4 instead: level in play, +2 points of agreement. Adopted.",
+   "strength": {
+    "a": "sp-g07",
+    "b": "sel10-net6",
+    "rate": 51.0,
+    "ci": 0.9,
+    "source": "BOT-NOTES.md 'A new best bot: sp-g07'"
+   },
+   "cost": {
+    "total": 0.89,
+    "vs": "sel10-net6",
+    "source": "labels/nn/after7.log (against itself on the training decks, recording its decisions -- the only measurement of it against itself)"
+   },
+   "july": {
+    "value": 75.3,
+    "measure": "order-free",
+    "source": "BOT-NOTES.md 'Order, assignments, and the network's ceiling'"
+   }
+  },
+  {
+   "id": "sel10-netT",
+   "date": "2026-10-30",
+   "kind": "plain",
+   "parent": "sel10-net6",
+   "what": "The board network also trained on the search's labels: weaker.",
+   "strength": {
+    "a": "sel10-netT",
+    "b": "sel10-net6",
+    "rate": 48.7,
+    "ci": 0.9,
+    "source": "BOT-NOTES.md 'A neural network that sees the board's cards'"
+   },
+   "cost": null,
+   "july": null
+  },
+  {
+   "id": "sel10-n2",
+   "date": "2026-10-30",
+   "kind": "plain",
+   "parent": "sel10-net6",
+   "what": "sel10-net6's trees with the combined network (one network for every kind of decision, with an outcome head) mixed in.",
+   "strength": {
+    "a": "sel10-n2",
+    "b": "sel10-net6",
+    "rate": 45.9,
+    "ci": 0.9,
+    "source": "labels/nn/n2eval.log"
+   },
+   "cost": null,
+   "july": {
+    "value": 76.4,
+    "measure": "order-free",
+    "source": "BOT-NOTES.md 'Order, assignments, and the network's ceiling'"
+   },
+   "note": "Not described on its own in the notes; the result is from the log."
+  },
+  {
+   "id": "sel10-n2p",
+   "date": "2026-10-30",
+   "kind": "network",
+   "parent": "sel10-n2",
+   "what": "The combined network deciding alone, no trees: self-play generation 0.",
+   "strength": {
+    "a": "sp-g01",
+    "b": "sel10-n2p",
+    "rate": 50.9,
+    "ci": 1.2,
+    "source": "labels/nn/selfplay.log (generation 1 against its parent)"
+   },
+   "cost": {
+    "total": 2.3,
+    "vs": "sp-g01",
+    "source": "labels/nn/selfplay.log (generation 1 against its parent)"
+   },
+   "july": {
+    "value": 71.4,
+    "measure": "strict",
+    "source": "labels/hl/hl-sel10-n2p.tsv"
+   }
+  },
+  {
+   "id": "sel10-n2-nms",
+   "date": "2026-10-31",
+   "kind": "plain",
+   "parent": "sel10-n2",
+   "what": "Trees and the combined network mixed (trees 0.6), trees alone at moves and skirmish plays: the mixed lineage's starting point.",
+   "strength": {
+    "a": "sel10-n2-nms",
+    "b": "sel10-net6",
+    "rate": 49.4,
+    "ci": 1.2,
+    "source": "labels/nn/screen2.log"
+   },
+   "cost": {
+    "total": 2.04,
+    "vs": "sel10-net6",
+    "source": "labels/nn/screen2.log"
+   },
+   "july": {
+    "value": 71.6,
+    "measure": "strict",
+    "source": "labels/hl/hl-sel10-n2-nms.tsv"
+   }
+  },
+  {
+   "id": "sp-g01",
+   "date": "2026-10-31",
+   "kind": "plain",
+   "parent": "sel10-n2p",
+   "what": "Self-play generation 1: the pure network fine-tuned towards what a play-time search chose in 300 league games.",
+   "strength": {
+    "a": "sp-g01",
+    "b": "sel10-net6",
+    "rate": 34.6,
+    "ci": 1.2,
+    "source": "BOT-NOTES.md 'Self-play rounds, and what the trees know'; labels/nn/selfplay.log"
+   },
+   "cost": {
+    "total": 1.58,
+    "vs": "sel10-net6",
+    "source": "labels/nn/selfplay.log"
+   },
+   "july": {
+    "value": 71.1,
+    "measure": "strict",
+    "source": "labels/hl/hl-sp-g01.tsv"
+   }
+  },
+  {
+   "id": "sp-g02",
+   "date": "2026-10-31",
+   "kind": "plain",
+   "parent": "sp-g01",
+   "what": "Self-play generation 2, as generation 1.",
+   "strength": {
+    "a": "sp-g02",
+    "b": "sel10-net6",
+    "rate": 34.5,
+    "ci": 1.2,
+    "source": "BOT-NOTES.md 'Self-play rounds, and what the trees know'; labels/nn/selfplay.log"
+   },
+   "cost": {
+    "total": 1.6,
+    "vs": "sel10-net6",
+    "source": "labels/nn/selfplay.log"
+   },
+   "july": {
+    "value": 71.1,
+    "measure": "strict",
+    "source": "labels/hl/hl-sp-g02.tsv"
+   }
+  },
+  {
+   "id": "sp-g03",
+   "date": "2026-10-31",
+   "kind": "plain",
+   "parent": "sel10-n2-nms",
+   "what": "Self-play generation 3, on the mixed bot (trees 0.6; trees alone at moves and skirmishes), 4x the searched boards, lambda 0.05.",
+   "strength": {
+    "a": "sp-g03",
+    "b": "sel10-net6",
+    "rate": 49.3,
+    "ci": 1.2,
+    "source": "BOT-NOTES.md 'Self-play rounds, and what the trees know'; labels/nn/selfplay.log"
+   },
+   "cost": {
+    "total": 2.71,
+    "vs": "sel10-net6",
+    "source": "labels/nn/selfplay.log"
+   },
+   "july": {
+    "value": 71.6,
+    "measure": "strict",
+    "source": "labels/hl/hl-sp-g03.tsv"
+   }
+  },
+  {
+   "id": "sp-g04",
+   "date": "2026-10-31",
+   "kind": "plain",
+   "parent": "sp-g03",
+   "what": "Self-play generation 4: lambda 0.01, move decisions searched too.",
+   "strength": {
+    "a": "sp-g04",
+    "b": "sel10-net6",
+    "rate": 49.7,
+    "ci": 1.2,
+    "source": "BOT-NOTES.md 'Self-play rounds, and what the trees know'; labels/nn/selfplay.log"
+   },
+   "cost": {
+    "total": 1.74,
+    "vs": "sel10-net6",
+    "source": "labels/nn/selfplay.log"
+   },
+   "july": {
+    "value": 71.5,
+    "measure": "strict",
+    "source": "labels/hl/hl-sp-g04.tsv"
+   }
+  },
+  {
+   "id": "sp-g06",
+   "date": "2026-10-31",
+   "kind": "plain",
+   "parent": "sp-g05",
+   "what": "Self-play generation 6.",
+   "strength": {
+    "a": "sp-g06",
+    "b": "sel10-net6",
+    "rate": 50.1,
+    "ci": 1.2,
+    "source": "BOT-NOTES.md 'Self-play rounds, and what the trees know'; labels/nn/selfplay.log"
+   },
+   "cost": {
+    "total": 1.61,
+    "vs": "sel10-net6",
+    "source": "labels/nn/selfplay.log"
+   },
+   "july": {
+    "value": 71.5,
+    "measure": "strict",
+    "source": "labels/hl/hl-sp-g06.tsv"
+   }
+  },
+  {
+   "id": "sp-g05",
+   "date": "2026-10-31",
+   "kind": "plain",
+   "parent": "sp-g04",
+   "what": "Self-play generation 5 (not played against sel10-net6).",
+   "strength": {
+    "a": "sp-g05",
+    "b": "sp-g04",
+    "rate": 50.4,
+    "ci": 1.2,
+    "source": "labels/nn/selfplay.log"
+   },
+   "cost": {
+    "total": 2.41,
+    "vs": "sp-g04",
+    "source": "labels/nn/selfplay.log"
+   },
+   "july": {
+    "value": 71.5,
+    "measure": "strict",
+    "source": "labels/hl/hl-sp-g05.tsv"
+   }
+  },
+  {
+   "id": "sp-g03-pure",
+   "date": "2026-10-31",
+   "kind": "network",
+   "parent": "sp-g03",
+   "what": "The network of generation 3 deciding alone, without the trees.",
+   "strength": {
+    "a": "sp-g03-pure",
+    "b": "sel10-net6",
+    "rate": 35.6,
+    "ci": 1.2,
+    "source": "labels/nn/selfplay.log"
+   },
+   "cost": {
+    "total": 1.6,
+    "vs": "sel10-net6",
+    "source": "labels/nn/selfplay.log"
+   },
+   "july": null
+  },
+  {
+   "id": "sp-g04-pure",
+   "date": "2026-10-31",
+   "kind": "network",
+   "parent": "sp-g04",
+   "what": "The network of generation 4 deciding alone, without the trees.",
+   "strength": {
+    "a": "sp-g04-pure",
+    "b": "sel10-net6",
+    "rate": 35.9,
+    "ci": 1.2,
+    "source": "labels/nn/selfplay.log"
+   },
+   "cost": {
+    "total": 1.59,
+    "vs": "sel10-net6",
+    "source": "labels/nn/selfplay.log"
+   },
+   "july": null
+  },
+  {
+   "id": "sp-g05-pure",
+   "date": "2026-10-31",
+   "kind": "network",
+   "parent": "sp-g05",
+   "what": "The network of generation 5 deciding alone, without the trees.",
+   "strength": {
+    "a": "sp-g05-pure",
+    "b": "sel10-net6",
+    "rate": 34.7,
+    "ci": 1.2,
+    "source": "labels/nn/selfplay.log"
+   },
+   "cost": {
+    "total": 1.44,
+    "vs": "sel10-net6",
+    "source": "labels/nn/selfplay.log"
+   },
+   "july": null
+  },
+  {
+   "id": "sp-g06-pure",
+   "date": "2026-10-31",
+   "kind": "network",
+   "parent": "sp-g06",
+   "what": "The network of generation 6 deciding alone, without the trees.",
+   "strength": {
+    "a": "sp-g06-pure",
+    "b": "sel10-net6",
+    "rate": 32.5,
+    "ci": 1.2,
+    "source": "labels/nn/selfplay.log"
+   },
+   "cost": {
+    "total": 1.37,
+    "vs": "sel10-net6",
+    "source": "labels/nn/selfplay.log"
+   },
+   "july": null,
+   "note": "A second run of sp-g06-pure gave 34.5 (BOT-NOTES.md)."
+  },
+  {
+   "id": "sp-distill-pure",
+   "date": "2026-10-31",
+   "kind": "network",
+   "parent": "sel10-n2p",
+   "what": "The people-only network also trained on 218,410 of sel10-net6's own decisions, deciding alone: more than six self-play rounds gave.",
+   "strength": {
+    "a": "sp-distill-pure",
+    "b": "sel10-net6",
+    "rate": 39.9,
+    "ci": 1.2,
+    "source": "BOT-NOTES.md 'Self-play rounds, and what the trees know'"
+   },
+   "cost": null,
+   "july": {
+    "value": 71.3,
+    "measure": "strict",
+    "source": "labels/hl/hl-sp-distill-pure.tsv"
+   }
+  },
+  {
+   "id": "sp-distill-mix",
+   "date": "2026-10-31",
+   "kind": "plain",
+   "parent": "sp-distill-pure",
+   "what": "That network mixed with the trees, as sp-g03 mixes them.",
+   "strength": {
+    "a": "sp-distill-mix",
+    "b": "sel10-net6",
+    "rate": 50.0,
+    "ci": 1.2,
+    "source": "BOT-NOTES.md 'Self-play rounds, and what the trees know'"
+   },
+   "cost": null,
+   "july": {
+    "value": 71.5,
+    "measure": "strict",
+    "source": "BOT-NOTES.md 'Self-play rounds, and what the trees know'"
+   }
+  },
+  {
+   "id": "sp-g07",
+   "date": "2026-11-01",
+   "kind": "plain",
+   "parent": "sp-distill-mix",
+   "what": "Self-play generation 7, from sp-distill-mix: the judge retrained on the league's games, turn-long play-outs for moves and Fellowship plays. Adopted.",
+   "strength": {
+    "a": "sp-m1",
+    "b": "sp-g07",
+    "rate": 50.2,
+    "ci": 1.2,
+    "source": "BOT-NOTES.md 'What search knows, without search; more people; a better judge'"
+   },
+   "cost": {
+    "total": 1.6,
+    "vs": "sp-g07",
+    "source": "BOT-NOTES.md 'Play-time search' ('6.0 CPU-seconds a game against ~1.6')"
+   },
+   "july": {
+    "value": 76.1,
+    "measure": "order-free",
+    "source": "BOT-NOTES.md 'Order, assignments, and the network's ceiling' (76.08% on the later run)"
+   },
+   "note": "Against sel10-net6: 51.0 +- 0.9; pool mean 46.1%."
+  },
+  {
+   "id": "sp-g07-pure",
+   "date": "2026-11-01",
+   "kind": "network",
+   "parent": "sp-g07",
+   "what": "sp-g07's network deciding alone.",
+   "strength": {
+    "a": "sp-g07-pure",
+    "b": "sel10-net6",
+    "rate": 41.1,
+    "ci": 1.2,
+    "source": "BOT-NOTES.md 'A new best bot: sp-g07'; labels/nn/selfplay.log"
+   },
+   "cost": {
+    "total": 1.56,
+    "vs": "sel10-net6",
+    "source": "labels/nn/selfplay.log"
+   },
+   "july": null
+  },
+  {
+   "id": "sp-distill2-pure",
+   "date": "2026-11-01",
+   "kind": "network",
+   "parent": "sp-distill-pure",
+   "what": "The network on people's decisions and more of the trees' decisions (617,610 more boards), alone.",
+   "strength": {
+    "a": "sp-distill2-pure",
+    "b": "sel10-net6",
+    "rate": 41.7,
+    "ci": 1.2,
+    "source": "BOT-NOTES.md 'Order, assignments, and the network's ceiling'"
+   },
+   "cost": null,
+   "july": null
+  },
+  {
+   "id": "sp-distill3-pure",
+   "date": "2026-11-01",
+   "kind": "network",
+   "parent": "sp-distill2-pure",
+   "what": "And the trees' choices with the search on (74,536 searched boards), alone.",
+   "strength": {
+    "a": "sp-distill3-pure",
+    "b": "sel10-net6",
+    "rate": 42.6,
+    "ci": 1.2,
+    "source": "BOT-NOTES.md 'Order, assignments, and the network's ceiling'"
+   },
+   "cost": null,
+   "july": {
+    "value": 71.3,
+    "measure": "strict",
+    "source": "labels/hl/hl-sp-distill3-pure.tsv"
+   }
+  },
+  {
+   "id": "sp-orderA-pure",
+   "date": "2026-11-01",
+   "kind": "network",
+   "parent": "sp-distill2-pure",
+   "what": "Fine-tuned without order-free targets (the control), alone.",
+   "strength": {
+    "a": "sp-orderA-pure",
+    "b": "sel10-net6",
+    "rate": 42.4,
+    "ci": 1.2,
+    "source": "BOT-NOTES.md 'Order, assignments, and the network's ceiling'"
+   },
+   "cost": null,
+   "july": {
+    "value": 75.6,
+    "measure": "order-free",
+    "source": "labels/hl/hl-sp-orderA-pure.tsv"
+   }
+  },
+  {
+   "id": "sp-orderB-pure",
+   "date": "2026-11-01",
+   "kind": "network",
+   "parent": "sp-distill2-pure",
+   "what": "Fine-tuned with order-free targets (cards people played later in the phase share the credit), alone.",
+   "strength": {
+    "a": "sp-orderB-pure",
+    "b": "sel10-net6",
+    "rate": 43.5,
+    "ci": 1.2,
+    "source": "BOT-NOTES.md 'Order, assignments, and the network's ceiling'"
+   },
+   "cost": null,
+   "july": {
+    "value": 75.8,
+    "measure": "order-free",
+    "source": "BOT-NOTES.md 'Order, assignments, and the network's ceiling' (75.8 against 75.6)"
+   }
+  },
+  {
+   "id": "ob-noskir",
+   "date": "2026-11-01",
+   "kind": "network",
+   "parent": "sp-orderB-pure",
+   "what": "sp-orderB-pure's network with the trees given back one kind of decision: skirmish plays (the trees with the skirmish probe).",
+   "strength": {
+    "a": "ob-noskir",
+    "b": "sel10-net6",
+    "rate": 45.7,
+    "ci": 1.2,
+    "source": "BOT-NOTES.md 'Where the network alone loses, and better mixes'; labels/nn/ob-screens.log"
+   },
+   "cost": null,
+   "july": null
+  },
+  {
+   "id": "ob-nomove",
+   "date": "2026-11-01",
+   "kind": "network",
+   "parent": "sp-orderB-pure",
+   "what": "sp-orderB-pure's network with the trees given back one kind of decision: 'move again?'.",
+   "strength": {
+    "a": "ob-nomove",
+    "b": "sel10-net6",
+    "rate": 44.0,
+    "ci": 1.2,
+    "source": "BOT-NOTES.md 'Where the network alone loses, and better mixes'; labels/nn/ob-screens.log"
+   },
+   "cost": null,
+   "july": null
+  },
+  {
+   "id": "ob-noasg",
+   "date": "2026-11-01",
+   "kind": "network",
+   "parent": "sp-orderB-pure",
+   "what": "sp-orderB-pure's network with the trees given back one kind of decision: Free Peoples assignments.",
+   "strength": {
+    "a": "ob-noasg",
+    "b": "sel10-net6",
+    "rate": 42.5,
+    "ci": 1.2,
+    "source": "BOT-NOTES.md 'Where the network alone loses, and better mixes'; labels/nn/ob-screens.log"
+   },
+   "cost": null,
+   "july": null
+  },
+  {
+   "id": "ob-noshadow",
+   "date": "2026-11-01",
+   "kind": "network",
+   "parent": "sp-orderB-pure",
+   "what": "sp-orderB-pure's network with the trees given back one kind of decision: Shadow plays.",
+   "strength": {
+    "a": "ob-noshadow",
+    "b": "sel10-net6",
+    "rate": 43.1,
+    "ci": 1.2,
+    "source": "BOT-NOTES.md 'Where the network alone loses, and better mixes'; labels/nn/ob-screens.log"
+   },
+   "cost": null,
+   "july": null
+  },
+  {
+   "id": "ob-nofellowship",
+   "date": "2026-11-01",
+   "kind": "network",
+   "parent": "sp-orderB-pure",
+   "what": "sp-orderB-pure's network with the trees given back one kind of decision: Fellowship plays.",
+   "strength": {
+    "a": "ob-nofellowship",
+    "b": "sel10-net6",
+    "rate": 42.2,
+    "ci": 1.2,
+    "source": "BOT-NOTES.md 'Where the network alone loses, and better mixes'; labels/nn/ob-screens.log"
+   },
+   "cost": null,
+   "july": null
+  },
+  {
+   "id": "ob-noreconcile",
+   "date": "2026-11-01",
+   "kind": "network",
+   "parent": "sp-orderB-pure",
+   "what": "sp-orderB-pure's network with the trees given back one kind of decision: reconcile.",
+   "strength": {
+    "a": "ob-noreconcile",
+    "b": "sel10-net6",
+    "rate": 43.4,
+    "ci": 1.2,
+    "source": "BOT-NOTES.md 'Where the network alone loses, and better mixes'; labels/nn/ob-screens.log"
+   },
+   "cost": null,
+   "july": null
+  },
+  {
+   "id": "ob-mix6",
+   "date": "2026-11-01",
+   "kind": "plain",
+   "parent": "sp-orderB-pure",
+   "what": "The newest network mixed like sp-g07 (trees 0.6; trees alone at moves and skirmishes).",
+   "strength": {
+    "a": "ob-mix6",
+    "b": "sel10-net6",
+    "rate": 50.1,
+    "ci": 1.2,
+    "source": "BOT-NOTES.md 'Where the network alone loses, and better mixes'"
+   },
+   "cost": null,
+   "july": {
+    "value": 76.0,
+    "measure": "order-free",
+    "source": "BOT-NOTES.md 'Where the network alone loses, and better mixes'"
+   }
+  },
+  {
+   "id": "ob-mix4",
+   "date": "2026-11-01",
+   "kind": "plain",
+   "parent": "sp-orderB-pure",
+   "what": "The same with the trees at 0.4.",
+   "strength": {
+    "a": "ob-mix4",
+    "b": "sel10-net6",
+    "rate": 49.6,
+    "ci": 1.2,
+    "source": "BOT-NOTES.md 'Where the network alone loses, and better mixes'"
+   },
+   "cost": null,
+   "july": {
+    "value": 76.2,
+    "measure": "order-free",
+    "source": "BOT-NOTES.md 'Where the network alone loses, and better mixes'"
+   }
+  },
+  {
+   "id": "sel10-net6r",
+   "date": "2026-11-01",
+   "kind": "plain",
+   "parent": "sel10-net6",
+   "what": "sel10-net6 with the first network trained on rating-weighted decisions.",
+   "strength": {
+    "a": "sel10-net6r",
+    "b": "sel10-net6",
+    "rate": 49.2,
+    "ci": 1.2,
+    "source": "BOT-NOTES.md 'Where the network alone loses, and better mixes'"
+   },
+   "cost": null,
+   "july": null
+  },
+  {
+   "id": "search@sp-g07 skirmish",
+   "date": "2026-11-01",
+   "kind": "search",
+   "parent": "sp-g07",
+   "what": "sp-g07 searching its skirmish plays where unsure: top 3 options and its own, 4 play-outs each, judged; lambda 0.05.",
+   "strength": {
+    "a": "search@sp-g07 skirmish",
+    "b": "sp-g07",
+    "rate": 52.1,
+    "ci": 1.2,
+    "source": "BOT-NOTES.md 'Play-time search'"
+   },
+   "cost": {
+    "total": 6.0,
+    "vs": "sp-g07",
+    "source": "BOT-NOTES.md 'Play-time search' (log: 6.04)"
+   },
+   "july": null
+  },
+  {
+   "id": "search@sp-g07 skirmish l0.1",
+   "date": "2026-11-02",
+   "kind": "search",
+   "parent": "sp-g07",
+   "what": "The same with lambda 0.1 (leans less on the search's values).",
+   "strength": {
+    "a": "search@sp-g07 skirmish l0.1",
+    "b": "sp-g07",
+    "rate": 50.5,
+    "ci": 1.2,
+    "source": "BOT-NOTES.md 'Play-time search'"
+   },
+   "cost": {
+    "total": 5.67,
+    "vs": "sp-g07",
+    "source": "labels/nn/search-screens.log"
+   },
+   "july": null
+  },
+  {
+   "id": "search@sp-g07 shadow",
+   "date": "2026-11-02",
+   "kind": "search",
+   "parent": "sp-g07",
+   "what": "sp-g07 searching its Shadow plays instead.",
+   "strength": {
+    "a": "search@sp-g07 shadow",
+    "b": "sp-g07",
+    "rate": 52.0,
+    "ci": 1.7,
+    "source": "BOT-NOTES.md 'Play-time search'"
+   },
+   "cost": {
+    "total": 15.4,
+    "vs": "sp-g07",
+    "source": "BOT-NOTES.md 'Play-time search'"
+   },
+   "july": null
+  },
+  {
+   "id": "search@sp-g07",
+   "date": "2026-11-02",
+   "kind": "search",
+   "parent": "sp-g07",
+   "what": "sp-g07 searching skirmish and Shadow plays: the strongest bot of early November.",
+   "strength": {
+    "a": "search@sp-g07",
+    "b": "sp-g07",
+    "rate": 52.5,
+    "ci": 1.2,
+    "source": "BOT-NOTES.md 'Play-time search'"
+   },
+   "cost": {
+    "total": 17.8,
+    "vs": "sp-g07",
+    "source": "BOT-NOTES.md 'Play-time search'"
+   },
+   "july": {
+    "value": 75.8,
+    "measure": "order-free",
+    "source": "BOT-NOTES.md 'Play-time search'"
+   }
+  },
+  {
+   "id": "sp-s2",
+   "date": "2026-11-03",
+   "kind": "plain",
+   "parent": "sp-g07",
+   "what": "sp-g07's network trained on the 4,695 decisions where search clearly disagreed, weighted 8: search's knowledge without search. Tied.",
+   "strength": {
+    "a": "sp-s2",
+    "b": "sp-g07",
+    "rate": 49.8,
+    "ci": 1.2,
+    "source": "BOT-NOTES.md 'What search knows, without search' (second run; the first was 51.1)"
+   },
+   "cost": null,
+   "july": null
+  },
+  {
+   "id": "sp-s1",
+   "date": "2026-11-02",
+   "kind": "plain",
+   "parent": "sp-g07",
+   "what": "sp-g07's network trained on all 44,369 searched decisions.",
+   "strength": {
+    "a": "sp-s1",
+    "b": "sp-g07",
+    "rate": 49.3,
+    "ci": 1.2,
+    "source": "BOT-NOTES.md 'What search knows, without search'"
+   },
+   "cost": null,
+   "july": null
+  },
+  {
+   "id": "sp-s1p",
+   "date": "2026-11-02",
+   "kind": "plain",
+   "parent": "sp-s1",
+   "what": "sp-s1 also reading the skirmish probe's numbers.",
+   "strength": {
+    "a": "sp-s1p",
+    "b": "sp-g07",
+    "rate": 49.8,
+    "ci": 1.2,
+    "source": "BOT-NOTES.md 'What search knows, without search'"
+   },
+   "cost": null,
+   "july": null
+  },
+  {
+   "id": "sp-m1",
+   "date": "2026-11-03",
+   "kind": "plain",
+   "parent": "sp-g07",
+   "what": "sp-g07's network trained two more epochs on 2022 and 40% of each month of 2020-21: as strong, more human.",
+   "strength": {
+    "a": "sp-m2",
+    "b": "sp-m1",
+    "rate": 49.6,
+    "ci": 1.2,
+    "source": "labels/nn/skir-refit.log"
+   },
+   "cost": null,
+   "july": {
+    "value": 76.4,
+    "measure": "order-free",
+    "source": "BOT-NOTES.md 'What search knows, without search' (76.37%)"
+   },
+   "note": "The notes call its cost 'the same' as sp-g07's, without a number."
+  },
+  {
+   "id": "sp-m1-n70",
+   "date": "2026-11-03",
+   "kind": "plain",
+   "parent": "sp-m1",
+   "what": "sp-m1 with the network given 70% of most decisions: still loses.",
+   "strength": {
+    "a": "sp-m1-n70",
+    "b": "sp-g07",
+    "rate": 47.8,
+    "ci": 1.2,
+    "source": "BOT-NOTES.md 'What search knows, without search'"
+   },
+   "cost": null,
+   "july": null
+  },
+  {
+   "id": "sp-m2",
+   "date": "2026-11-05",
+   "kind": "plain",
+   "parent": "sp-m1",
+   "what": "sp-m1 with sel10-n3's trees: the skirmish slot refit on 2020-22's skirmish plays.",
+   "strength": {
+    "a": "sp-m3",
+    "b": "sp-m2",
+    "rate": 49.6,
+    "ci": 1.2,
+    "source": "BOT-NOTES.md 'Why the bots do not race' (sp-m2 with move threshold 0.35)"
+   },
+   "cost": null,
+   "july": {
+    "value": 76.5,
+    "measure": "order-free",
+    "source": "BOT-NOTES.md 'Why the bots do not race' (76.48%)"
+   },
+   "note": "Not described in its own paragraph; read from the description of sp-m3 at the top of the notes and labels/nn/skir-refit.log."
+  },
+  {
+   "id": "sp-m2-mv0",
+   "date": "2026-11-05",
+   "kind": "plain",
+   "parent": "sp-m2",
+   "what": "sp-m2 with the network alone deciding 'move again?'.",
+   "strength": {
+    "a": "sp-m2-mv0",
+    "b": "sp-m2",
+    "rate": 47.1,
+    "ci": 1.2,
+    "source": "BOT-NOTES.md 'Why the bots do not race'"
+   },
+   "cost": null,
+   "july": null
+  },
+  {
+   "id": "sp-human",
+   "date": "2026-11-05",
+   "kind": "network",
+   "parent": "sp-m2",
+   "what": "sp-m2's network alone, drawing each choice from its distribution (temperature 1.0): tried as a stand-in for a person.",
+   "strength": {
+    "a": "sp-human",
+    "b": "sp-m2",
+    "rate": 26.5,
+    "ci": 2.2,
+    "source": "BOT-NOTES.md 'Why the bots do not race'"
+   },
+   "cost": null,
+   "july": null
+  },
+  {
+   "id": "sp-human-t3",
+   "date": "2026-11-05",
+   "kind": "network",
+   "parent": "sp-human",
+   "what": "The same at temperature 0.3.",
+   "strength": {
+    "a": "sp-human-t3",
+    "b": "sp-m2",
+    "rate": 36.7,
+    "ci": 1.7,
+    "source": "BOT-NOTES.md 'Why the bots do not race'"
+   },
+   "cost": null,
+   "july": null
+  },
+  {
+   "id": "sp-human-t5",
+   "date": "2026-11-05",
+   "kind": "network",
+   "parent": "sp-human",
+   "what": "The same at temperature 0.5.",
+   "strength": {
+    "a": "sp-human-t5",
+    "b": "sp-m2",
+    "rate": 34.6,
+    "ci": 1.7,
+    "source": "BOT-NOTES.md 'Why the bots do not race'"
+   },
+   "cost": null,
+   "july": null
+  },
+  {
+   "id": "sp-m2-t25",
+   "date": "2026-11-05",
+   "kind": "plain",
+   "parent": "sp-m2",
+   "what": "sp-m2 moving again when P(yes) > 0.25: moves as often as people. The one to try against people.",
+   "strength": {
+    "a": "sp-m2-t25",
+    "b": "sp-m2",
+    "rate": 48.1,
+    "ci": 1.2,
+    "source": "BOT-NOTES.md 'Why the bots do not race' (the later of two runs; the first was 48.8)"
+   },
+   "cost": null,
+   "july": null
+  },
+  {
+   "id": "sp-m3",
+   "date": "2026-11-05",
+   "kind": "plain",
+   "parent": "sp-m2",
+   "what": "sp-m2 moving again when P(yes) > 0.35: level with the bots, better than people on moves. The cheap bot, and the reference for strength.",
+   "strength": null,
+   "cost": {
+    "total": 2.5,
+    "vs": "sp-m3",
+    "source": "BOT-NOTES.md 'The bots to use' (~2.5; the logs give 2.29-2.34 for 1,584-6,400 games on 2026-11-07)"
+   },
+   "july": {
+    "value": 76.4,
+    "measure": "order-free",
+    "source": "BOT-NOTES.md 'The bots to use' (76.36% in 'Why the bots do not race')"
+   }
+  },
+  {
+   "id": "sp-m3-trees",
+   "date": "2026-11-06",
+   "kind": "plain",
+   "parent": "sp-m3",
+   "what": "sp-m3's trees alone, no network: used only to play out the search's futures cheaply.",
+   "strength": null,
+   "cost": null,
+   "july": null,
+   "note": "Never played as a bot of its own."
+  },
+  {
+   "id": "search@sp-m3-j4",
+   "date": "2026-11-06",
+   "kind": "search",
+   "parent": "sp-m3",
+   "what": "sp-m3 searching skirmish and Shadow plays with judge4: every search plays out every candidate 4 times.",
+   "strength": {
+    "a": "search@sp-m3-j4",
+    "b": "sp-m3",
+    "rate": 53.6,
+    "ci": 1.7,
+    "source": "BOT-NOTES.md 'Cheaper search, and two networks that add nothing'"
+   },
+   "cost": {
+    "total": 20.9,
+    "vs": "sp-m3",
+    "source": "BOT-NOTES.md 'Cheaper search...'"
+   },
+   "july": null
+  },
+  {
+   "id": "search@sp-m3-j4 s0.05",
+   "date": "2026-11-07",
+   "kind": "search",
+   "parent": "search@sp-m3-j4",
+   "what": "Two rounds: one play-out a candidate first, the rest only where the candidates spread by 0.05 or more.",
+   "strength": {
+    "a": "search@sp-m3-j4 s0.05",
+    "b": "sp-m3",
+    "rate": 53.0,
+    "ci": 1.2,
+    "source": "BOT-NOTES.md 'A judge for bot positions' ('judge4 that night 53.0'); labels/feed/bvb-judge5-search-sp-m3-j4.jsonl"
+   },
+   "cost": {
+    "total": 7.98,
+    "vs": "sp-m3",
+    "source": "labels/style/cheap-ideas.log"
+   },
+   "july": null,
+   "note": "Three runs: 54.0 +- 1.7 at 9.3 (11-06), 54.4 +- 1.2 at 7.7 (11-07), 53.0 +- 1.2 at 8.0 (the latest, used here)."
+  },
+  {
+   "id": "search@sp-m3-j4 s0.1",
+   "date": "2026-11-06",
+   "kind": "search",
+   "parent": "search@sp-m3-j4",
+   "what": "Two rounds, spread 0.1.",
+   "strength": {
+    "a": "search@sp-m3-j4 s0.1",
+    "b": "sp-m3",
+    "rate": 52.0,
+    "ci": 1.7,
+    "source": "BOT-NOTES.md 'Cheaper search...'"
+   },
+   "cost": {
+    "total": 9.33,
+    "vs": "sp-m3",
+    "source": "labels/nn/gate/two-stage.log"
+   },
+   "july": null
+  },
+  {
+   "id": "search@sp-m3-j4 s0.2",
+   "date": "2026-11-06",
+   "kind": "search",
+   "parent": "search@sp-m3-j4",
+   "what": "Two rounds, spread 0.2.",
+   "strength": {
+    "a": "search@sp-m3-j4 s0.2",
+    "b": "sp-m3",
+    "rate": 51.8,
+    "ci": 1.7,
+    "source": "BOT-NOTES.md 'Cheaper search...'"
+   },
+   "cost": {
+    "total": 6.41,
+    "vs": "sp-m3",
+    "source": "labels/nn/gate/two-stage.log"
+   },
+   "july": null
+  },
+  {
+   "id": "search@sp-m3-j4 s0.05 trees",
+   "date": "2026-11-07",
+   "kind": "search",
+   "parent": "search@sp-m3-j4 s0.05",
+   "what": "Two rounds with sp-m3-trees playing the futures instead of sp-m3.",
+   "strength": {
+    "a": "search@sp-m3-j4 s0.05 trees",
+    "b": "sp-m3",
+    "rate": 52.1,
+    "ci": 1.7,
+    "source": "labels/nn/gate/search-overnight.log (s2-trees)"
+   },
+   "cost": {
+    "total": 4.05,
+    "vs": "sp-m3",
+    "source": "labels/nn/gate/search-overnight.log (s2-trees)"
+   },
+   "july": null,
+   "note": "The notes give 3.8 CPU-s a game for trees-only play-outs and 52.1 for this run ('Cheaper search', 'The strong bot at under twice...'); the log's 4.05 is used."
+  },
+  {
+   "id": "search@sp-m3-j4 s0.05 k2",
+   "date": "2026-11-07",
+   "kind": "search",
+   "parent": "search@sp-m3-j4 s0.05",
+   "what": "Two rounds, only the top 2 options searched (search.k=2).",
+   "strength": {
+    "a": "search@sp-m3-j4 s0.05 k2",
+    "b": "sp-m3",
+    "rate": 52.3,
+    "ci": 1.7,
+    "source": "labels/nn/gate/search-overnight.log (s2-k2)"
+   },
+   "cost": {
+    "total": 5.29,
+    "vs": "sp-m3",
+    "source": "labels/nn/gate/search-overnight.log (s2-k2)"
+   },
+   "july": null
+  },
+  {
+   "id": "search@sp-m3-j4 s0.05 keep2",
+   "date": "2026-11-07",
+   "kind": "search",
+   "parent": "search@sp-m3-j4 s0.05",
+   "what": "Two rounds, only the best 2 into the second round (search.keep=2).",
+   "strength": {
+    "a": "search@sp-m3-j4 s0.05 keep2",
+    "b": "sp-m3",
+    "rate": 53.5,
+    "ci": 1.7,
+    "source": "labels/nn/gate/search-overnight.log (s2-keep2)"
+   },
+   "cost": {
+    "total": 7.72,
+    "vs": "sp-m3",
+    "source": "labels/nn/gate/search-overnight.log (s2-keep2)"
+   },
+   "july": null
+  },
+  {
+   "id": "search@sp-m3-j4 s0.05 judge1",
+   "date": "2026-11-07",
+   "kind": "search",
+   "parent": "search@sp-m3-j4 s0.05",
+   "what": "Two rounds, the first judging each candidate's next position without a play-out (stage1Mode=judge).",
+   "strength": {
+    "a": "search@sp-m3-j4 s0.05 judge1",
+    "b": "sp-m3",
+    "rate": 50.9,
+    "ci": 1.7,
+    "source": "labels/nn/gate/search-overnight.log (s2-judge1)"
+   },
+   "cost": {
+    "total": 5.8,
+    "vs": "sp-m3",
+    "source": "labels/nn/gate/search-overnight.log (s2-judge1)"
+   },
+   "july": null
+  },
+  {
+   "id": "search@sp-m3-j5",
+   "date": "2026-11-07",
+   "kind": "search",
+   "parent": "search@sp-m3-j4 s0.05",
+   "what": "Two-round search with judge5b, a judge that reads bot positions far better.",
+   "strength": {
+    "a": "search@sp-m3-j5",
+    "b": "sp-m3",
+    "rate": 54.3,
+    "ci": 1.2,
+    "source": "BOT-NOTES.md 'A judge for bot positions, and four cheap ideas'"
+   },
+   "cost": {
+    "total": 9.28,
+    "vs": "sp-m3",
+    "source": "labels/style/cheap-ideas.log"
+   },
+   "july": null
+  },
+  {
+   "id": "search@sp-m3-j5 r8",
+   "date": "2026-11-08",
+   "kind": "search",
+   "parent": "search@sp-m3-j5",
+   "what": "8 play-outs in the second round instead of 3.",
+   "strength": {
+    "a": "search@sp-m3-j5 r8",
+    "b": "sp-m3",
+    "rate": 54.2,
+    "ci": 1.2,
+    "source": "BOT-NOTES.md 'A judge for bot positions'"
+   },
+   "cost": {
+    "total": 18.28,
+    "vs": "sp-m3",
+    "source": "labels/style/cheap-ideas.log"
+   },
+   "july": null
+  },
+  {
+   "id": "sp-m3-ad1",
+   "date": "2026-11-08",
+   "kind": "plain",
+   "parent": "sp-m3",
+   "what": "Racing that adapts to the opponent: the move threshold moved 0.10 a minion sent.",
+   "strength": {
+    "a": "sp-m3-ad1",
+    "b": "sp-m3",
+    "rate": 50.1,
+    "ci": 1.2,
+    "source": "BOT-NOTES.md 'A judge for bot positions, and four cheap ideas'"
+   },
+   "cost": null,
+   "july": null
+  },
+  {
+   "id": "sp-m3-ad2",
+   "date": "2026-11-08",
+   "kind": "plain",
+   "parent": "sp-m3",
+   "what": "The same at 0.20 a minion.",
+   "strength": {
+    "a": "sp-m3-ad2",
+    "b": "sp-m3",
+    "rate": 48.1,
+    "ci": 1.2,
+    "source": "BOT-NOTES.md 'A judge for bot positions, and four cheap ideas'"
+   },
+   "cost": null,
+   "july": null
+  },
+  {
+   "id": "sp-m3-awr",
+   "date": "2026-11-08",
+   "kind": "plain",
+   "parent": "sp-m3",
+   "what": "The network fine-tuned on sp-m3's own decisions weighted by how the judge's estimate moved (the judge as teacher).",
+   "strength": {
+    "a": "sp-m3-awr",
+    "b": "sp-m3",
+    "rate": 49.0,
+    "ci": 1.2,
+    "source": "BOT-NOTES.md 'A judge for bot positions, and four cheap ideas'"
+   },
+   "cost": null,
+   "july": null
+  },
+  {
+   "id": "sp-m3-awr0",
+   "date": "2026-11-08",
+   "kind": "plain",
+   "parent": "sp-m3",
+   "what": "The same with every weight 1 (the control).",
+   "strength": {
+    "a": "sp-m3-awr0",
+    "b": "sp-m3",
+    "rate": 49.7,
+    "ci": 1.2,
+    "source": "BOT-NOTES.md 'A judge for bot positions, and four cheap ideas'"
+   },
+   "cost": null,
+   "july": null
+  },
+  {
+   "id": "sp-m3-top",
+   "date": "2026-11-08",
+   "kind": "plain",
+   "parent": "sp-m3",
+   "what": "The network fine-tuned on the top third of 2020-22's players only.",
+   "strength": {
+    "a": "sp-m3-top",
+    "b": "sp-m3",
+    "rate": 50.9,
+    "ci": 1.2,
+    "source": "BOT-NOTES.md 'A judge for bot positions, and four cheap ideas'"
+   },
+   "cost": null,
+   "july": null
+  },
+  {
+   "id": "search@sp-m3-j5 wide-base",
+   "date": "2026-11-08",
+   "kind": "search",
+   "parent": "search@sp-m3-j5",
+   "what": "Two-round judge5b search of skirmish and Shadow plays, up to 150 searches a game.",
+   "strength": {
+    "a": "search@sp-m3-j5 wide-base",
+    "b": "sp-m3",
+    "rate": 53.9,
+    "ci": 1.7,
+    "source": "BOT-NOTES.md 'Searching more kinds of decision'"
+   },
+   "cost": {
+    "total": 11.26,
+    "vs": "sp-m3",
+    "source": "labels/nn/gate/wide-search.log"
+   },
+   "july": null
+  },
+  {
+   "id": "search@sp-m3-j5 +fellowship",
+   "date": "2026-11-08",
+   "kind": "search",
+   "parent": "search@sp-m3-j5 wide-base",
+   "what": "And Fellowship plays, played out to the turn's end.",
+   "strength": {
+    "a": "search@sp-m3-j5 +fellowship",
+    "b": "sp-m3",
+    "rate": 56.0,
+    "ci": 1.7,
+    "source": "BOT-NOTES.md 'Searching more kinds of decision'"
+   },
+   "cost": {
+    "total": 24.35,
+    "vs": "sp-m3",
+    "source": "labels/nn/gate/wide-search.log"
+   },
+   "july": null
+  },
+  {
+   "id": "search@sp-m3-j5 +move",
+   "date": "2026-11-08",
+   "kind": "search",
+   "parent": "search@sp-m3-j5 wide-base",
+   "what": "And 'move again?'.",
+   "strength": {
+    "a": "search@sp-m3-j5 +move",
+    "b": "sp-m3",
+    "rate": 53.4,
+    "ci": 1.7,
+    "source": "BOT-NOTES.md 'Searching more kinds of decision'"
+   },
+   "cost": {
+    "total": 11.26,
+    "vs": "sp-m3",
+    "source": "labels/nn/gate/wide-search.log"
+   },
+   "july": null
+  },
+  {
+   "id": "search@sp-m3-j5 wide",
+   "date": "2026-11-09",
+   "kind": "search",
+   "parent": "search@sp-m3-j5 wide-base",
+   "what": "And maneuver, archery, assignment and regroup plays: the strong bot of 2026-11-08.",
+   "strength": {
+    "a": "search@sp-m3-j5 wide",
+    "b": "sp-m3",
+    "rate": 54.8,
+    "ci": 1.2,
+    "source": "BOT-NOTES.md 'Searching more kinds of decision' (the confirming run; the first was 56.2 +- 1.7 at 11.6)"
+   },
+   "cost": {
+    "total": 11.33,
+    "vs": "sp-m3",
+    "source": "labels/nn/gate/wide-search.log (phases-confirm)"
+   },
+   "july": null
+  },
+  {
+   "id": "search@sp-m3-j5 wide+fellowship",
+   "date": "2026-11-08",
+   "kind": "search",
+   "parent": "search@sp-m3-j5 wide",
+   "what": "Every kind of play searched, Fellowship included.",
+   "strength": {
+    "a": "search@sp-m3-j5 wide+fellowship",
+    "b": "sp-m3",
+    "rate": 56.4,
+    "ci": 1.7,
+    "source": "BOT-NOTES.md 'Searching more kinds of decision'"
+   },
+   "cost": {
+    "total": 26.42,
+    "vs": "sp-m3",
+    "source": "labels/nn/gate/wide-search.log"
+   },
+   "july": null
+  },
+  {
+   "id": "sp-m3-tuned",
+   "date": "2026-11-09",
+   "kind": "plain",
+   "parent": "sp-m3",
+   "what": "sp-m3 with all six mixing dials and the move threshold tuned together by SPSA: the hand-set dials were already near the best.",
+   "strength": {
+    "a": "sp-m3-tuned",
+    "b": "sp-m3",
+    "rate": 50.7,
+    "ci": 1.2,
+    "source": "BOT-NOTES.md 'Searching more kinds of decision; tuning every dial'"
+   },
+   "cost": null,
+   "july": null
+  },
+  {
+   "id": "search@sp-m3-j5-q8e",
+   "date": "2026-11-09",
+   "kind": "search",
+   "parent": "search@sp-m3-j5 wide",
+   "what": "The wide search with the networks' encoder layers in 8-bit: 1.4-1.6x faster a call, the same choices.",
+   "strength": {
+    "a": "search@sp-m3-j5-q8e",
+    "b": "sp-m3",
+    "rate": 54.3,
+    "ci": 1.7,
+    "source": "BOT-NOTES.md 'The strong bot at under twice the plain bot's cost'"
+   },
+   "cost": {
+    "total": 8.63,
+    "vs": "sp-m3",
+    "source": "labels/nn/gate/cheaper-search.log (q8e-wide)"
+   },
+   "july": null
+  },
+  {
+   "id": "search@sp-m3-j5-q8e trees",
+   "date": "2026-11-09",
+   "kind": "search",
+   "parent": "search@sp-m3-j5-q8e",
+   "what": "And sp-m3-trees playing the futures: the strong bot to use.",
+   "strength": {
+    "a": "search@sp-m3-j5-q8e trees",
+    "b": "sp-m3",
+    "rate": 54.1,
+    "ci": 1.2,
+    "source": "BOT-NOTES.md 'The strong bot at under twice the plain bot's cost' (the confirming run; the first was 54.4 +- 1.7 at 4.56)"
+   },
+   "cost": {
+    "total": 4.72,
+    "vs": "sp-m3",
+    "source": "labels/nn/gate/cheaper-search.log (q8e-wide-trees confirm)"
+   },
+   "july": null
+  }
+ ]
+}
