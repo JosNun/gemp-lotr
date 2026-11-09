@@ -1925,6 +1925,27 @@ the top third, 200 at 1607+, 64% wins; `board_net2 --players`): sp-m1's network 
 July (`nn/eval_players.py`) with them 74.58 -> 74.70%, with the rest 74.17 -> 73.81%; in sp-m3's directory 50.9 +- 1.2.
 October's 2022-only weighting was level; three years and a sharper cut, level again.
 
+## Searching more kinds of decision; tuning every dial (2026-11-08/09)
+
+**Wider search.** Two-round search (stage1 1, spread 0.05) with judge5b, the per-game cap raised to 150, against sp-m3:
+
+| searched | result | CPU-s/game |
+|---|---|---|
+| skirmish and Shadow plays | 53.9 +- 1.7 (54.3 +- 1.2 the day before) | 11.3 |
+| + Fellowship plays (play-outs to the turn's end) | 56.0 +- 1.7 | 24.4 |
+| + "move again?" | 53.4 +- 1.7 | 11.3 |
+| + maneuver, archery, assignment and regroup plays | 56.2 +- 1.7, again 54.8 +- 1.2 | 11.6 / 11.3 |
+| all of them and Fellowship | 56.4 +- 1.7 | 26.4 |
+
+Pooled, the other phases add about a point (~55.3 against ~54.2) for nothing; Fellowship about one more for twice the
+CPU; moves nothing (between bots, as every racing test). **The strong bot: search@sp-m3-j5 with
+`-Dsearch.contexts=skirmish,shadow,maneuver,archery,assignment,regroup`, ~55 at ~11.5 CPU-s/game (sp-m3 ~2.5).**
+
+**Tuning every dial** (`scripts/tune.py`, SPSA, 40 steps of theta+ against theta- on the training decks, 1,600 games a
+step): the trees' share at large decisions 0.6 -> 0.865, skirmish 1.0 -> 0.93, move 1.0 -> 0.90, reconcile 0.6 -> 0.48,
+Free Peoples assignments 0.6 -> 0.60, move threshold 0.35 -> 0.377. The tuned bot against sp-m3 on the test decks:
+**50.7 +- 1.2.** The hand-set dials were already near the best; their combinations hide nothing.
+
 ## How human is "agreement with people", and play by precedent (2026-10-31)
 
 **The measure rewards the consensus.** The user asked whether a real person would score higher on it than the bot. No:
