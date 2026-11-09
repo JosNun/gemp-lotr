@@ -3,6 +3,26 @@
 Working notes on generalising the GEMP bot beyond the FotR starters. Everything here
 runs headless from this directory; no Docker, no database.
 
+## The bots to use (2026-11-09)
+
+| bot | how | against sp-m3 | CPU-s a game |
+|---|---|---|---|
+| **sp-m3**, the cheap bot | `general@bot-models-exp/sp-m3` | -- | ~2.5 |
+| **the strong bot** | `search@bot-models-exp/sp-m3-j5-q8e` with the options below | **54.1 +- 1.2** | ~4.7 |
+
+```bash
+JAVA_OPTS="-Dsearch.stage1=1 -Dsearch.spread=0.05 -Dsearch.k=3 -Dsearch.rollouts=4 -Dsearch.lambda=0.05 \
+  -Dsearch.contexts=skirmish,shadow,maneuver,archery,assignment,regroup -Dsearch.maxPerGame=150 \
+  -Dsearch.policy=bot-models-exp/sp-m3-trees -Dbvb.stuckSeconds=1800" \
+  ./bot-vs-bot.sh --suite decks/real/suite-test.txt --a search@bot-models-exp/sp-m3-j5-q8e --b general@bot-models-exp/sp-m3 --games 8
+```
+
+sp-m3: sel10-n2's trees with the skirmish slot refit on 2020-22 (sel10-n3), sp-m1's network (people's 2020-22 games),
+move-threshold 0.35; July agreement 76.4%. sp-m3-j5-q8e: sp-m3 with judge5b and the networks' encoder layers in 8-bit
+(`nn/quantize_onnx.py`); sp-m3-trees: sp-m3's trees alone, for the play-outs. sp-m2-t25 (threshold 0.25) moves again as
+often as people and loses 1.5 points to the bots: the one to try against people. Every dial and idea since is in the
+dated sections below; the ties are as informative as the gains.
+
 ## Running it
 
 ```bash
