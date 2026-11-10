@@ -265,7 +265,11 @@ class BoardNet2(nn.Module):
         self.alone = nn.Sequential(nn.Linear(2 * d, d), nn.GELU(), nn.Linear(d, 1))
         self.outcome = nn.Sequential(nn.Linear(2 * d, d), nn.GELU(), nn.Linear(d, 2 * len(ROUTES)))
 
-    def forward(self, b):
+    def outcome_only(self, b):
+        """The outcome head alone, for a judge's export (export_onnx2.JudgeOnly): forward()'s board and no heads."""
+        return self.forward(b, heads=False)
+
+    def forward(self, b, heads=True):
         ids = b['ci']
         if self.training and self.id_drop > 0:  # lean on what the card is and does, not only on which card it is
             ids = ids.masked_fill(torch.rand(ids.shape, device=ids.device) < self.id_drop, 0)
@@ -297,7 +301,10 @@ class BoardNet2(nn.Module):
         bg = b['bg'].long()
         bm = (bg != 0).float()
         n = b['bc'].float()
-        bcard = self.bag_card(torch.cat([self.card(self.table[bg.clamp(min=0)]), (n / 3).unsqueeze(-1)], -1))
+        if hasattr(self, 'bag_table'):  # export_onnx2.lean: the same sum, the card's part of it looked up
+            bcard = self.bag_table[bg.clamp(min=0)] + (n / 3).unsqueeze(-1) * self.bag_n
+        else:
+            bcard = self.bag_card(torch.cat([self.card(self.table[bg.clamp(min=0)]), (n / 3).unsqueeze(-1)], -1))
         bags = (bcard * (bm * n).unsqueeze(-1)).sum(2) / 10
         size = (bm * n).sum(2, keepdim=True) / 20
         bags = bags + self.bag_type.weight.unsqueeze(0) + self.bag_count(size)
@@ -307,6 +314,8 @@ class BoardNet2(nn.Module):
         h = self.encoder(x, src_key_padding_mask=~mask)
         board, cards = h[:, 0], h[:, 1 + nb:]
         pooled = (cards * b['cm'].unsqueeze(-1)).sum(1) / b['cm'].sum(1, keepdim=True).clamp(min=1)
+        if not heads:
+            return self.outcome(torch.cat([board, pooled], -1))
 
         def gather(idx):
             return torch.gather(cards, 1, idx.clamp(min=0).long().unsqueeze(-1).expand(-1, -1, cards.size(-1)))
