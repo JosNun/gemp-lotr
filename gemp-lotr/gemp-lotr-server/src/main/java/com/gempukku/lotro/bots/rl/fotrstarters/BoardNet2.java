@@ -115,6 +115,15 @@ public final class BoardNet2 {
         return treeWeight.getOrDefault(context, treeWeight.get("default"));
     }
 
+    /**
+     * Whether the trees decide {@code context} alone: their share is 1 and nothing is sampled, so the network's reading
+     * cannot change the answer and is not taken (2026-11-09: sp-m3 read it at every skirmish action and "move again?"
+     * with a share of 1 -- an inference each, for nothing).
+     */
+    public boolean treesAlone(String context) {
+        return sampleTemperature <= 0 && treeWeight(context) == 1;
+    }
+
     /** The set-2 state the network was trained with, whatever feature set the trees use. */
     public static double[] state(com.gempukku.lotro.game.state.GameState gs, AwaitingDecision d, String player) {
         int previous = CardFeatures.version();
@@ -210,7 +219,12 @@ public final class BoardNet2 {
             return k;
         if (k.equals("assign"))
             return r.getIntValue("fp") == 1 ? "assign fp" : "assign shadow";
-        String t = r.getString("ctx") == null ? "" : r.getString("ctx");
+        return actionContext(r.getString("ctx"));
+    }
+
+    /** A card action's context from the decision's text alone (the record's "ctx"): no board is built to tell it. */
+    public static String actionContext(String text) {
+        String t = text == null ? "" : text;
         String[][] keys = {{"Fellowship action", "fellowship"}, {"Shadow action", "shadow"}, {"Maneuver", "maneuver"},
                 {"Archery", "archery"}, {"Assignment action", "assignment"},
                 {"Choose action to play or Pass", "skirmish"}, {"Regroup", "regroup"}, {"Optional", "optional"},

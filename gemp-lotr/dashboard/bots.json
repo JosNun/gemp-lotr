@@ -5,6 +5,7 @@
   "what (one or two plain sentences: what it is and what changed from its parent), and the numbers with where each came from:",
   "  strength: {a, b, rate, ci, source} -- one BotVsBot result as printed (A's win rate, its 95% interval) between this bot and another bot in this file; null if never played on the test decks.",
   "  cost: {total, vs, source} -- BotVsBot's 'N CPU-seconds a game' (the whole game, both bots) against vs (this bot's own id if against itself); null if not recorded.",
+  "    cost.opp_side (optional): the opponent's side when this was measured, if its cost has changed since (sp-m3 was 1.11 a side before 2026-11-09's skip, 0.87 after); used instead of the opponent's current side.",
   "  july: {value, measure: 'order-free' | 'strict', source} -- agreement with people on held-out July 2022; null if not measured.",
   "  note: anything else -- an earlier run that conflicts, a number left out and why.",
   "Never write a number that was not measured; no people's names (game ids carry them).",
@@ -1694,16 +1695,16 @@
    "what": "sp-m2 moving again when P(yes) > 0.35: level with the bots, better than people on moves. The cheap bot, and the reference for strength.",
    "strength": null,
    "cost": {
-    "total": 2.22,
+    "total": 1.73,
     "vs": "sp-m3",
-    "source": "labels/nn/cost-bench/costs.tsv (2026-11-09: each bot against itself on the first 100 test matchups x 2 games, one run at a time, the same evening) (2.24 first and 2.19 last of the 18 runs)"
+    "source": "labels/nn/cost-bench/costs.tsv (2026-11-09 evening, after the network went unread where the trees' share is 1; the same 100 matchups x 2 games against itself)"
    },
    "july": {
     "value": 76.4,
     "measure": "order-free",
     "source": "BOT-NOTES.md 'The bots to use' (76.36% in 'Why the bots do not race')"
    },
-   "note": "Cost before the 2026-11-09 benchmark: 2.5 a game against sp-m3 (BOT-NOTES.md 'The bots to use' (~2.5; the logs give 2.29-2.34 for 1,584-6,400 games on 2026-11-07))."
+   "note": "Before 2026-11-09's skip of the unused network readings: 2.22 a game against itself (2.24 and 2.19, the first and last of the evening's 18 benchmark runs), the same play game for game (3,168 of 3,168 seeded games identical). Earlier still the notes gave ~2.5."
   },
   {
    "id": "sp-m3-trees",
@@ -1719,12 +1720,12 @@
     "source": "labels/nn/paired/sp-m3-trees-vs-sp-m3-test-seed1.out (2026-11-09: test decks, 4 games a matchup, seed 1, 3,168 games, interval by pair; binomial +- 1.7)"
    },
    "cost": {
-    "total": 1.24,
-    "vs": "sp-m3",
-    "source": "labels/nn/paired/sp-m3-trees-vs-sp-m3-test-seed1.out (the same run)"
+    "total": 0.32,
+    "vs": "sp-m3-trees",
+    "source": "labels/nn/cost-bench/costs.tsv (2026-11-09 evening, against itself on the same 100 matchups x 2 games)"
    },
    "july": null,
-   "note": "First played as a bot of its own on 2026-11-09. July agreement not measured: the network's gain is there, not in strength against bots."
+   "note": "First played as a bot of its own on 2026-11-09 (1.24 CPU-s a game against sp-m3 then). July agreement not measured: the network's gain is there, not in strength against bots."
   },
   {
    "id": "search@sp-m3-j4",
@@ -1742,7 +1743,8 @@
    "cost": {
     "total": 20.9,
     "vs": "sp-m3",
-    "source": "BOT-NOTES.md 'Cheaper search...'"
+    "source": "BOT-NOTES.md 'Cheaper search...'",
+    "opp_side": 1.11
    },
    "july": null
   },
@@ -1762,7 +1764,8 @@
    "cost": {
     "total": 7.98,
     "vs": "sp-m3",
-    "source": "labels/style/cheap-ideas.log"
+    "source": "labels/style/cheap-ideas.log",
+    "opp_side": 1.11
    },
    "july": null,
    "note": "Three runs: 54.0 +- 1.7 at 9.3 (11-06), 54.4 +- 1.2 at 7.7 (11-07), 53.0 +- 1.2 at 8.0 (the latest, used here)."
@@ -1783,7 +1786,8 @@
    "cost": {
     "total": 9.33,
     "vs": "sp-m3",
-    "source": "labels/nn/gate/two-stage.log"
+    "source": "labels/nn/gate/two-stage.log",
+    "opp_side": 1.11
    },
    "july": null
   },
@@ -1803,7 +1807,8 @@
    "cost": {
     "total": 6.41,
     "vs": "sp-m3",
-    "source": "labels/nn/gate/two-stage.log"
+    "source": "labels/nn/gate/two-stage.log",
+    "opp_side": 1.11
    },
    "july": null
   },
@@ -1823,7 +1828,8 @@
    "cost": {
     "total": 4.05,
     "vs": "sp-m3",
-    "source": "labels/nn/gate/search-overnight.log (s2-trees)"
+    "source": "labels/nn/gate/search-overnight.log (s2-trees)",
+    "opp_side": 1.11
    },
    "july": null,
    "note": "The notes give 3.8 CPU-s a game for trees-only play-outs and 52.1 for this run ('Cheaper search', 'The strong bot at under twice...'); the log's 4.05 is used."
@@ -1844,7 +1850,8 @@
    "cost": {
     "total": 5.29,
     "vs": "sp-m3",
-    "source": "labels/nn/gate/search-overnight.log (s2-k2)"
+    "source": "labels/nn/gate/search-overnight.log (s2-k2)",
+    "opp_side": 1.11
    },
    "july": null
   },
@@ -1864,7 +1871,8 @@
    "cost": {
     "total": 7.72,
     "vs": "sp-m3",
-    "source": "labels/nn/gate/search-overnight.log (s2-keep2)"
+    "source": "labels/nn/gate/search-overnight.log (s2-keep2)",
+    "opp_side": 1.11
    },
    "july": null
   },
@@ -1884,7 +1892,8 @@
    "cost": {
     "total": 5.8,
     "vs": "sp-m3",
-    "source": "labels/nn/gate/search-overnight.log (s2-judge1)"
+    "source": "labels/nn/gate/search-overnight.log (s2-judge1)",
+    "opp_side": 1.11
    },
    "july": null
   },
@@ -1904,7 +1913,8 @@
    "cost": {
     "total": 9.28,
     "vs": "sp-m3",
-    "source": "labels/style/cheap-ideas.log"
+    "source": "labels/style/cheap-ideas.log",
+    "opp_side": 1.11
    },
    "july": null
   },
@@ -1924,7 +1934,8 @@
    "cost": {
     "total": 18.28,
     "vs": "sp-m3",
-    "source": "labels/style/cheap-ideas.log"
+    "source": "labels/style/cheap-ideas.log",
+    "opp_side": 1.11
    },
    "july": null
   },
@@ -2024,7 +2035,8 @@
    "cost": {
     "total": 11.26,
     "vs": "sp-m3",
-    "source": "labels/nn/gate/wide-search.log"
+    "source": "labels/nn/gate/wide-search.log",
+    "opp_side": 1.11
    },
    "july": null
   },
@@ -2044,7 +2056,8 @@
    "cost": {
     "total": 24.35,
     "vs": "sp-m3",
-    "source": "labels/nn/gate/wide-search.log"
+    "source": "labels/nn/gate/wide-search.log",
+    "opp_side": 1.11
    },
    "july": null
   },
@@ -2064,7 +2077,8 @@
    "cost": {
     "total": 11.26,
     "vs": "sp-m3",
-    "source": "labels/nn/gate/wide-search.log"
+    "source": "labels/nn/gate/wide-search.log",
+    "opp_side": 1.11
    },
    "july": null
   },
@@ -2084,7 +2098,8 @@
    "cost": {
     "total": 11.33,
     "vs": "sp-m3",
-    "source": "labels/nn/gate/wide-search.log (phases-confirm)"
+    "source": "labels/nn/gate/wide-search.log (phases-confirm)",
+    "opp_side": 1.11
    },
    "july": null
   },
@@ -2104,7 +2119,8 @@
    "cost": {
     "total": 26.42,
     "vs": "sp-m3",
-    "source": "labels/nn/gate/wide-search.log"
+    "source": "labels/nn/gate/wide-search.log",
+    "opp_side": 1.11
    },
    "july": null
   },
@@ -2140,7 +2156,8 @@
    "cost": {
     "total": 8.63,
     "vs": "sp-m3",
-    "source": "labels/nn/gate/cheaper-search.log (q8e-wide)"
+    "source": "labels/nn/gate/cheaper-search.log (q8e-wide)",
+    "opp_side": 1.11
    },
    "july": null
   },
@@ -2160,10 +2177,32 @@
    "cost": {
     "total": 4.62,
     "vs": "sp-m3",
-    "source": "labels/nn/paired/strong-l0.05-s0.05-train-seed1.out (2026-11-09, training decks, 3,200 games, the same evening as the cost benchmark)"
+    "source": "labels/nn/paired/strong-l0.05-s0.05-train-seed1.out (2026-11-09, training decks, 3,200 games, the same evening as the cost benchmark)",
+    "opp_side": 1.11
    },
    "july": null,
    "note": "Cost before: 4.72 a game against sp-m3 on the test decks (labels/nn/gate/cheaper-search.log (q8e-wide-trees confirm)). On the training decks, seeded, 54.2% +- 1.2 by pair over 3,200 games (2026-11-09)."
+  },
+  {
+   "id": "search@sp-m3-trees j5-q8e",
+   "date": "2026-11-09",
+   "kind": "search",
+   "parent": "search@sp-m3-j5-q8e trees",
+   "what": "The strong bot with sp-m3's trees answering at the root as well (-Dsearch.root): their scores gate the search, name the candidates and anchor the answer, and the only network left is the judge.",
+   "strength": {
+    "a": "search@sp-m3-trees j5-q8e",
+    "b": "sp-m3",
+    "rate": 55.8,
+    "ci": 1.3,
+    "source": "labels/nn/paired/search-trees-root-vs-sp-m3-test-seed1.out (2026-11-09: test decks, 4 games a matchup, seed 1, 3,168 games, interval by pair; binomial +- 1.7)"
+   },
+   "cost": {
+    "total": 4.23,
+    "vs": "sp-m3",
+    "source": "labels/nn/paired/search-trees-root-vs-sp-m3-test-seed1.out (the same run; sp-m3 with the skip, 0.87 a side)"
+   },
+   "july": null,
+   "note": "Matched game for game against the trees alone on the same seed: +5.9 points +- 1.6. It searches 24 decisions a game where the network-rooted bot searched 18.5 (the trees' scores are flatter, so the gate lets more through), which is why it is not cheaper by the whole of the network's 1.1."
   }
  ]
 }

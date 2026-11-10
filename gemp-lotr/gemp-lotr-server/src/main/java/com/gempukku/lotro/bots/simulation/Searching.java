@@ -57,13 +57,35 @@ public final class Searching implements BotPlayer {
     private final BoardNet2 net;
     private final GameCopier copier;
     private final Function<String, BotPlayer> policy;
+    /**
+     * The bot that answers has no network (-Dsearch.root=&lt;a trees-only directory&gt;, 2026-11-09): its trees' scores
+     * gate the search, name the candidates and anchor the answer, and the network is left the judge alone. The trees
+     * by themselves are level with sp-m3 against bots (49.8 +- 1.4) at an eighth of its cost a side.
+     */
+    private final boolean treesRoot;
     private final Map<Object, int[]> perGame = new WeakHashMap<>();
 
     public Searching(BotPlayer inner, BoardNet2 net, GameCopier copier, Function<String, BotPlayer> policy) {
+        this(inner, net, copier, policy, false);
+    }
+
+    public Searching(BotPlayer inner, BoardNet2 net, GameCopier copier, Function<String, BotPlayer> policy,
+                     boolean treesRoot) {
         this.inner = inner;
         this.net = net;
         this.copier = copier;
         this.policy = policy;
+        this.treesRoot = treesRoot;
+    }
+
+    /** The trees' scores of a card action (each option's probability, then pass's) as log-probabilities. */
+    private static double[] treesLogProbs(double[] scores) {
+        double[] t = new double[scores.length];
+        for (int i = 0; i < t.length; i++) {
+            double q = Math.min(1 - 1e-9, Math.max(1e-9, scores[i]));
+            t[i] = scores[i] == Double.NEGATIVE_INFINITY ? Double.NEGATIVE_INFINITY : Math.log(q / (1 - q));
+        }
+        return BoardNet2.logSoftmax(t);
     }
 
     @Override
@@ -73,18 +95,33 @@ public final class Searching implements BotPlayer {
 
     @Override
     public String chooseAction(GameState gs, AwaitingDecision d) {
+        var treeScores = com.gempukku.lotro.bots.rl.fotrstarters.models.cardaction.AnyPhaseCardActionTrainer.LAST_SCORES;
+        if (treesRoot)
+            treeScores.remove(); // only this decision's scores are read below
         String own = inner.chooseAction(gs, d);
         try {
             String kind = BoardDump.kind(d);
             if (own == null || net == null || !("action".equals(kind) || "move".equals(kind)))
                 return own;
-            BoardNet2.Result r = net.read(gs, d, getName());
-            if (r == null || !CONTEXTS.contains(r.context()))
-                return own;
+            String context;
+            double[] lp;
+            if (treesRoot) {
+                // card actions only: "move again?" has no scores of the trees' here
+                context = "action".equals(kind) ? BoardNet2.actionContext(d.getText()) : kind;
+                double[] scores = treeScores.get();
+                if (!"action".equals(kind) || scores == null || !CONTEXTS.contains(context))
+                    return own;
+                lp = treesLogProbs(scores);
+            } else {
+                BoardNet2.Result r = net.read(gs, d, getName());
+                if (r == null || !CONTEXTS.contains(r.context()))
+                    return own;
+                context = r.context();
+                lp = BoardNet2.logSoftmax(r.options());
+            }
             int[] used = perGame.computeIfAbsent(gs.getGame(), k -> new int[1]);
             if (used[0] >= MAX_PER_GAME)
                 return own;
-            double[] lp = BoardNet2.logSoftmax(r.options());
             if (Math.exp(Arrays.stream(lp).max().orElse(0)) >= GATE)
                 return own; // the network is sure: no search
             List<String> answers = answers(d, kind, lp.length);
@@ -106,7 +143,7 @@ public final class Searching implements BotPlayer {
             used[0]++;
             searched.incrementAndGet();
             long t0 = System.nanoTime();
-            boolean turnLong = TURN_LONG.contains(r.context());
+            boolean turnLong = TURN_LONG.contains(context);
             // from the bots' Random, which a seeded game seeds apart from the engine's: the same game searches the same
             // futures again, and the redeals owe nothing to the real deal's draws
             long[] worlds = new SplittableRandom(com.gempukku.lotro.bots.BotRandom.current().nextLong()).longs(ROLLOUTS)

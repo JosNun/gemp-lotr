@@ -73,7 +73,7 @@ public class AnotherMoveTrainer extends AbstractMultipleChoiceTrainer {
         double threshold = threshold(gameState, playerName, modelRegistry);
         boolean yes = probs[1] > threshold;
         var net2 = modelRegistry.getBoardNet2();
-        if (net2 != null && getPositiveOption().equals("Yes")) {
+        if (net2 != null && getPositiveOption().equals("Yes") && !net2.treesAlone("move")) { // at a share of 1 the trees' answer stands, the network unread
             // log-odds of moving: the network's, mixed with the trees' against their threshold
             var r = net2.read(gameState, decision, playerName);
             if (r != null && r.options().length == 2) {

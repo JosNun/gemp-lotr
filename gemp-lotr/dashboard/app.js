@@ -99,6 +99,8 @@ function derive(reg) {
     const b = by[id], c = b && b.cost;
     if (!c || seen.includes(id)) return null;
     if (c.vs === id) return (cMemo[id] = { v: c.total / 2, how: `${c.total} a game against itself, halved` });
+    // opp_side: the opponent's side when this was measured, where its cost has changed since
+    if (c.opp_side != null) return (cMemo[id] = { v: c.total - c.opp_side, how: `${c.total} a game against ${c.vs}, less ${c.vs}'s ${fmtCost(c.opp_side)} at the time` });
     const o = side(c.vs, [...seen, id]);
     if (!o) return (cMemo[id] = null);
     return (cMemo[id] = { v: c.total - o.v, how: `${c.total} a game against ${c.vs}, less ${c.vs}'s ${fmtCost(o.v)}` });
@@ -318,7 +320,7 @@ function drawPareto() {
   const cap = document.createElement('div');
   cap.className = 'caption';
   cap.innerHTML = `<b>x</b>: CPU-seconds a game for this bot's side alone: BotVsBot's whole-game figure less the opponent's side,
-    which is half that opponent's game against itself (${reg.reference}: 2.22 a game, 1.11 a side). The main plain bots and the strong bot
+    which is half that opponent's game against itself (${reg.reference}: 1.73 a game, 0.87 a side; 1.11 a side before 2026-11-09, when it stopped reading the network where the trees decide alone). The main plain bots and the strong bot
     were timed together on 2026-11-09; the rest on other days under other loads, where differences under about 1.5x are not reliable. ${caption} <b>Gold steps</b>: the Pareto frontier --
     no bot is both cheaper and higher. ${pts.length} of ${bots.length} versions are on the chart (${nStr} have a strength,
     ${nCost} a cost a side); tap or hover a point for what it is.`;

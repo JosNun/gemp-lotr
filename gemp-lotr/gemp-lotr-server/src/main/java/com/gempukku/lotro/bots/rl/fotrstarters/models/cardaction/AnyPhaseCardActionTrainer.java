@@ -193,7 +193,10 @@ public class AnyPhaseCardActionTrainer extends AbstractTrainer {
         if (model == null)
             return null;
         var alone = modelRegistry.getBoardNet2();
-        if (alone != null) {
+        // the trees' share is 1 here: the network is not read at all (BoardNet2.treesAlone)
+        boolean treesAlone = alone != null && alone.treesAlone(
+                com.gempukku.lotro.bots.rl.fotrstarters.BoardNet2.actionContext(decision.getText()));
+        if (alone != null && !treesAlone) {
             // where the trees' share is 0 the network decides alone: skip the trees and the probe that feeds them --
             // in a pure-network bot's play-outs they were half the time and decided nothing
             var r = alone.read(gameState, decision, playerName);
@@ -264,13 +267,14 @@ public class AnyPhaseCardActionTrainer extends AbstractTrainer {
         var net2 = modelRegistry.getBoardNet2();
         if (net2 != null) {
             // the combined network, any phase, mixed with these trees as the first network was
-            var r = net2.read(gameState, decision, playerName);
-            if (r != null && r.options().length == scores.length + 1) {
+            var r = treesAlone ? null : net2.read(gameState, decision, playerName);
+            if (treesAlone || r != null && r.options().length == scores.length + 1) {
                 double[] t = new double[scores.length + 1];
                 for (int i = 0; i < scores.length; i++)
                     t[i] = scores[i] == Double.NEGATIVE_INFINITY ? Double.NEGATIVE_INFINITY : logit(scores[i]);
                 t[scores.length] = logit(passScore);
-                int pick = net2.choose(
+                // the mix at a share of 1 is the trees' own order: the same pick, without the reading
+                int pick = treesAlone ? com.gempukku.lotro.bots.rl.fotrstarters.BoardNet2.argmax(t) : net2.choose(
                         com.gempukku.lotro.bots.rl.fotrstarters.BoardNet2.mix(r.options(), t, net2.treeWeight(r.context())));
                 if (pick >= 0)
                     return pick == scores.length ? "" : String.valueOf(pick);

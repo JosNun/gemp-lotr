@@ -7,20 +7,21 @@ runs headless from this directory; no Docker, no database.
 
 | bot | how | against sp-m3 | CPU-s a side | a game against sp-m3 |
 |---|---|---|---|---|
-| **sp-m3**, the cheap bot that plays like people | `general@bot-models-exp/sp-m3` | -- | 1.1 | 2.2 |
-| **the strong bot** | `search@bot-models-exp/sp-m3-j5-q8e` with the options below | **54.1 +- 1.2** | 3.5 | 4.6 |
-| sp-m3-trees, the cheapest | `general@bot-models-exp/sp-m3-trees` | 49.8 +- 1.4 | 0.13 | 1.24 |
+| **sp-m3**, the cheap bot that plays like people | `general@bot-models-exp/sp-m3` | -- | 0.87 | 1.73 |
+| **the strong bot** | `search@bot-models-exp/sp-m3-j5-q8e` with the options below: the trees at the root and in the play-outs, the network only as judge | **55.8 +- 1.3** | 3.4 | 4.23 |
+| sp-m3-trees, the cheapest | `general@bot-models-exp/sp-m3-trees` | 49.8 +- 1.4 | 0.16 | 1.08 |
 
-A side's cost is the game's CPU less the opponent's half of its own mirror game (sp-m3 against itself: 2.22 a game).
-**The strong bot is about three times sp-m3 a side, not "under twice"** -- that compared whole games with sp-m3 on the
-other side. And sp-m3's trees alone are level with it against bots at an eighth of the cost: the network buys
+A side's cost is the game's CPU less the opponent's half of its own mirror game (sp-m3 against itself: 1.73 a game).
+**The strong bot is about four times sp-m3 a side, not "under twice"** -- that compared whole games with sp-m3 on the
+other side. And sp-m3's trees alone are level with it against bots at a fifth of the cost: the network buys
 agreement with people (76.4% in July), not wins (2026-11-09, "A sharper yardstick" below).
 
 ```bash
 JAVA_OPTS="-Dsearch.stage1=1 -Dsearch.spread=0.05 -Dsearch.k=3 -Dsearch.rollouts=4 -Dsearch.lambda=0.05 \
   -Dsearch.contexts=skirmish,shadow,maneuver,archery,assignment,regroup -Dsearch.maxPerGame=150 \
-  -Dsearch.policy=bot-models-exp/sp-m3-trees -Dbvb.stuckSeconds=1800" \
-  ./bot-vs-bot.sh --suite decks/real/suite-test.txt --a search@bot-models-exp/sp-m3-j5-q8e --b general@bot-models-exp/sp-m3 --games 8
+  -Dsearch.policy=bot-models-exp/sp-m3-trees -Dsearch.root=bot-models-exp/sp-m3-trees -Dbvb.stuckSeconds=1800" \
+  ./bot-vs-bot.sh --suite decks/real/suite-test.txt --a search@bot-models-exp/sp-m3-j5-q8e --b general@bot-models-exp/sp-m3 \
+  --games 4 --seed 1
 ```
 
 sp-m3: sel10-n2's trees with the skirmish slot refit on 2020-22 (sel10-n3), sp-m1's network (people's 2020-22 games),
@@ -2066,6 +2067,32 @@ seed 1, 3,168 games each.
 adds is agreement with people: 75.1% order-free for sel10-big5, 76.4% for sp-m3. So for strength against bots the base to
 build on is the trees; the network is for playing like a person. The next thing to try is search with the trees
 deciding at the root as well as in the play-outs, the judge the only network left.
+
+**The network unread where it decides nothing.** sp-m3's mix gives the trees a share of 1 at skirmish actions and
+"move again?", and the network was read there all the same -- an inference a decision whose answer was multiplied by
+zero. `BoardNet2.treesAlone`: where the share is 1 and nothing is sampled it is not read. The seeded
+trees-against-sp-m3 run again: **3,168 of 3,168 games identical** (winner, turns, every count in the game log), and
+sp-m3 against itself 2.22 -> **1.73 CPU-s a game (0.87 a side, -22%)**. Costs "against sp-m3" from before carry
+`opp_side: 1.11` in bots.json.
+
+**Search on the trees (`-Dsearch.root=bot-models-exp/sp-m3-trees`).** The bot that answers is sp-m3-trees; its
+scores (the logits of the listwise probabilities, softmaxed) are what the gate reads, what names the top-k
+candidates and what anchors the answer; sp-m3-j5-q8e lends only its judge. Card actions only -- "move again?" is not
+searched. Test decks, 4 games a matchup, seed 1, 3,168 games, the strong bot's other settings unchanged:
+
+| against sp-m3 | result, by pair | CPU-s a game | a side | searches a game |
+|---|---|---|---|---|
+| search on the network's reading (the strong bot until now; unseeded, test decks) | 54.1 +- 1.2 | 4.72 | 3.6 | 18.5 |
+| **search on the trees** | **55.8 +- 1.3** (336 / 1,095 / 153) | **4.23** | **3.4** | 24.3 |
+| the trees alone, same seed | 49.8 +- 1.4 | 1.08 | 0.16 | -- |
+
+Matched game for game against the trees alone: **+5.9 +- 1.6** (unmatched by pair +- 1.9, binomial +- 2.45). At
+least as strong as the network-rooted search and with no policy network at all -- but not the 1.1 a side cheaper
+that dropping it promised: the trees' probabilities are flatter than the network's, so the 0.6 gate lets 24 decisions
+a game through instead of 18.5, and a search costs the same 0.13 s (5.1 play-outs of 14 steps and 4.9 judge
+readings; 73% stop after the first round, as before). **The cost is now the search itself, ~3.2 of the 3.4: about
+1.3 of it the judge (120 readings a game at ~10.6 ms) and 1.9 the play-outs (copying the game and ~14 tree
+decisions, ~15 ms each).** So the next cuts are a cheaper judge and fewer searches (the gate, on the trees' scale).
 
 ## How human is "agreement with people", and play by precedent (2026-10-31)
 
