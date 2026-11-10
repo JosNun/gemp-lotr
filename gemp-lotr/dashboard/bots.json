@@ -2203,6 +2203,27 @@
    },
    "july": null,
    "note": "Matched game for game against the trees alone on the same seed: +5.9 points +- 1.6. It searches 24 decisions a game where the network-rooted bot searched 18.5 (the trees' scores are flatter, so the gate lets more through), which is why it is not cheaper by the whole of the network's 1.1."
+  },
+  {
+   "id": "search@sp-m3-trees j5-q8e k2",
+   "date": "2026-11-10",
+   "kind": "search",
+   "parent": "search@sp-m3-trees j5-q8e",
+   "what": "The trees-root strong bot searching two candidates instead of three (-Dsearch.k=2): two-fifths fewer play-outs and judge readings for the same searches.",
+   "strength": {
+    "a": "search@sp-m3-trees j5-q8e k2",
+    "b": "sp-m3",
+    "rate": 54.7,
+    "ci": 1.4,
+    "source": "labels/nn/paired/trees-root-g0.6-k2-test-seed1.out (2026-11-10: test decks, 4 games a matchup, seed 1, 3,168 games, interval by pair; binomial +- 1.7)"
+   },
+   "cost": {
+    "total": 2.99,
+    "vs": "sp-m3",
+    "source": "labels/nn/paired/trees-root-g0.6-k2-test-seed1.out (the same run; sp-m3 with the skip, 0.87 a side)"
+   },
+   "july": null,
+   "note": "Matched game for game against three candidates on the same seed: -1.1 points +- 1.2 on the test decks, -0.6 +- 1.2 on the training decks; against the trees alone +4.9 +- 1.5. A tighter gate (0.5, 0.4) cost more strength for the CPU it saved (labels/nn/paired/trees-root-sweep.tsv)."
   }
  ]
 }
