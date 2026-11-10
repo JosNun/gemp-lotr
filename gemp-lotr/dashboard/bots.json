@@ -2224,6 +2224,27 @@
    },
    "july": null,
    "note": "Matched game for game against three candidates on the same seed: -1.1 points +- 1.2 on the test decks, -0.6 +- 1.2 on the training decks; against the trees alone +4.9 +- 1.5. A tighter gate (0.5, 0.4) cost more strength for the CPU it saved (labels/nn/paired/trees-root-sweep.tsv)."
+  },
+  {
+   "id": "search@sp-m3-trees j6mL-q8e k2",
+   "date": "2026-11-10",
+   "kind": "search",
+   "parent": "search@sp-m3-trees j5-q8e k2",
+   "what": "The same search with a small judge trained from scratch (judge6m, d 192 x 3) and exported lean: 1.2 ms a reading where judge5b took 13.2.",
+   "strength": {
+    "a": "search@sp-m3-trees j6mL-q8e k2",
+    "b": "sp-m3",
+    "rate": 54.6,
+    "ci": 1.4,
+    "source": "labels/nn/paired/j6mL-k2-test-seed1.out (2026-11-10: test decks, 4 games a matchup, seed 1, 3,168 games, interval by pair)"
+   },
+   "cost": {
+    "total": 2.52,
+    "vs": "sp-m3",
+    "source": "labels/nn/paired/j6mL-k2-test-seed1.out (the same run; sp-m3 0.87 a side; a judge training on the GPU alongside)"
+   },
+   "july": null,
+   "note": "Matched game for game against judge5b in the same search: -0.1 points +- 1.3. AUC on held-out bot positions 0.752 against judge5b's 0.750. judge5b exported lean (sp-m3-j5L-q8e) plays the same games in 1,583 of 1,584 pairs at 6.4 ms a reading."
   }
  ]
 }
