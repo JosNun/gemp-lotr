@@ -10,7 +10,7 @@ runs headless from this directory; no Docker, no database.
 | **sp-m3**, the cheap bot that plays like people | `general@bot-models-exp/sp-m3` | -- | 0.87 | 1.73 |
 | **the strong bot** | `search@bot-models-exp/sp-m3-j6mL-q8e` with the options below (`-Dsearch.k=2`): the trees at the root and in the play-outs, a small network (judge6m, d 192 x 3) only as judge | **54.6 +- 1.4** | 1.65 | 2.52 |
 | the same with the larger judge5b | `search@bot-models-exp/sp-m3-j5-q8e` (or `-j5L-q8e`, the same play read leaner) | 54.7 +- 1.4 | 2.1 | 2.99 |
-| three candidates, judge5b | `search@bot-models-exp/sp-m3-j5-q8e` with `-Dsearch.k=3` | 55.8 +- 1.3 | 3.4 | 4.23 |
+| the strong bot, three candidates | the strong bot with `-Dsearch.k=3` | 56.0 +- 1.3 | 2.6 | 3.46 |
 | sp-m3-trees, the cheapest | `general@bot-models-exp/sp-m3-trees` | 49.8 +- 1.4 | 0.16 | 1.08 |
 
 A side's cost is the game's CPU less the opponent's half of its own mirror game (sp-m3 against itself: 1.73 a game).
@@ -2162,6 +2162,10 @@ judge is now ~0.1 of the 1.65. **The strong bot is `search@bot-models-exp/sp-m3-
 2.1 this morning and 3.4 yesterday, twice sp-m3.** What is left is the play-outs. Queued: judge7 (judge5b carried on
 with the 64,000 trees games) and judge7m (judge6m's size from scratch on the same), each in this search
 (`labels/scripts/judge7.sh`, `judge7m.sh`).
+
+**Three candidates with the small judge**: 56.0 +- 1.3 against sp-m3 (331 / 1,111 / 142) at 3.46 CPU-s a game,
+**2.6 a side** (3.4 with judge5b); matched against two candidates **+1.3 +- 1.2**. The third comparison of k 3 with
+k 2 on seeded games (+1.1, +0.6, +1.3, each +- 1.2): about a point, for 0.95 CPU-s a side now.
 
 ## How human is "agreement with people", and play by precedent (2026-10-31)
 
