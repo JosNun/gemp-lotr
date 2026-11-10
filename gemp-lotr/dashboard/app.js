@@ -318,8 +318,8 @@ function drawPareto() {
   const cap = document.createElement('div');
   cap.className = 'caption';
   cap.innerHTML = `<b>x</b>: CPU-seconds a game for this bot's side alone: BotVsBot's whole-game figure less the opponent's side,
-    which is half that opponent's game against itself (${reg.reference}: 2.5 a game, 1.25 a side). Measured on different days
-    under different load; differences under about 1.5x are not reliable. ${caption} <b>Gold steps</b>: the Pareto frontier --
+    which is half that opponent's game against itself (${reg.reference}: 2.22 a game, 1.11 a side). The main plain bots and the strong bot
+    were timed together on 2026-11-09; the rest on other days under other loads, where differences under about 1.5x are not reliable. ${caption} <b>Gold steps</b>: the Pareto frontier --
     no bot is both cheaper and higher. ${pts.length} of ${bots.length} versions are on the chart (${nStr} have a strength,
     ${nCost} a cost a side); tap or hover a point for what it is.`;
   body.appendChild(cap);

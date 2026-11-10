@@ -5,10 +5,16 @@ runs headless from this directory; no Docker, no database.
 
 ## The bots to use (2026-11-09)
 
-| bot | how | against sp-m3 | CPU-s a game |
-|---|---|---|---|
-| **sp-m3**, the cheap bot | `general@bot-models-exp/sp-m3` | -- | ~2.5 |
-| **the strong bot** | `search@bot-models-exp/sp-m3-j5-q8e` with the options below | **54.1 +- 1.2** | ~4.7 |
+| bot | how | against sp-m3 | CPU-s a side | a game against sp-m3 |
+|---|---|---|---|---|
+| **sp-m3**, the cheap bot that plays like people | `general@bot-models-exp/sp-m3` | -- | 1.1 | 2.2 |
+| **the strong bot** | `search@bot-models-exp/sp-m3-j5-q8e` with the options below | **54.1 +- 1.2** | 3.5 | 4.6 |
+| sp-m3-trees, the cheapest | `general@bot-models-exp/sp-m3-trees` | 49.8 +- 1.4 | 0.13 | 1.24 |
+
+A side's cost is the game's CPU less the opponent's half of its own mirror game (sp-m3 against itself: 2.22 a game).
+**The strong bot is about three times sp-m3 a side, not "under twice"** -- that compared whole games with sp-m3 on the
+other side. And sp-m3's trees alone are level with it against bots at an eighth of the cost: the network buys
+agreement with people (76.4% in July), not wins (2026-11-09, "A sharper yardstick" below).
 
 ```bash
 JAVA_OPTS="-Dsearch.stage1=1 -Dsearch.spread=0.05 -Dsearch.k=3 -Dsearch.rollouts=4 -Dsearch.lambda=0.05 \
@@ -41,6 +47,10 @@ Bots (`--a`, `--b`): `fotr` (the shipped bot on `bot-models/`), `general` (the s
 bot with its extensions on, see `FotrStarterBot.extended`), `random`, and
 `fotr@<dir>` / `general@<dir>` for either on another model directory. A and B swap
 decks every game, so a strong deck cannot pass for a strong bot.
+
+`--seed N` deals both games of a pair the same cards and reports the interval by pair (2026-11-09; the default is a
+random seed, printed, and `--seed off` deals every game afresh). Use one seed for every run of a comparison, and
+`scripts/paired.py` to match two logs.
 
 `--suite rr:<format>:<deck list file>` plays every pair of the decks in the file.
 
@@ -1982,6 +1992,80 @@ search against sp-m3 (skirmish, Shadow, maneuver, archery, assignment, regroup; 
 **The strong bot: search@sp-m3-j5-q8e with trees-only play-outs, ~54.2 against sp-m3 at ~4.7 CPU-s/game (sp-m3
 ~2.5).** Trees-only play-outs cost ~2 points when only skirmishes and Shadow plays were searched (52.1 against 54.4);
 searched widely, none that shows.
+
+*Corrected the same day:* "under twice" compares whole games, and sp-m3 plays the other side of both. A side, the
+strong bot costs 4.62 - 1.11 = 3.5 CPU-s against sp-m3's 1.11: **3.1 times**. See the next section.
+
+## A sharper yardstick, every bot on one chart, and what the network buys (2026-11-09)
+
+**Search tuning, stopped.** Five settings of lambda and spread on the training decks, 3,200 games each, +- 1.7:
+
+| lambda | spread | against sp-m3 | CPU-s/game |
+|---|---|---|---|
+| 0.02 | 0.03 | 54.4 | 5.02 |
+| 0.02 | 0.05 | 53.4 | 4.58 |
+| 0.02 | 0.08 | 53.2 | 4.12 |
+| 0.05 | 0.03 | 52.6 | 4.95 |
+| 0.05 | 0.05 (the setting in use) | 53.2 | 4.63 |
+
+All within noise of each other; the dials stay. At +- 1.7 a setting, a one-point dial costs ~12,000 games to see, so
+the yardstick came first.
+
+**Paired seeds (`--seed N`, on by default with a random seed that is printed).** Games 2j and 2j+1 of a matchup are a
+pair: the bots swap decks and both games are dealt the same cards -- the game's seed is a hash of the base seed, the
+two deck names and the pair number, and the search's rollout worlds are drawn from it too. The engine's players are
+named by deck ("~1", "~2"), not by bot, so the deal cannot depend on which bot sits where. A bot against itself splits
+every pair 1-1 with mirror-image games (60 of 60); the same seed replays every game (120 of 120 plain, 40 of 40 with
+search, the search's counters identical). The summary line gives the interval by pair, 1.96 x sd(pair scores) /
+sqrt(pairs), with the binomial one beside it, and the pairs won twice, split, lost twice. `--seed off` is the old
+behaviour.
+
+| comparison | games | by pair, seeded | by pair, unseeded | binomial |
+|---|---|---|---|---|
+| sp-m3 against sp-m2 (close bots; 265 of 300 pairs split) | 600 | +- 1.94 | +- 3.35 | +- 4.0 |
+| the strong bot against sp-m3, training decks, seed 1: **54.2** (254 / 1,227 / 119) | 3,200 | +- 1.17 | -- | +- 1.73 |
+| old unseeded logs, pairing alone | 6,330 | -- | +- 1.06-1.08 | +- 1.23 |
+
+So about four times fewer games for two near-identical bots and 2.2 times fewer for search against plain. Two runs on
+the same seed against the same opponent can be matched game by game: `python3 -I scripts/paired.py x.jsonl y.jsonl`
+gives X - Y (sp-m3 and sp-m2-t25 each against sp-m2: +1.5 +- 2.09 matched, +- 3.12 by pair unmatched, +- 5.66
+binomial). `labels/nn/paired/strong-l0.05-s0.05-train-seed1.jsonl` is the strong bot's baseline for matched tuning.
+
+**The Pareto chart (dashboard).** `dashboard/bots.json` holds one hand-kept entry per bot version (111): what it is,
+its parent, one BotVsBot result with its interval, a CPU cost, July agreement, and where each number came from. The
+page draws every version at its cost a side against its win rate against sp-m3 -- filled if it played sp-m3
+directly, hollow if chained through head-to-heads (log-odds added, variances summed, so chained bars are wide) --
+with the frontier as gold steps, a toggle for July agreement, and each version's explanation on tap. The old
+self-play panels are gone. To add a bot, append one entry naming its parent and its sources; the page picks it up
+within a minute.
+
+**Costs under equal conditions.** Earlier costs were from different days and loads (sp-g07 read 0.80 a side, sp-m3
+1.25). Each bot against itself on the first 100 test matchups x 2 games, one run at a time, one evening
+(`labels/scripts/cost-bench.sh`), CPU-s a game; halve for a side:
+
+| bot | a game | | bot | a game |
+|---|---|---|---|---|
+| sp-m3 (first and last run) | 2.24, 2.19 | | sel10-probe | 0.25 |
+| sp-m2 | 2.20 | | sel10-gc, sel10 | 0.18 |
+| sp-m1 | 2.05 | | sel10-e | 0.28 |
+| sp-g07 | 2.19 | | h4m-d4a | 0.12 |
+| sel10-net6 | 0.74 | | oct-v2-real | 0.07 |
+| sel10-big5 | 0.30 | | the five pool styles | 0.25-0.31 |
+
+Every bot with the combined network costs the same, ~1.1 a side; the trees bots ~0.1-0.15.
+
+**What the network buys.** The chart's cheap end was all chained, so two direct runs: test decks, 4 games a matchup,
+seed 1, 3,168 games each.
+
+| against sp-m3 | result, by pair | pairs won twice / split / lost twice | CPU-s a side |
+|---|---|---|---|
+| sp-m3-trees (sp-m3 with the network taken out) | **49.8 +- 1.4** | 236 / 1,107 / 241 | 0.13 |
+| sel10-big5 (the last trees-only bot, 2026-10-27) | 49.4 +- 1.4 | 237 / 1,092 / 255 | 0.21 |
+
+**Against bots the network adds nothing that 3,168 seeded games can see, at eight times the cost a side.** What it
+adds is agreement with people: 75.1% order-free for sel10-big5, 76.4% for sp-m3. So for strength against bots the base to
+build on is the trees; the network is for playing like a person. The next thing to try is search with the trees
+deciding at the root as well as in the play-outs, the judge the only network left.
 
 ## How human is "agreement with people", and play by precedent (2026-10-31)
 
