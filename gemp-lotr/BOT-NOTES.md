@@ -8,16 +8,17 @@ runs headless from this directory; no Docker, no database.
 | bot | how | against sp-m3 | CPU-s a side | a game against sp-m3 |
 |---|---|---|---|---|
 | **sp-m3**, the cheap bot that plays like people | `general@bot-models-exp/sp-m3` | -- | 0.87 | 1.73 |
-| **the strong bot** | `search@bot-models-exp/sp-m3-j5-q8e` with the options below: the trees at the root and in the play-outs, the network only as judge | **55.8 +- 1.3** | 3.4 | 4.23 |
+| **the strong bot** | `search@bot-models-exp/sp-m3-j5-q8e` with the options below (`-Dsearch.k=2`): the trees at the root and in the play-outs, the network only as judge | **54.7 +- 1.4** | 2.1 | 2.99 |
+| the strong bot, three candidates | the same with `-Dsearch.k=3` | 55.8 +- 1.3 | 3.4 | 4.23 |
 | sp-m3-trees, the cheapest | `general@bot-models-exp/sp-m3-trees` | 49.8 +- 1.4 | 0.16 | 1.08 |
 
 A side's cost is the game's CPU less the opponent's half of its own mirror game (sp-m3 against itself: 1.73 a game).
-**The strong bot is about four times sp-m3 a side, not "under twice"** -- that compared whole games with sp-m3 on the
+**The strong bot is about two and a half times sp-m3 a side (four times with three candidates), not "under twice"** -- that compared whole games with sp-m3 on the
 other side. And sp-m3's trees alone are level with it against bots at a fifth of the cost: the network buys
 agreement with people (76.4% in July), not wins (2026-11-09, "A sharper yardstick" below).
 
 ```bash
-JAVA_OPTS="-Dsearch.stage1=1 -Dsearch.spread=0.05 -Dsearch.k=3 -Dsearch.rollouts=4 -Dsearch.lambda=0.05 \
+JAVA_OPTS="-Dsearch.stage1=1 -Dsearch.spread=0.05 -Dsearch.k=2 -Dsearch.rollouts=4 -Dsearch.lambda=0.05 \
   -Dsearch.contexts=skirmish,shadow,maneuver,archery,assignment,regroup -Dsearch.maxPerGame=150 \
   -Dsearch.policy=bot-models-exp/sp-m3-trees -Dsearch.root=bot-models-exp/sp-m3-trees -Dbvb.stuckSeconds=1800" \
   ./bot-vs-bot.sh --suite decks/real/suite-test.txt --a search@bot-models-exp/sp-m3-j5-q8e --b general@bot-models-exp/sp-m3 \
@@ -2093,6 +2094,30 @@ a game through instead of 18.5, and a search costs the same 0.13 s (5.1 play-out
 readings; 73% stop after the first round, as before). **The cost is now the search itself, ~3.2 of the 3.4: about
 1.3 of it the judge (120 readings a game at ~10.6 ms) and 1.9 the play-outs (copying the game and ~14 tree
 decisions, ~15 ms each).** So the next cuts are a cheaper judge and fewer searches (the gate, on the trees' scale).
+
+**Fewer searches or fewer candidates? Fewer candidates.** A sweep on the training decks (seed 1, 3,200 games a
+setting, each +- 1.4 by pair; `labels/nn/paired/trees-root-sweep.tsv`), every setting matched game for game against
+gate 0.6, k 3:
+
+| gate | k | against sp-m3 | matched against 0.6 / 3 | CPU-s a game | searches a game |
+|---|---|---|---|---|---|
+| 0.6 | 3 | 54.6 | -- | 4.32 | 24.5 |
+| 0.5 | 3 | 53.4 | -1.2 +- 1.3 | 3.32 | 15.8 |
+| 0.4 | 3 | 52.6 | -2.0 +- 1.4 | 2.52 | 10.2 |
+| **0.6** | **2** | **54.1** | **-0.6 +- 1.2** | **2.92** | 24.7 |
+| 0.5 | 2 | 52.5 | -2.2 +- 1.5 | 2.34 | 15.9 |
+
+A tighter gate gives up strength in step with the searches it drops: the decisions between 0.5 and 0.6 are worth
+searching. The third candidate is worth little: dropping it takes a third off the game for 0.6 of a point. (On the
+same seed the trees-root search at 0.6 / 3 against the network-rooted strong bot: +0.4 +- 1.8.)
+
+Confirmed on the test decks (seed 1, 3,168 games), gate 0.6, k 2: **54.7 +- 1.4** by pair (328 / 1,077 / 179) at
+**2.99 CPU-s a game, 2.1 a side** -- 236,000 play-outs where k 3 ran 391,404, 84% of searches stopping after the
+first round (73% at k 3). Matched against k 3 on the same games: **-1.1 +- 1.2** (1,218 of 1,584 pairs won exactly
+the same games); against the trees alone: **+4.9 +- 1.5**. Neither difference from k 3 is outside its interval, but
+both point the same way, so read it as about a point for 1.2 CPU-s a side: k 2 is the strong bot to run by default
+(five-sixths of the gain at under two-thirds of the cost), k 3 the one when the last point matters. Both are on the
+frontier.
 
 ## How human is "agreement with people", and play by precedent (2026-10-31)
 
