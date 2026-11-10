@@ -8,8 +8,9 @@ runs headless from this directory; no Docker, no database.
 | bot | how | against sp-m3 | CPU-s a side | a game against sp-m3 |
 |---|---|---|---|---|
 | **sp-m3**, the cheap bot that plays like people | `general@bot-models-exp/sp-m3` | -- | 0.87 | 1.73 |
-| **the strong bot** | `search@bot-models-exp/sp-m3-j5-q8e` with the options below (`-Dsearch.k=2`): the trees at the root and in the play-outs, the network only as judge | **54.7 +- 1.4** | 2.1 | 2.99 |
-| the strong bot, three candidates | the same with `-Dsearch.k=3` | 55.8 +- 1.3 | 3.4 | 4.23 |
+| **the strong bot** | `search@bot-models-exp/sp-m3-j6mL-q8e` with the options below (`-Dsearch.k=2`): the trees at the root and in the play-outs, a small network (judge6m, d 192 x 3) only as judge | **54.6 +- 1.4** | 1.65 | 2.52 |
+| the same with the larger judge5b | `search@bot-models-exp/sp-m3-j5-q8e` (or `-j5L-q8e`, the same play read leaner) | 54.7 +- 1.4 | 2.1 | 2.99 |
+| three candidates, judge5b | `search@bot-models-exp/sp-m3-j5-q8e` with `-Dsearch.k=3` | 55.8 +- 1.3 | 3.4 | 4.23 |
 | sp-m3-trees, the cheapest | `general@bot-models-exp/sp-m3-trees` | 49.8 +- 1.4 | 0.16 | 1.08 |
 
 A side's cost is the game's CPU less the opponent's half of its own mirror game (sp-m3 against itself: 1.73 a game).
@@ -21,7 +22,7 @@ agreement with people (76.4% in July), not wins (2026-11-09, "A sharper yardstic
 JAVA_OPTS="-Dsearch.stage1=1 -Dsearch.spread=0.05 -Dsearch.k=2 -Dsearch.rollouts=4 -Dsearch.lambda=0.05 \
   -Dsearch.contexts=skirmish,shadow,maneuver,archery,assignment,regroup -Dsearch.maxPerGame=150 \
   -Dsearch.policy=bot-models-exp/sp-m3-trees -Dsearch.root=bot-models-exp/sp-m3-trees -Dbvb.stuckSeconds=1800" \
-  ./bot-vs-bot.sh --suite decks/real/suite-test.txt --a search@bot-models-exp/sp-m3-j5-q8e --b general@bot-models-exp/sp-m3 \
+  ./bot-vs-bot.sh --suite decks/real/suite-test.txt --a search@bot-models-exp/sp-m3-j6mL-q8e --b general@bot-models-exp/sp-m3 \
   --games 4 --seed 1
 ```
 
@@ -2141,6 +2142,26 @@ the machine with a training job, so their CPU figures (2.82 a game lean, 2.76 sm
 understate the saving; a clean timing is owed. **So the judge to make cheaper is not a smaller one, and a better one
 is worth points**: the next step is more bot games for it (it has seen 6,400; `labels/scripts/judge7-positions.sh`
 plays 64,000 of the trees against themselves).
+
+**A smaller judge after all, trained from scratch (2026-11-10, later).** The paragraph above read judge5's loss as
+"smaller loses". It was judge5's training, not its size: judge5 was judge4 carried on at a low rate with dropout 0.3.
+judge5b's own recipe from scratch at two smaller sizes (`labels/scripts/judge6.sh`, 20 epochs), win AUC on July's
+people / held-out bot positions:
+
+| judge | size | July people | bot positions | ms a board, lean 8-bit |
+|---|---|---|---|---|
+| judge5 | d 256 x 4 (from judge4) | 0.780 | 0.734 | 6.1 (not lean) |
+| judge5b | d 384 x 6 | 0.785 | 0.750 | 6.4 |
+| judge6s | d 128 x 2 | 0.776 | 0.745 | -- |
+| **judge6m** | **d 192 x 3** | 0.780 | **0.752** | **1.2** |
+
+judge6m in the same seeded search (sp-m3-j6mL-q8e, test decks, 3,168 games, the machine all but its own): **54.6 +-
+1.4** against sp-m3 (327 / 1,077 / 180) at **2.52 CPU-s a game, 1.65 a side**; matched against judge5b lean **-0.1
++- 1.3** (1,209 of 1,584 pairs the same games). The search's strength followed the bot-position AUC again, and the
+judge is now ~0.1 of the 1.65. **The strong bot is `search@bot-models-exp/sp-m3-j6mL-q8e`: 1.65 a side where it was
+2.1 this morning and 3.4 yesterday, twice sp-m3.** What is left is the play-outs. Queued: judge7 (judge5b carried on
+with the 64,000 trees games) and judge7m (judge6m's size from scratch on the same), each in this search
+(`labels/scripts/judge7.sh`, `judge7m.sh`).
 
 ## How human is "agreement with people", and play by precedent (2026-10-31)
 
