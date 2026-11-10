@@ -2194,6 +2194,18 @@ candidate adds 0.3 for 1.4 CPU-s a side. `-Dsearch.gate=1.01` is the open gate (
 Six settings were compared on one seed of the test decks, so the order among neighbours is not settled; the gain
 from opening the gate is (0.6 -> 0.8 -> 1 rises at both k).
 
+**The open gate confirmed off the decks it was chosen on.** Training decks, seed 2, 3,200 games each, k 2, small
+judge: gate 0.6 **53.9 +- 1.4**, gate 1 **57.3 +- 1.4**; matched game for game **+3.3 +- 1.4** (1,121 of 1,600 pairs
+the same games). 2.35 and 3.42 CPU-s a game (another search ran beside the first). With the test decks' +2.2: the
+open gate is worth two to three points for about one CPU-s a side. **The strong bot is gate 1, k 2.**
+
+**The judge's AUC stops telling (judge7m).** judge6m's size from scratch on judge7's data (the 64,000 trees games
+in): bot-position AUC **0.752 -> 0.773**, far the best of any judge (July 0.780 -> 0.779) -- and the same seeded
+search **54.6 +- 1.3, 0.0 +- 1.4 matched against judge6m**. From 0.685 to 0.750 the search followed the AUC; past
+that it does not. Whatever limits the search now, it is not how well the judge ranks whole-game positions; the judge
+question is closed until the search asks something else of it (two answers' positions a few steps apart differ by
+far less than two games do).
+
 ## How human is "agreement with people", and play by precedent (2026-10-31)
 
 **The measure rewards the consensus.** The user asked whether a real person would score higher on it than the bot. No:
