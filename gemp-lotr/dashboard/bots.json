@@ -75,7 +75,11 @@
     "ci": 1.3,
     "source": "BOT-NOTES.md 'The three gaps left against people' (sel10-e)"
    },
-   "cost": null,
+   "cost": {
+    "total": 0.07,
+    "vs": "v2-real",
+    "source": "labels/nn/cost-bench/costs.tsv (2026-11-09: each bot against itself on the first 100 test matchups x 2 games, one run at a time, the same evening)"
+   },
    "july": {
     "value": 43.6,
     "measure": "strict",
@@ -176,7 +180,11 @@
     "ci": 1.2,
     "source": "BOT-NOTES.md 'A cheap bot instead of search'"
    },
-   "cost": null,
+   "cost": {
+    "total": 0.12,
+    "vs": "h4m-d4a",
+    "source": "labels/nn/cost-bench/costs.tsv (2026-11-09: each bot against itself on the first 100 test matchups x 2 games, one run at a time, the same evening)"
+   },
    "july": null
   },
   {
@@ -281,7 +289,11 @@
     "ci": 1.2,
     "source": "BOT-NOTES.md 'The bot against people, on people's games'"
    },
-   "cost": null,
+   "cost": {
+    "total": 0.18,
+    "vs": "sel10",
+    "source": "labels/nn/cost-bench/costs.tsv (2026-11-09: each bot against itself on the first 100 test matchups x 2 games, one run at a time, the same evening)"
+   },
    "july": {
     "value": 63.0,
     "measure": "strict",
@@ -302,15 +314,16 @@
     "source": "BOT-NOTES.md 'Skirmish plays: what a card does, found by doing it'"
    },
    "cost": {
-    "total": 0.16,
+    "total": 0.18,
     "vs": "sel10-gc",
-    "source": "BOT-NOTES.md 'Skirmish plays...', Cost: plain bots on the test suite, 'neither probing' (read here as sel10-gc against itself)"
+    "source": "labels/nn/cost-bench/costs.tsv (2026-11-09: each bot against itself on the first 100 test matchups x 2 games, one run at a time, the same evening)"
    },
    "july": {
     "value": 63.4,
     "measure": "strict",
     "source": "BOT-NOTES.md 'Two scores'"
-   }
+   },
+   "note": "Cost before the 2026-11-09 benchmark: 0.16 a game against sel10-gc (BOT-NOTES.md 'Skirmish plays...', Cost: plain bots on the test suite, 'neither probing' (read here as sel10-gc against itself))."
   },
   {
    "id": "sel10-probe",
@@ -326,15 +339,16 @@
     "source": "BOT-NOTES.md 'Reconcile: keeping the hand is an option' (second, longer run; the first was 50.9 +- 1.2)"
    },
    "cost": {
-    "total": 0.23,
+    "total": 0.25,
     "vs": "sel10-probe",
-    "source": "BOT-NOTES.md 'Skirmish plays...', Cost: plain bots on the test suite, 'both probing' (read here as sel10-probe against itself)"
+    "source": "labels/nn/cost-bench/costs.tsv (2026-11-09: each bot against itself on the first 100 test matchups x 2 games, one run at a time, the same evening)"
    },
    "july": {
     "value": 63.9,
     "measure": "strict",
     "source": "BOT-NOTES.md 'Two scores'"
-   }
+   },
+   "note": "Cost before the 2026-11-09 benchmark: 0.23 a game against sel10-probe (BOT-NOTES.md 'Skirmish plays...', Cost: plain bots on the test suite, 'both probing' (read here as sel10-probe against itself))."
   },
   {
    "id": "sel10-rec",
@@ -409,7 +423,11 @@
     "ci": 1.2,
     "source": "BOT-NOTES.md 'A teacher for the Shadow side's skirmishes'"
    },
-   "cost": null,
+   "cost": {
+    "total": 0.28,
+    "vs": "sel10-e",
+    "source": "labels/nn/cost-bench/costs.tsv (2026-11-09: each bot against itself on the first 100 test matchups x 2 games, one run at a time, the same evening)"
+   },
    "july": {
     "value": 67.4,
     "measure": "strict",
@@ -603,18 +621,23 @@
    "parent": "sel10-big4",
    "what": "The Shadow slot refit on ten months of people's Shadow plays: the last trees-only bot adopted.",
    "strength": {
-    "a": "sel10-net6",
-    "b": "sel10-big5",
-    "rate": 49.5,
-    "ci": 0.9,
-    "source": "BOT-NOTES.md 'A neural network that sees the board's cards'"
+    "a": "sel10-big5",
+    "b": "sp-m3",
+    "rate": 49.4,
+    "ci": 1.4,
+    "source": "labels/nn/paired/sel10-big5-vs-sp-m3-test-seed1.out (2026-11-09: test decks, 4 games a matchup, seed 1, 3,168 games, interval by pair; binomial +- 1.7)"
    },
-   "cost": null,
+   "cost": {
+    "total": 0.3,
+    "vs": "sel10-big5",
+    "source": "labels/nn/cost-bench/costs.tsv (2026-11-09: each bot against itself on the first 100 test matchups x 2 games, one run at a time, the same evening)"
+   },
    "july": {
     "value": 75.1,
     "measure": "order-free",
     "source": "BOT-NOTES.md 'Order, assignments, and the network's ceiling' (strict measure: 70.3%)"
-   }
+   },
+   "note": "Played sp-m3 directly on 2026-11-09: level, at about an eighth of its cost a side. Before that its strength was chained through sel10-net6 (sel10-net6 49.5% +- 0.9 against it; BOT-NOTES.md 'A neural network that sees the board's cards'). Against sp-m3 the game cost 1.32 CPU-s."
   },
   {
    "id": "pool-racer",
@@ -630,11 +653,12 @@
     "source": "BOT-NOTES.md 'Structure from the game... a pool of styles'"
    },
    "cost": {
-    "total": 0.55,
-    "vs": "sel10-net6",
-    "source": "labels/nn/after7.log, sel10-net6 recording its games against the style bots on the training decks"
+    "total": 0.25,
+    "vs": "pool-racer",
+    "source": "labels/nn/cost-bench/costs.tsv (2026-11-09: each bot against itself on the first 100 test matchups x 2 games, one run at a time, the same evening)"
    },
-   "july": null
+   "july": null,
+   "note": "Cost before the 2026-11-09 benchmark: 0.55 a game against sel10-net6 (labels/nn/after7.log, sel10-net6 recording its games against the style bots on the training decks)."
   },
   {
    "id": "pool-builder",
@@ -650,11 +674,12 @@
     "source": "BOT-NOTES.md 'Structure from the game... a pool of styles'"
    },
    "cost": {
-    "total": 0.59,
-    "vs": "sel10-net6",
-    "source": "labels/nn/after7.log, sel10-net6 recording its games against the style bots on the training decks"
+    "total": 0.28,
+    "vs": "pool-builder",
+    "source": "labels/nn/cost-bench/costs.tsv (2026-11-09: each bot against itself on the first 100 test matchups x 2 games, one run at a time, the same evening)"
    },
-   "july": null
+   "july": null,
+   "note": "Cost before the 2026-11-09 benchmark: 0.59 a game against sel10-net6 (labels/nn/after7.log, sel10-net6 recording its games against the style bots on the training decks)."
   },
   {
    "id": "pool-wide-fellowship",
@@ -670,11 +695,12 @@
     "source": "BOT-NOTES.md 'Structure from the game... a pool of styles'"
    },
    "cost": {
-    "total": 0.63,
-    "vs": "sel10-net6",
-    "source": "labels/nn/after7.log, sel10-net6 recording its games against the style bots on the training decks"
+    "total": 0.31,
+    "vs": "pool-wide-fellowship",
+    "source": "labels/nn/cost-bench/costs.tsv (2026-11-09: each bot against itself on the first 100 test matchups x 2 games, one run at a time, the same evening)"
    },
-   "july": null
+   "july": null,
+   "note": "Cost before the 2026-11-09 benchmark: 0.63 a game against sel10-net6 (labels/nn/after7.log, sel10-net6 recording its games against the style bots on the training decks)."
   },
   {
    "id": "pool-big-minions",
@@ -690,11 +716,12 @@
     "source": "BOT-NOTES.md 'Structure from the game... a pool of styles'"
    },
    "cost": {
-    "total": 0.57,
-    "vs": "sel10-net6",
-    "source": "labels/nn/after7.log, sel10-net6 recording its games against the style bots on the training decks"
+    "total": 0.28,
+    "vs": "pool-big-minions",
+    "source": "labels/nn/cost-bench/costs.tsv (2026-11-09: each bot against itself on the first 100 test matchups x 2 games, one run at a time, the same evening)"
    },
-   "july": null
+   "july": null,
+   "note": "Cost before the 2026-11-09 benchmark: 0.57 a game against sel10-net6 (labels/nn/after7.log, sel10-net6 recording its games against the style bots on the training decks)."
   },
   {
    "id": "pool-swarm-grinder",
@@ -710,11 +737,12 @@
     "source": "BOT-NOTES.md 'Structure from the game... a pool of styles'"
    },
    "cost": {
-    "total": 0.59,
-    "vs": "sel10-net6",
-    "source": "labels/nn/after7.log, sel10-net6 recording its games against the style bots on the training decks"
+    "total": 0.28,
+    "vs": "pool-swarm-grinder",
+    "source": "labels/nn/cost-bench/costs.tsv (2026-11-09: each bot against itself on the first 100 test matchups x 2 games, one run at a time, the same evening)"
    },
-   "july": null
+   "july": null,
+   "note": "Cost before the 2026-11-09 benchmark: 0.59 a game against sel10-net6 (labels/nn/after7.log, sel10-net6 recording its games against the style bots on the training decks)."
   },
   {
    "id": "sel10-net",
@@ -746,15 +774,16 @@
     "source": "BOT-NOTES.md 'A new best bot: sp-g07'"
    },
    "cost": {
-    "total": 0.89,
+    "total": 0.74,
     "vs": "sel10-net6",
-    "source": "labels/nn/after7.log (against itself on the training decks, recording its decisions -- the only measurement of it against itself)"
+    "source": "labels/nn/cost-bench/costs.tsv (2026-11-09: each bot against itself on the first 100 test matchups x 2 games, one run at a time, the same evening)"
    },
    "july": {
     "value": 75.3,
     "measure": "order-free",
     "source": "BOT-NOTES.md 'Order, assignments, and the network's ceiling'"
-   }
+   },
+   "note": "Cost before the 2026-11-09 benchmark: 0.89 a game against sel10-net6 (labels/nn/after7.log (against itself on the training decks, recording its decisions -- the only measurement of it against itself))."
   },
   {
    "id": "sel10-netT",
@@ -1120,16 +1149,16 @@
     "source": "BOT-NOTES.md 'What search knows, without search; more people; a better judge'"
    },
    "cost": {
-    "total": 1.6,
+    "total": 2.19,
     "vs": "sp-g07",
-    "source": "BOT-NOTES.md 'Play-time search' ('6.0 CPU-seconds a game against ~1.6')"
+    "source": "labels/nn/cost-bench/costs.tsv (2026-11-09: each bot against itself on the first 100 test matchups x 2 games, one run at a time, the same evening)"
    },
    "july": {
     "value": 76.1,
     "measure": "order-free",
     "source": "BOT-NOTES.md 'Order, assignments, and the network's ceiling' (76.08% on the later run)"
    },
-   "note": "Against sel10-net6: 51.0 +- 0.9; pool mean 46.1%."
+   "note": "Against sel10-net6: 51.0 +- 0.9; pool mean 46.1%. Cost before the 2026-11-09 benchmark: 1.6 a game against sp-g07 (BOT-NOTES.md 'Play-time search' ('6.0 CPU-seconds a game against ~1.6'))."
   },
   {
    "id": "sp-g07-pure",
@@ -1524,7 +1553,11 @@
     "ci": 1.2,
     "source": "labels/nn/skir-refit.log"
    },
-   "cost": null,
+   "cost": {
+    "total": 2.05,
+    "vs": "sp-m1",
+    "source": "labels/nn/cost-bench/costs.tsv (2026-11-09: each bot against itself on the first 100 test matchups x 2 games, one run at a time, the same evening)"
+   },
    "july": {
     "value": 76.4,
     "measure": "order-free",
@@ -1561,7 +1594,11 @@
     "ci": 1.2,
     "source": "BOT-NOTES.md 'Why the bots do not race' (sp-m2 with move threshold 0.35)"
    },
-   "cost": null,
+   "cost": {
+    "total": 2.2,
+    "vs": "sp-m2",
+    "source": "labels/nn/cost-bench/costs.tsv (2026-11-09: each bot against itself on the first 100 test matchups x 2 games, one run at a time, the same evening)"
+   },
    "july": {
     "value": 76.5,
     "measure": "order-free",
@@ -1657,26 +1694,37 @@
    "what": "sp-m2 moving again when P(yes) > 0.35: level with the bots, better than people on moves. The cheap bot, and the reference for strength.",
    "strength": null,
    "cost": {
-    "total": 2.5,
+    "total": 2.22,
     "vs": "sp-m3",
-    "source": "BOT-NOTES.md 'The bots to use' (~2.5; the logs give 2.29-2.34 for 1,584-6,400 games on 2026-11-07)"
+    "source": "labels/nn/cost-bench/costs.tsv (2026-11-09: each bot against itself on the first 100 test matchups x 2 games, one run at a time, the same evening) (2.24 first and 2.19 last of the 18 runs)"
    },
    "july": {
     "value": 76.4,
     "measure": "order-free",
     "source": "BOT-NOTES.md 'The bots to use' (76.36% in 'Why the bots do not race')"
-   }
+   },
+   "note": "Cost before the 2026-11-09 benchmark: 2.5 a game against sp-m3 (BOT-NOTES.md 'The bots to use' (~2.5; the logs give 2.29-2.34 for 1,584-6,400 games on 2026-11-07))."
   },
   {
    "id": "sp-m3-trees",
    "date": "2026-11-06",
    "kind": "plain",
    "parent": "sp-m3",
-   "what": "sp-m3's trees alone, no network: used only to play out the search's futures cheaply.",
-   "strength": null,
-   "cost": null,
+   "what": "sp-m3's trees alone, no network: plays out the search's futures cheaply, and as a bot of its own is level with sp-m3.",
+   "strength": {
+    "a": "sp-m3-trees",
+    "b": "sp-m3",
+    "rate": 49.8,
+    "ci": 1.4,
+    "source": "labels/nn/paired/sp-m3-trees-vs-sp-m3-test-seed1.out (2026-11-09: test decks, 4 games a matchup, seed 1, 3,168 games, interval by pair; binomial +- 1.7)"
+   },
+   "cost": {
+    "total": 1.24,
+    "vs": "sp-m3",
+    "source": "labels/nn/paired/sp-m3-trees-vs-sp-m3-test-seed1.out (the same run)"
+   },
    "july": null,
-   "note": "Never played as a bot of its own."
+   "note": "First played as a bot of its own on 2026-11-09. July agreement not measured: the network's gain is there, not in strength against bots."
   },
   {
    "id": "search@sp-m3-j4",
@@ -2110,11 +2158,12 @@
     "source": "BOT-NOTES.md 'The strong bot at under twice the plain bot's cost' (the confirming run; the first was 54.4 +- 1.7 at 4.56)"
    },
    "cost": {
-    "total": 4.72,
+    "total": 4.62,
     "vs": "sp-m3",
-    "source": "labels/nn/gate/cheaper-search.log (q8e-wide-trees confirm)"
+    "source": "labels/nn/paired/strong-l0.05-s0.05-train-seed1.out (2026-11-09, training decks, 3,200 games, the same evening as the cost benchmark)"
    },
-   "july": null
+   "july": null,
+   "note": "Cost before: 4.72 a game against sp-m3 on the test decks (labels/nn/gate/cheaper-search.log (q8e-wide-trees confirm)). On the training decks, seeded, 54.2% +- 1.2 by pair over 3,200 games (2026-11-09)."
   }
  ]
 }
