@@ -140,8 +140,12 @@ public class BotVsBot {
             // -Dsearch.policy=<dir>: the bots that play the play-outs out (default: the searching bot's own) -- the
             // network was ~55% of a search game's time, most of it the play-outs' own decisions
             String policy = System.getProperty("search.policy", dir);
-            return new Searching(bot("general@" + dir, name, ctx), ctx.models(Path.of(dir)).getBoardNet2(),
-                    searchCopier, n -> bot("general@" + policy, n, ctx));
+            // -Dsearch.root=<dir>: the bot that answers (default: dir's own); dir then only lends its judge. A root
+            // with no network searches on its trees' scores (Searching.treesRoot)
+            String root = System.getProperty("search.root", dir);
+            return new Searching(bot("general@" + root, name, ctx), ctx.models(Path.of(dir)).getBoardNet2(),
+                    searchCopier, n -> bot("general@" + policy, n, ctx),
+                    ctx.models(Path.of(root)).getBoardNet2() == null);
         }
         int at = kind.indexOf('@');
         if (at > 0) {
