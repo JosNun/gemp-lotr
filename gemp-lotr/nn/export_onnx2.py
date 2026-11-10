@@ -50,6 +50,41 @@ class Exported(torch.nn.Module):
         return torch.log_softmax(s, -1), torch.log_softmax(a, -1), torch.softmax(o, -1)
 
 
+class JudgeOnly(torch.nn.Module):
+    """The judge alone (2026-11-10): "win" computed, "opt" and "asg" zeros of the shapes the bot reads -- the option and
+    assignment heads were ~15% of a reading (see lean()). Every input stays in the graph (the zeros are made from the
+    ones the outcome does not read), so the bot feeds it as it feeds any other."""
+
+    def __init__(self, model, mean, std):
+        super().__init__()
+        self.model = model
+        self.register_buffer('mean', mean)
+        self.register_buffer('std', std)
+
+    def forward(self, *xs):
+        b = dict(zip(names(self.model), xs))
+        state = b['state']
+        b['state'], b['raw_tw'] = (state - self.mean) / self.std, state[:, bn.TWILIGHT]
+        o = self.model.outcome_only(b)
+        z = sum(b[k].sum() for k in ('os', 'ok', 'oc', 'ti', 'tv', 'om', 'am', 'af')).float() * 0
+        opt = (state[:, :1] * 0 + z).expand(-1, bn.MAX_OPTS + 1)
+        asg = opt[:, :1].unsqueeze(-1).expand(-1, bn.MAX_MIN, bn.MAX_FPC + 1)
+        return opt, asg, torch.softmax(o, -1)
+
+
+def lean(model):
+    """A card's vector looked up, not computed: card(table[i]) depends on the card alone, and a board runs it for
+    every card in play and all 288 slots of the six piles -- with the heads, most of what a reading does outside the
+    encoder. The same answers to rounding (time_onnx.py: judge5b in 8-bit 12.7 -> see BOT-NOTES ms a board)."""
+    with torch.no_grad():
+        model.table = model.card(model.table)
+        w, bias = model.bag_card.weight, model.bag_card.bias  # a pile's card: [its vector, copies / 3] through one layer
+        model.register_buffer('bag_table', model.table @ w[:, :-1].T + bias)
+        model.register_buffer('bag_n', w[:, -1].clone())
+    model.card = torch.nn.Identity()
+    return model
+
+
 def names(model):
     """The inputs: a network that reads the skirmish probe takes "pr" (float, [options + pass, PROBE_N]) last."""
     return NAMES + (['pr'] if hasattr(model, 'probe') else [])
@@ -60,13 +95,15 @@ def inputs(data, idx, model=None):
             for k in (names(model) if model is not None else NAMES)]
 
 
-def export(ck_path, table, data, path, buckets=True):
+def export(ck_path, table, data, path, buckets=True, lean_cards=False, judge_only=False):
     ck = torch.load(ck_path, weights_only=False, map_location='cpu')
     a = ck['args']
     model = bn.BoardNet2(table, data['state'].shape[1], d=a['d'], layers=a['layers'], probe=a.get('probe', False))
     model.load_state_dict(ck['model'])
     model.eval()
-    ex = Exported(model, ck['mean'], ck['std']).eval()
+    if lean_cards:
+        lean(model)
+    ex = (JudgeOnly if judge_only else Exported)(model, ck['mean'], ck['std']).eval()
     sample = inputs(data, np.arange(4), model)
     torch.onnx.export(ex, tuple(sample), path, input_names=names(model), output_names=['opt', 'asg', 'win'],
                       dynamic_axes=AXES, opset_version=17, dynamo=False)
@@ -84,6 +121,8 @@ def main():
     ap.add_argument('--out', required=True)
     ap.add_argument('--data', default=os.path.expanduser('~/dev/gemp-replays/labels/nn'))
     ap.add_argument('--check', default=None)
+    ap.add_argument('--lean', action='store_true',
+                    help="cards' vectors precomputed, and the judge exported without the option and assignment heads")
     args = ap.parse_args()
     torch.backends.mha.set_fastpath_enabled(False)
     rows, table, _ = load_cards(os.path.join(args.data, 'cards.tsv'))
@@ -99,9 +138,10 @@ def main():
                 break
     os.makedirs(args.out, exist_ok=True)
     data, _ = bn.encode(lines, rows, set(ck['seen']), False, {})
-    ex, _ = export(args.model, table, data, os.path.join(args.out, 'board-net2.onnx'))
+    ex, _ = export(args.model, table, data, os.path.join(args.out, 'board-net2.onnx'), lean_cards=args.lean)
     if args.judge:
-        export(args.judge, table, data, os.path.join(args.out, 'board-net2-judge.onnx'))
+        export(args.judge, table, data, os.path.join(args.out, 'board-net2-judge.onnx'), lean_cards=args.lean,
+               judge_only=args.lean)
     shutil.copy(os.path.join(args.data, 'cards.tsv'), os.path.join(args.out, 'board-net2-cards.tsv'))
     with open(os.path.join(args.out, 'board-net2-seen.txt'), 'w') as f:
         f.write('\n'.join(str(r) for r in sorted(ck['seen'])) + '\n')

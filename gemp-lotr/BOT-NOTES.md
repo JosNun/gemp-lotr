@@ -2119,6 +2119,29 @@ both point the same way, so read it as about a point for 1.2 CPU-s a side: k 2 i
 (five-sixths of the gain at under two-thirds of the cost), k 3 the one when the last point matters. Both are on the
 frontier.
 
+**A cheaper judge: the same one read leaner, not a smaller one (2026-11-10).** A profile of the k 2 bot over 200
+games: 38% of a game's CPU is the judge's ONNX call, 40% the play-outs (trees ~15%, engine 12%, the skirmish probe
+8%, game copies 5%), 17% both bots' live play, 5% loading and encoding boards. Two ways at the 38%, each the same
+search on the same seed (test decks, 3,168 games), matched game for game against judge5b in 8-bit:
+
+| judge in the search | ms a board (`nn/time_onnx.py`) | against sp-m3 | matched against judge5b |
+|---|---|---|---|
+| judge5b, d 384 x 6, 8-bit (sp-m3-j5-q8e) | 13.2 | 54.7 +- 1.4 | -- |
+| judge5, d 256 x 4, 8-bit (sp-m3-j5a-q8e) | 6.1 | 52.7 +- 1.4 | **-2.0 +- 1.3** |
+| **judge5b exported lean, 8-bit (sp-m3-j5L-q8e)** | **6.8** | **54.7 +- 1.4** | **+0.0 +- 0.06**: 1,583 of 1,584 pairs the same games |
+
+The smaller judge gives back two of the search's five points: on held-out bot positions its AUC is 0.734 against
+0.750, and the search's strength has followed that number at every step so far (judge4 0.685, judge5 0.734, judge5b
+0.750). The lean export (`export_onnx2.py --lean`) is judge5b itself with the work that does not depend on the board
+taken out of the reading: each card's vector is looked up instead of computed (`card(table[i])` ran for every card in
+play and all 288 slots of the six piles), a pile card's layer is folded into that table, and the judge file computes
+the outcome head alone (the option and assignment heads were ~15% of a reading and the search never reads them).
+PyTorch against PyTorch the outcome moves 3e-7; in the bot, one pair of 1,584 played differently. Both runs shared
+the machine with a training job, so their CPU figures (2.82 a game lean, 2.76 small, against 2.99 measured alone)
+understate the saving; a clean timing is owed. **So the judge to make cheaper is not a smaller one, and a better one
+is worth points**: the next step is more bot games for it (it has seen 6,400; `labels/scripts/judge7-positions.sh`
+plays 64,000 of the trees against themselves).
+
 ## How human is "agreement with people", and play by precedent (2026-10-31)
 
 **The measure rewards the consensus.** The user asked whether a real person would score higher on it than the bot. No:
