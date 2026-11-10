@@ -10,7 +10,8 @@ runs headless from this directory; no Docker, no database.
 | **sp-m3**, the cheap bot that plays like people | `general@bot-models-exp/sp-m3` | -- | 0.87 | 1.73 |
 | **the strong bot** | `search@bot-models-exp/sp-m3-j6mL-q8e` with the options below (`-Dsearch.k=2`): the trees at the root and in the play-outs, a small network (judge6m, d 192 x 3) only as judge | **54.6 +- 1.4** | 1.65 | 2.52 |
 | the same with the larger judge5b | `search@bot-models-exp/sp-m3-j5-q8e` (or `-j5L-q8e`, the same play read leaner) | 54.7 +- 1.4 | 2.1 | 2.99 |
-| the strong bot, three candidates | the strong bot with `-Dsearch.k=3` | 56.0 +- 1.3 | 2.6 | 3.46 |
+| **the strong bot, every card action searched** | the strong bot with `-Dsearch.gate=1.01` | **56.8 +- 1.4** | 2.6 | 3.46 |
+| ... and three candidates | with `-Dsearch.gate=1.01 -Dsearch.k=3` | 57.1 +- 1.4 | 4.0 | 4.84 |
 | sp-m3-trees, the cheapest | `general@bot-models-exp/sp-m3-trees` | 49.8 +- 1.4 | 0.16 | 1.08 |
 
 A side's cost is the game's CPU less the opponent's half of its own mirror game (sp-m3 against itself: 1.73 a game).
@@ -2166,6 +2167,32 @@ with the 64,000 trees games) and judge7m (judge6m's size from scratch on the sam
 **Three candidates with the small judge**: 56.0 +- 1.3 against sp-m3 (331 / 1,111 / 142) at 3.46 CPU-s a game,
 **2.6 a side** (3.4 with judge5b); matched against two candidates **+1.3 +- 1.2**. The third comparison of k 3 with
 k 2 on seeded games (+1.1, +0.6, +1.3, each +- 1.2): about a point, for 0.95 CPU-s a side now.
+
+**More bot games do not make the judge better (judge7).** judge5b carried on for 8 epochs with 64,000 games of
+sp-m3-trees against itself added (671,782 positions; bots a tenth of its games before, half now): bot-position AUC
+0.750 -> 0.755, July 0.785 -> 0.785, and in the search **54.2 +- 1.4, -0.6 +- 1.2 matched against judge5b**. The
+judge is not short of bot data; its AUC is near what a position tells about the result. (That run had the machine to
+itself: judge5b lean is 2.42 CPU-s a game, 1.55 a side.)
+
+**Search more decisions: the gate opened (2026-11-10, afternoon).** With the judge nearly free a search is cheaper,
+and the gate had only ever been tightened. The small-judge bot on the test decks, seed 1, 3,168 games a setting,
+each +- 1.4 by pair; costs with a judge training on the GPU alongside (slightly high):
+
+| gate | k | against sp-m3 | matched against 0.6 / 2 | CPU-s a game | a side | searches a game |
+|---|---|---|---|---|---|---|
+| 0.6 | 2 | 54.6 | -- | 2.52 | 1.65 | 25 |
+| 0.8 | 2 | 56.0 | +1.4 +- 1.3 | 2.95 | 2.1 | 37 |
+| **1 (every card action)** | **2** | **56.8** | **+2.2 +- 1.4** | 3.46 | **2.6** | 52 |
+| 0.6 | 3 | 56.0 | +1.3 +- 1.2 | 3.46 | 2.6 | 25 |
+| 0.8 | 3 | 56.6 | +1.9 +- 1.5 | 4.06 | 3.2 | 37 |
+| 1 | 3 | 57.1 | +2.5 +- 1.6 | 4.84 | 4.0 | 52 |
+
+The decisions the trees are fairly sure of are worth searching too: the search overturns 7% of them at gate 1
+(12,100 of 164,889) against 10% under 0.6, and they add up to two points. Opening the gate buys more than the third
+candidate at the same cost (56.8 against 56.0 at 2.6 a side; matched +0.9 +- 1.5), and with the gate open the third
+candidate adds 0.3 for 1.4 CPU-s a side. `-Dsearch.gate=1.01` is the open gate (the 150-a-game cap is rarely met).
+Six settings were compared on one seed of the test decks, so the order among neighbours is not settled; the gain
+from opening the gate is (0.6 -> 0.8 -> 1 rises at both k).
 
 ## How human is "agreement with people", and play by precedent (2026-10-31)
 

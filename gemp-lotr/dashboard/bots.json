@@ -2266,6 +2266,69 @@
    },
    "july": null,
    "note": "Matched game for game against two candidates on the same seed: +1.3 points +- 1.2."
+  },
+  {
+   "id": "search@sp-m3-trees j6mL-q8e k2 g0.8",
+   "date": "2026-11-10",
+   "kind": "search",
+   "parent": "search@sp-m3-trees j6mL-q8e k2",
+   "what": "The small-judge strong bot with the gate at 0.8 (more decisions searched), 2 candidates.",
+   "strength": {
+    "a": "search@sp-m3-trees j6mL-q8e k2 g0.8",
+    "b": "sp-m3",
+    "rate": 56.0,
+    "ci": 1.4,
+    "source": "labels/nn/paired/j6mL-k2-g0.8-test-seed1.out (2026-11-10: test decks, 4 games a matchup, seed 1, 3,168 games, interval by pair)"
+   },
+   "cost": {
+    "total": 2.95,
+    "vs": "sp-m3",
+    "source": "labels/nn/paired/j6mL-k2-g0.8-test-seed1.out (the same run; sp-m3 0.87 a side; a judge training on the GPU alongside)"
+   },
+   "july": null,
+   "note": "Matched against gate 0.6: +1.4 points +- 1.3."
+  },
+  {
+   "id": "search@sp-m3-trees j6mL-q8e k2 g1.0",
+   "date": "2026-11-10",
+   "kind": "search",
+   "parent": "search@sp-m3-trees j6mL-q8e k2",
+   "what": "The small-judge strong bot with the gate at 1.0 (more decisions searched), 2 candidates.",
+   "strength": {
+    "a": "search@sp-m3-trees j6mL-q8e k2 g1.0",
+    "b": "sp-m3",
+    "rate": 56.8,
+    "ci": 1.4,
+    "source": "labels/nn/paired/j6mL-k2-g1.0-test-seed1.out (2026-11-10: test decks, 4 games a matchup, seed 1, 3,168 games, interval by pair)"
+   },
+   "cost": {
+    "total": 3.46,
+    "vs": "sp-m3",
+    "source": "labels/nn/paired/j6mL-k2-g1.0-test-seed1.out (the same run; sp-m3 0.87 a side; a judge training on the GPU alongside)"
+   },
+   "july": null,
+   "note": "Every card action searched (-Dsearch.gate=1.01). Matched against gate 0.6: +2.2 points +- 1.4; against gate 0.6 with three candidates +0.9 +- 1.5."
+  },
+  {
+   "id": "search@sp-m3-trees j6mL-q8e k3 g1.0",
+   "date": "2026-11-10",
+   "kind": "search",
+   "parent": "search@sp-m3-trees j6mL-q8e k2",
+   "what": "The small-judge strong bot with the gate at 1.0 (more decisions searched), 3 candidates.",
+   "strength": {
+    "a": "search@sp-m3-trees j6mL-q8e k3 g1.0",
+    "b": "sp-m3",
+    "rate": 57.1,
+    "ci": 1.4,
+    "source": "labels/nn/paired/j6mL-k3-g1.0-test-seed1.out (2026-11-10: test decks, 4 games a matchup, seed 1, 3,168 games, interval by pair)"
+   },
+   "cost": {
+    "total": 4.84,
+    "vs": "sp-m3",
+    "source": "labels/nn/paired/j6mL-k3-g1.0-test-seed1.out (the same run; sp-m3 0.87 a side; a judge training on the GPU alongside)"
+   },
+   "july": null,
+   "note": "Matched against gate 0.6, two candidates: +2.5 points +- 1.6."
   }
  ]
 }
