@@ -338,6 +338,52 @@ function renderStream({ name, records: raw, meta, total }, parent) {
   return panel;
 }
 
+// ---- the tab: the title and a drawn favicon carry the running jobs' progress, so a run can be watched from another
+// tab. Read off the index's last records, so every stream counts, not only the eight drawn. A job is running when its
+// stream is live (written to in the last LIVE_SECONDS, as the panels' dot) and done < total; one that ended short
+// goes quiet with done < total and is not running. Fired by refreshFeeds's setInterval, which a background tab still
+// runs (throttled by Chrome to once a minute after five hidden minutes) -- requestAnimationFrame it does not run at all.
+const TITLE = document.title;
+const DONE_SECONDS = 600;  // a run that reached its total in the last 10 minutes shows as done, then the plain title
+// index.html's placeholder <link rel="icon">, there so the browser does not ask http.server for a favicon.ico first
+const ICON = document.querySelector('link[rel="icon"]') || document.head.appendChild(Object.assign(document.createElement('link'), { rel: 'icon' }));
+function tabStatus(index) {
+  const now = Date.now() / 1000;
+  const prog = index.filter((e) => e.last && typeof e.last.done === 'number' && typeof e.last.total === 'number' && e.last.total > 0);
+  const running = prog.filter((e) => now - e.t < LIVE_SECONDS && e.last.done < e.last.total)
+    .sort((a, b) => a.last.done / a.last.total - b.last.done / b.last.total);  // the furthest from done first
+  const finished = prog.filter((e) => now - e.t < DONE_SECONDS && e.last.done >= e.last.total);
+  const short = (n) => (n.length > 28 ? `${n.slice(0, 27)}…` : n);
+  let p = null, label = '';
+  if (running.length) {
+    p = running[0].last.done / running[0].last.total;
+    // floor, so a run at 99.7% never reads 100% while it is still going
+    label = `${Math.floor(100 * p)}% · ${short(running[0].name)}${running.length > 1 ? ` +${running.length - 1}` : ''}`;
+  } else if (finished.length) label = `✓ done · ${short(finished[0].name)}`;
+  document.title = label ? `${label} — ${TITLE}` : TITLE;
+  const state = running.length ? `p${Math.floor(64 * p)}` : finished.length ? 'done' : 'idle';
+  if (ICON.dataset.state !== state) { ICON.href = favicon(running.length ? p : finished.length ? 1 : null); ICON.dataset.state = state; }
+}
+
+// drawn at 32px and shrunk to 16 by the browser: a pie on a dark disc with a light rim, which reads on light and dark
+// tab strips alike; done is a green disc with a tick, idle an empty grey ring. Thin strokes vanish at 16px, so none.
+function favicon(p) {
+  const c = Object.assign(document.createElement('canvas'), { width: 32, height: 32 });
+  const g = c.getContext('2d');
+  const disc = (r, fill) => { g.beginPath(); g.arc(16, 16, r, 0, 2 * Math.PI); g.fillStyle = fill; g.fill(); };
+  if (p === null) { disc(14, '#8a93a0'); disc(9, '#1f242c'); }  // idle
+  else if (p >= 1) {
+    disc(15, '#4fb37a');
+    g.beginPath(); g.moveTo(8.5, 16.5); g.lineTo(14, 22); g.lineTo(24, 10);
+    g.strokeStyle = '#fff'; g.lineWidth = 4.5; g.lineCap = g.lineJoin = 'round'; g.stroke();
+  } else {
+    disc(15, '#c9d1db'); disc(13, '#1f242c');
+    g.beginPath(); g.moveTo(16, 16); g.arc(16, 16, 13, -Math.PI / 2, -Math.PI / 2 + 2 * Math.PI * Math.max(p, 0.02));
+    g.closePath(); g.fillStyle = '#5b9bd5'; g.fill();
+  }
+  return c.toDataURL('image/png');
+}
+
 async function refreshFeeds() {
   const root = $('live');
   let index;
@@ -347,6 +393,7 @@ async function refreshFeeds() {
     root.innerHTML = `<div class="empty">No live feeds (${e}).</div>`;
     return;
   }
+  tabStatus(index);
   if (!index.length) {
     root.innerHTML = '<div class="empty">No feeds yet: <code>python3 -I scripts/feed.py &lt;stream&gt; key=value ...</code></div>';
     return;
