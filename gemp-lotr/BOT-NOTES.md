@@ -2255,6 +2255,17 @@ Spread 0.05 stays (0.02 costs more and gains nothing; 0.1 loses a point); the ga
 
 The search beats sp-m3 in every format and the open gate adds to it in every one.
 
+**One play-out is not enough** (`-Dsearch.rollouts=1`, 2026-11-11): 56.3 +- 1.4, **-0.7 +- 1.6** matched against two,
+and no cheaper (2.50 CPU-s a game against 2.47) -- with one world there is no first round to stop after, so every
+search answers from a single play-out and overturns 32% of decisions instead of 7%. Two stays.
+
+**The strong bot as the trees' teacher (2026-11-11, running).** `-Dsearch.steps=<file>`: Searching writes each card
+action whose search ran both rounds as BotTeach's labels (a step an option played out; the search's answer good, the
+others bad; probe included), ~7 decisions a side a game. `labels/scripts/teach-1111.sh`: the open-gate bot against
+itself, 40,000 games on the training decks -> `labels/nn/teach-1111/steps.jsonl`; `teach-fit-1111.sh` then refits
+the skirmish, Shadow and other card-action slots in turn on their old data plus the teacher's rows (sp-m4a/b/c), each
+against sp-m3 on the seeded test decks and matched against sp-m3-trees. Results in `teach-1111/fit.log`.
+
 ## How human is "agreement with people", and play by precedent (2026-10-31)
 
 **The measure rewards the consensus.** The user asked whether a real person would score higher on it than the bot. No:

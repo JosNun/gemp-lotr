@@ -219,9 +219,54 @@ public final class Searching implements BotPlayer {
                 changed.incrementAndGet();
             if (BOARDS != null && values.size() > 1)
                 record(gs, d, kind, pick, values, answers.size(), ownIndex, Math.exp(lp[order[0]]));
+            if (STEPS != null && values.size() > 1 && "action".equals(kind))
+                steps(gs, d, pick, values.keySet(), answers);
             return pick;
         } catch (RuntimeException e) {
             return own;
+        }
+    }
+
+    /**
+     * -Dsearch.steps=&lt;file&gt;: the search as a teacher for the trees it sits on (2026-11-11). A card action whose
+     * search ran both rounds is written as BotTeach writes its labels -- one step an option played out, the search's
+     * answer good (reward 10), the others bad (0) -- to refit the card-action slots from (BotTeach --train-only
+     * --steps). The answer, not the best value: it is what the strong bot plays, the trees' own preference in it.
+     * Searches that stopped after the first round say only "as the trees do" and are not written.
+     */
+    static final java.io.PrintWriter STEPS = Recording.open(System.getProperty("search.steps"));
+
+    private void steps(GameState gs, AwaitingDecision d, String pick, Collection<Integer> played, List<String> answers) {
+        try {
+            double[] state = new com.gempukku.lotro.bots.rl.fotrstarters.GeneralStateFeatures()
+                    .extractFeatures(gs, d, getName());
+            boolean fp = getName().equals(gs.getCurrentPlayerId());
+            StringBuilder lines = new StringBuilder();
+            for (int c : played) {
+                String answer = answers.get(c);
+                try {
+                    double[] probe = null;
+                    if (inner instanceof com.gempukku.lotro.bots.rl.fotrstarters.FotrStarterBot bot) {
+                        probe = answer.isEmpty() ? com.gempukku.lotro.bots.rl.fotrstarters.EffectProbe.pass(gs, getName())
+                                : com.gempukku.lotro.bots.rl.fotrstarters.EffectProbe.probe(gs, getName(), answer, bot::as);
+                        if (probe == null)
+                            probe = com.gempukku.lotro.bots.rl.fotrstarters.EffectProbe.none();
+                    }
+                    var step = new com.gempukku.lotro.bots.rl.LearningStep(state,
+                            new com.gempukku.lotro.bots.rl.semanticaction.CardActionChoiceAction(answer, d, gs)
+                                    .withProbe(probe), fp, d);
+                    step.reward = answer.equals(pick) ? 10.0 : 0.0; // trainers read reward > 0 as good
+                    lines.append(step.toJson()).append('\n');
+                } catch (RuntimeException ignored) {
+                    // an answer the semantic action cannot describe
+                }
+            }
+            synchronized (STEPS) {
+                STEPS.print(lines);
+                STEPS.flush();
+            }
+        } catch (RuntimeException e) {
+            // a label lost; the game goes on
         }
     }
 
