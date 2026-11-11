@@ -10,7 +10,7 @@ runs headless from this directory; no Docker, no database.
 | **sp-m3**, the cheap bot that plays like people | `general@bot-models-exp/sp-m3` | -- | 0.87 | 1.73 |
 | **the strong bot** | `search@bot-models-exp/sp-m3-j6mL-q8e` with the options below (`-Dsearch.k=2`): the trees at the root and in the play-outs, a small network (judge6m, d 192 x 3) only as judge | **54.6 +- 1.4** | 1.16 | 2.03 |
 | the same with the larger judge5b | `search@bot-models-exp/sp-m3-j5-q8e` (or `-j5L-q8e`, the same play read leaner) | 54.7 +- 1.4 | 2.1 | 2.99 |
-| **the strong bot, every card action searched** | the strong bot with `-Dsearch.gate=1.01` | **56.8 +- 1.4** | 2.06 | 2.93 |
+| **the strong bot, every card action searched** | the same with `-Dsearch.gate=1.01 -Dsearch.rollouts=2` | **57.0 +- 1.4** | 1.60 | 2.47 |
 | ... and three candidates | with `-Dsearch.gate=1.01 -Dsearch.k=3` | 57.1 +- 1.4 | 4.0 | 4.84 |
 | sp-m3-trees, the cheapest | `general@bot-models-exp/sp-m3-trees` | 49.8 +- 1.4 | 0.16 | 1.08 |
 
@@ -2221,6 +2221,39 @@ against 52, play-outs of 22 steps to the turn's end against 12). Not worth it; t
 So: sp-m3 0.87 a side; the strong bot at gate 0.6 1.16 (+4.6 points for a third more CPU); at gate 1 2.06 (+6.8).
 Trap: `paired/judge-k.sh` put EXTRA before its own `-Dsearch.contexts`, and the last `-D` wins, so a contexts
 override did nothing (the first Fellowship run was the gate-1 run again); `judge-kx.sh` puts EXTRA last.
+
+**Overnight 2026-11-10/11: play-outs halved for nothing, the gate on a second seed, and the other formats**
+(`labels/nn/paired/overnight-1110.sh`, `.log`; the machine to itself; small judge, k 2, against sp-m3).
+
+*Cheaper play-outs at the open gate* (test decks, seed 1, matched against gate 1's 56.8 at 2.93 CPU-s a game):
+
+| change | against sp-m3 | matched | CPU-s a game | a side |
+|---|---|---|---|---|
+| **second round of 2 play-outs, not 4** (`-Dsearch.rollouts=2`) | **57.0** | **+0.2 +- 0.6** | **2.47** | **1.60** |
+| second round of 3 | 56.9 | +0.1 +- 0.5 | 2.71 | 1.84 |
+| spread 0.02 | 56.6 | -0.2 +- 1.3 | 3.57 | 2.70 |
+| rollouts 2 and spread 0.02 | 56.3 | -0.6 +- 1.4 | 2.69 | 1.82 |
+| spread 0.1 | 55.7 | -1.1 +- 1.3 | 2.64 | 1.77 |
+| gate 0.9 | 56.1 | -0.7 +- 1.1 | 2.80 | 1.93 |
+
+Two play-outs in the second round play almost the same games (the interval is +- 0.6) for 0.46 CPU-s a side less.
+Spread 0.05 stays (0.02 costs more and gains nothing; 0.1 loses a point); the gate stays open.
+**The strong bot: gate 1, k 2, rollouts 2 -- 57.0 +- 1.4 at 1.60 a side** (yesterday morning: 54.7 at 2.1).
+
+*The gate on seed 2* (test decks): 0.6 54.4, 0.8 55.4 (+1.0 +- 1.3), open 55.7 (**+1.2 +- 1.4**). With seed 1's
++2.2 and the training decks' +3.3: about two points, the same sign each time.
+
+*Other formats* (`suite-by-*`, seed 1; 1,600-2,400 games each, 800 for King):
+
+| format | gate 0.6 | gate 1 | matched | CPU-s a game, gate 1 |
+|---|---|---|---|---|
+| Fellowship block | 52.5 +- 1.7 | 54.0 +- 1.7 | +1.5 +- 1.5 | 2.18 |
+| Movie | 52.6 +- 1.7 | 56.4 +- 1.8 | +3.9 +- 1.9 | 2.70 |
+| Expanded | 55.3 +- 1.7 | 56.5 +- 1.7 | +1.2 +- 1.8 | 2.92 |
+| Towers block | 54.4 +- 2.1 | 55.9 +- 2.2 | +1.5 +- 2.0 | 2.47 |
+| King block | 53.6 +- 2.7 | 55.8 +- 2.8 | +2.1 +- 2.9 | 2.70 |
+
+The search beats sp-m3 in every format and the open gate adds to it in every one.
 
 ## How human is "agreement with people", and play by precedent (2026-10-31)
 

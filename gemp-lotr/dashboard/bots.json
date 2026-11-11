@@ -2329,6 +2329,27 @@
    },
    "july": null,
    "note": "Matched against gate 0.6, two candidates: +2.5 points +- 1.6."
+  },
+  {
+   "id": "search@sp-m3-trees j6mL-q8e k2 g1.0 r2",
+   "date": "2026-11-11",
+   "kind": "search",
+   "parent": "search@sp-m3-trees j6mL-q8e k2 g1.0",
+   "what": "The open-gate strong bot with a second round of two play-outs instead of four (-Dsearch.rollouts=2).",
+   "strength": {
+    "a": "search@sp-m3-trees j6mL-q8e k2 g1.0 r2",
+    "b": "sp-m3",
+    "rate": 57.0,
+    "ci": 1.4,
+    "source": "labels/nn/paired/j6mL-k2-g1.0-r2-test-seed1.out (test decks, 4 games a matchup, seed 1, 3,168 games, interval by pair)"
+   },
+   "cost": {
+    "total": 2.47,
+    "vs": "sp-m3",
+    "source": "labels/nn/paired/j6mL-k2-g1.0-r2-test-seed1.out (the same run, alone on the machine; sp-m3 0.87 a side)"
+   },
+   "july": null,
+   "note": "Matched game for game against four play-outs: +0.2 points +- 0.6. Per-format results and a second seed in BOT-NOTES (overnight 2026-11-10/11)."
   }
  ]
 }
