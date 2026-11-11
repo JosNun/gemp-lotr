@@ -8,9 +8,9 @@ runs headless from this directory; no Docker, no database.
 | bot | how | against sp-m3 | CPU-s a side | a game against sp-m3 |
 |---|---|---|---|---|
 | **sp-m3**, the cheap bot that plays like people | `general@bot-models-exp/sp-m3` | -- | 0.87 | 1.73 |
-| **the strong bot** | `search@bot-models-exp/sp-m3-j6mL-q8e` with the options below (`-Dsearch.k=2`): the trees at the root and in the play-outs, a small network (judge6m, d 192 x 3) only as judge | **54.6 +- 1.4** | 1.65 | 2.52 |
+| **the strong bot** | `search@bot-models-exp/sp-m3-j6mL-q8e` with the options below (`-Dsearch.k=2`): the trees at the root and in the play-outs, a small network (judge6m, d 192 x 3) only as judge | **54.6 +- 1.4** | 1.16 | 2.03 |
 | the same with the larger judge5b | `search@bot-models-exp/sp-m3-j5-q8e` (or `-j5L-q8e`, the same play read leaner) | 54.7 +- 1.4 | 2.1 | 2.99 |
-| **the strong bot, every card action searched** | the strong bot with `-Dsearch.gate=1.01` | **56.8 +- 1.4** | 2.6 | 3.46 |
+| **the strong bot, every card action searched** | the strong bot with `-Dsearch.gate=1.01` | **56.8 +- 1.4** | 2.06 | 2.93 |
 | ... and three candidates | with `-Dsearch.gate=1.01 -Dsearch.k=3` | 57.1 +- 1.4 | 4.0 | 4.84 |
 | sp-m3-trees, the cheapest | `general@bot-models-exp/sp-m3-trees` | 49.8 +- 1.4 | 0.16 | 1.08 |
 
@@ -2205,6 +2205,22 @@ search **54.6 +- 1.3, 0.0 +- 1.4 matched against judge6m**. From 0.685 to 0.750 
 that it does not. Whatever limits the search now, it is not how well the judge ranks whole-game positions; the judge
 question is closed until the search asks something else of it (two answers' positions a few steps apart differ by
 far less than two games do).
+
+**Clean costs, and Fellowship plays (2026-11-10, evening).** Today's costs above were taken with a judge training
+beside them and are ~15-20% high. Alone on the machine, the same seeded runs again (each replayed its first run
+exactly, 1,584 of 1,584 pairs):
+
+| the strong bot (small judge, k 2) | against sp-m3 | CPU-s a game | a side |
+|---|---|---|---|
+| gate 0.6 | 54.6 +- 1.4 | 2.03 (2.52 beside the training) | **1.16** |
+| **gate 1** | **56.8 +- 1.4** | 2.93 (3.46) | **2.06** |
+| gate 1 + Fellowship plays (cap 300 a game) | 57.3 +- 1.4 | 5.34 | 4.47 |
+
+Fellowship plays on top of the open gate: **+0.5 +- 1.5** matched, for more than twice the cost (73 searches a game
+against 52, play-outs of 22 steps to the turn's end against 12). Not worth it; the other phases' open gate is.
+So: sp-m3 0.87 a side; the strong bot at gate 0.6 1.16 (+4.6 points for a third more CPU); at gate 1 2.06 (+6.8).
+Trap: `paired/judge-k.sh` put EXTRA before its own `-Dsearch.contexts`, and the last `-D` wins, so a contexts
+override did nothing (the first Fellowship run was the gate-1 run again); `judge-kx.sh` puts EXTRA last.
 
 ## How human is "agreement with people", and play by precedent (2026-10-31)
 
