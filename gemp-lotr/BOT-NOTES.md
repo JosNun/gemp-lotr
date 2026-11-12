@@ -2266,6 +2266,23 @@ itself, 40,000 games on the training decks -> `labels/nn/teach-1111/steps.jsonl`
 the skirmish, Shadow and other card-action slots in turn on their old data plus the teacher's rows (sp-m4a/b/c), each
 against sp-m3 on the seeded test decks and matched against sp-m3-trees. Results in `teach-1111/fit.log`.
 
+**The teacher's first round: the trees two points stronger at the same cost (2026-11-12).** 40,000 games of the
+strong bot against itself (39,994 finished, 3.05 CPU-s a game) gave 1,705,326 label rows: 4.23M decisions searched,
+845,000 through both rounds and written, 314,724 answered differently from the trees. Each slot refit on its old data
+plus its teacher rows (500 x 96 trees, the old row caps, so the teacher is a quarter to a half of each fit), each
+bot against sp-m3 on the test decks, seed 1, 3,168 games, matched against sp-m3-trees (49.8):
+
+| bot | slots refit | teacher rows | fit | against sp-m3 | matched against sp-m3-trees |
+|---|---|---|---|---|---|
+| sp-m4a | skirmish | 771,114 | 157 min | 51.5 +- 1.4 | **+1.6 +- 1.1** |
+| **sp-m4b** | + Shadow | 433,184 | 269 min | **52.0 +- 1.4** | **+2.2 +- 1.5** |
+| sp-m4c | + maneuver, archery, assignment, regroup | 501,028 | 88 min | 51.8 +- 1.4 | +1.9 +- 1.7 |
+
+The first gain to the cheap bot since sel10-big5: the skirmish slot carries most of it, the Shadow slot perhaps half
+a point more, the small phases nothing. **sp-m4b is the trees to build on** (0.16 CPU-s a side, as before). A third
+of the search's seven points are in the trees after one round. Not yet measured: agreement with people, the bot with
+sp-m3's network on top, and the search on these trees (the second round's teacher).
+
 ## How human is "agreement with people", and play by precedent (2026-10-31)
 
 **The measure rewards the consensus.** The user asked whether a real person would score higher on it than the bot. No:

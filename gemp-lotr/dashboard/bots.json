@@ -2350,6 +2350,27 @@
    },
    "july": null,
    "note": "Matched game for game against four play-outs: +0.2 points +- 0.6. Per-format results and a second seed in BOT-NOTES (overnight 2026-11-10/11)."
+  },
+  {
+   "id": "sp-m4b",
+   "date": "2026-11-12",
+   "kind": "trees",
+   "parent": "sp-m3-trees",
+   "what": "sp-m3's trees with the skirmish and Shadow card-action slots refit on their old data plus the strong bot's answers (40,000 games of the open-gate search against itself, 1.2M label rows for those slots).",
+   "strength": {
+    "a": "sp-m4b",
+    "b": "sp-m3",
+    "rate": 52.0,
+    "ci": 1.4,
+    "source": "labels/nn/paired/sp-m4b-vs-sp-m3-test-seed1.out (test decks, 4 games a matchup, seed 1, 3,168 games, interval by pair)"
+   },
+   "cost": {
+    "total": 1.1,
+    "vs": "sp-m3",
+    "source": "labels/nn/paired/sp-m4b-vs-sp-m3-test-seed1.out (the same run; sp-m3 0.87 a side)"
+   },
+   "july": null,
+   "note": "Matched game for game against sp-m3-trees: +2.2 points +- 1.5. Skirmish slot alone (sp-m4a) +1.6 +- 1.1; with the small phases too (sp-m4c) +1.9 +- 1.7."
   }
  ]
 }
