@@ -2354,7 +2354,7 @@
   {
    "id": "sp-m4b",
    "date": "2026-11-12",
-   "kind": "trees",
+   "kind": "plain",
    "parent": "sp-m3-trees",
    "what": "sp-m3's trees with the skirmish and Shadow card-action slots refit on their old data plus the strong bot's answers (40,000 games of the open-gate search against itself, 1.2M label rows for those slots).",
    "strength": {
