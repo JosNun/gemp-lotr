@@ -7,7 +7,9 @@ runs headless from this directory; no Docker, no database.
 
 | bot | how | against sp-m3 | CPU-s a side | a game against sp-m3 |
 |---|---|---|---|---|
-| **sp-m3**, the cheap bot that plays like people | `general@bot-models-exp/sp-m3` | -- | 0.87 | 1.73 |
+| **sp-m4**, the cheap bot that plays like people (2026-11-12) | `general@bot-models-exp/sp-m4`: sp-m3 with its skirmish and Shadow trees taught by the strong bot; July agreement 76.4%, as sp-m3 | **53.0 +- 1.1** | ~1.0 | 1.92 |
+| sp-m4b, the cheapest | `general@bot-models-exp/sp-m4b`: sp-m4's trees alone | 52.0 +- 1.4 | 0.2 | 1.10 |
+| sp-m3, the yardstick (the cheap bot until 2026-11-12) | `general@bot-models-exp/sp-m3` | -- | 0.87 | 1.73 |
 | **the strong bot** | `search@bot-models-exp/sp-m3-j6mL-q8e` with the options below (`-Dsearch.k=2`): the trees at the root and in the play-outs, a small network (judge6m, d 192 x 3) only as judge | **54.6 +- 1.4** | 1.16 | 2.03 |
 | the same with the larger judge5b | `search@bot-models-exp/sp-m3-j5-q8e` (or `-j5L-q8e`, the same play read leaner) | 54.7 +- 1.4 | 2.1 | 2.99 |
 | **the strong bot, every card action searched** | the same with `-Dsearch.gate=1.01 -Dsearch.rollouts=2` | **57.0 +- 1.4** | 1.60 | 2.47 |
@@ -2288,6 +2290,24 @@ sp-m3-trees 49.4, sp-m4b **52.6 +- 1.4**, matched **+3.2 +- 1.4**. The open-gate
 sp-m4b (test decks, seed 1): **57.0 +- 1.4 at 2.51 CPU-s a game, +0.0 +- 1.5** matched against the search on
 sp-m3-trees. The trees closed two of the seven points; the search's level did not move. So a second round has no
 stronger teacher -- it can only pull the trees further toward the same 57.
+
+**sp-m4: the cheap bot with the taught trees -- stronger and as human (2026-11-12).** sp-m4 is sp-m3 with sp-m4b's
+card-action trees, network and mix unchanged (the trees decide skirmishes alone, 0.6 elsewhere). Agreement with people
+on held-out July (30% of decisions, 36,430 asked; `labels/hl/hl-*.tsv`), and sp-m4 against sp-m3 on the test decks,
+seed 1:
+
+| | sp-m3-trees | sp-m4b | sp-m3 | **sp-m4** |
+|---|---|---|---|---|
+| July agreement, all decisions | 75.1% | 75.0% | 76.4% | **76.4%** |
+| mean over kinds | 72.5% | 72.4% | 73.5% | 73.5% |
+| skirmish plays | 82.4% | 82.9% | 82.6% | 82.7% |
+| Shadow plays | 73.5% | 72.8% | 74.0% | 74.3% |
+| against sp-m3 | 49.8 +- 1.4 | 52.0 +- 1.4 | -- | **53.0 +- 1.1** (209 / 1,260 / 115) |
+
+By the adoption rule (clearly stronger, no less like people) **sp-m4 replaces sp-m3 as the cheap bot that plays like
+people, and sp-m4b replaces sp-m3-trees as the cheapest.** The search's answers did not pull the trees away from
+people. The game cost 1.92 CPU-s against sp-m3's mirror 1.73 -- the same models, so longer games or noise; not
+re-timed.
 
 ## How human is "agreement with people", and play by precedent (2026-10-31)
 

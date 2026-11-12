@@ -2371,6 +2371,31 @@
    },
    "july": null,
    "note": "Matched game for game against sp-m3-trees: +2.2 points +- 1.5. Skirmish slot alone (sp-m4a) +1.6 +- 1.1; with the small phases too (sp-m4c) +1.9 +- 1.7."
+  },
+  {
+   "id": "sp-m4",
+   "date": "2026-11-12",
+   "kind": "plain",
+   "parent": "sp-m3",
+   "what": "sp-m3 with sp-m4b's card-action trees (skirmish and Shadow slots taught by the strong bot); the network and its mix unchanged.",
+   "strength": {
+    "a": "sp-m4",
+    "b": "sp-m3",
+    "rate": 53.0,
+    "ci": 1.1,
+    "source": "labels/nn/paired/sp-m4-vs-sp-m3-test-seed1.out (test decks, 4 games a matchup, seed 1, 3,168 games, interval by pair)"
+   },
+   "cost": {
+    "total": 1.92,
+    "vs": "sp-m3",
+    "source": "labels/nn/paired/sp-m4-vs-sp-m3-test-seed1.out (the same run; sp-m3 0.87 a side)"
+   },
+   "july": {
+    "value": 76.4,
+    "measure": "strict",
+    "source": "labels/hl/hl-sp-m4.tsv (30% of July's decisions, 36,429 asked; sp-m3 76.4 on the same)"
+   },
+   "note": "The first cheap bot to beat sp-m3. Its trees alone (sp-m4b) 52.0 +- 1.4."
   }
  ]
 }
