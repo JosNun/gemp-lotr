@@ -2283,6 +2283,12 @@ a point more, the small phases nothing. **sp-m4b is the trees to build on** (0.1
 of the search's seven points are in the trees after one round. Not yet measured: agreement with people, the bot with
 sp-m3's network on top, and the search on these trees (the second round's teacher).
 
+**sp-m4b confirmed; the search does not stack on it.** Training decks (the teacher's own), seed 2, 3,200 games:
+sp-m3-trees 49.4, sp-m4b **52.6 +- 1.4**, matched **+3.2 +- 1.4**. The open-gate search rooted and played out on
+sp-m4b (test decks, seed 1): **57.0 +- 1.4 at 2.51 CPU-s a game, +0.0 +- 1.5** matched against the search on
+sp-m3-trees. The trees closed two of the seven points; the search's level did not move. So a second round has no
+stronger teacher -- it can only pull the trees further toward the same 57.
+
 ## How human is "agreement with people", and play by precedent (2026-10-31)
 
 **The measure rewards the consensus.** The user asked whether a real person would score higher on it than the bot. No:
