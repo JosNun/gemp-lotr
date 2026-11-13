@@ -321,6 +321,10 @@ public class BotVsBot {
                     Searching.nanos.get() / 1e9 / Searching.searched.get(), Searching.playOuts.get(),
                     (double) Searching.steps.get() / Math.max(1, Searching.playOuts.get()), Searching.judged.get(),
                     Searching.stoppedEarly.get());
+        if (Searching.assignSearched.get() > 0)
+            System.out.printf("assignments: %d searched, %d answered differently from the bot, %d stopped after the "
+                            + "first round%n", Searching.assignSearched.get(), Searching.assignChanged.get(),
+                    Searching.assignStopped.get());
         System.exit(0); // ends any game thread still spinning in the engine
     }
 
