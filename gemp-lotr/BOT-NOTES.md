@@ -12,7 +12,8 @@ runs headless from this directory; no Docker, no database.
 | sp-m3, the yardstick (the cheap bot until 2026-11-12) | `general@bot-models-exp/sp-m3` | -- | 0.87 | 1.73 |
 | **the strong bot** | `search@bot-models-exp/sp-m3-j6mL-q8e` with the options below (`-Dsearch.k=2`): the trees at the root and in the play-outs, a small network (judge6m, d 192 x 3) only as judge | **54.6 +- 1.4** | 1.16 | 2.03 |
 | the same with the larger judge5b | `search@bot-models-exp/sp-m3-j5-q8e` (or `-j5L-q8e`, the same play read leaner) | 54.7 +- 1.4 | 2.1 | 2.99 |
-| **the strong bot, every card action searched** | the same with `-Dsearch.gate=1.01 -Dsearch.rollouts=2` | **57.0 +- 1.4** | 1.60 | 2.47 |
+| **the strong bot (2026-11-13): assignments searched too** | as below with `-Dsearch.gate=1.01 -Dsearch.rollouts=2 -Dsearch.root=bot-models-exp/sp-m4b -Dsearch.policy=bot-models-exp/sp-m4b -Dsearch.maxPerGame=300 -Dsearch.contexts=skirmish,shadow,maneuver,archery,assignment,regroup,assign` | **61.0 +- 1.4** | ~2.4 | 3.30 |
+| every card action searched, no assignments | the same with `-Dsearch.gate=1.01 -Dsearch.rollouts=2` | 57.0 +- 1.4 | 1.60 | 2.47 |
 | ... and three candidates | with `-Dsearch.gate=1.01 -Dsearch.k=3` | 57.1 +- 1.4 | 4.0 | 4.84 |
 | sp-m3-trees, the cheapest | `general@bot-models-exp/sp-m3-trees` | 49.8 +- 1.4 | 0.16 | 1.08 |
 
@@ -2308,6 +2309,39 @@ By the adoption rule (clearly stronger, no less like people) **sp-m4 replaces sp
 people, and sp-m4b replaces sp-m3-trees as the cheapest.** The search's answers did not pull the trees away from
 people. The game cost 1.92 CPU-s against sp-m3's mirror 1.73 -- the same models, so longer games or noise; not
 re-timed.
+
+**The teacher's second round: under a point (2026-11-13).** 19,200 games of the search on sp-m4b against itself,
+Fellowship plays searched too (7.1 CPU-s a game), 1,318,110 rows (218k Fellowship, 517k skirmish, 283k Shadow). Each
+slot of sp-m4b refit in turn (`labels/scripts/teach-fit-1112.sh`), each bot against sp-m3 on the test decks, seed 1,
+matched against sp-m4b (52.0):
+
+| bot | slot refit | fit | against sp-m3 | matched against sp-m4b |
+|---|---|---|---|---|
+| sp-m5a | Fellowship (its first teacher rows) | 185 min | 52.8 +- 1.4 | +0.8 +- 1.2 |
+| sp-m5b | + skirmish (both rounds' rows) | 368 min | 52.9 +- 1.3 | +0.9 +- 1.3 |
+| sp-m5c | + Shadow (both rounds'; October's teacher rows left out) | 290 min | 52.3 +- 1.4 | +0.3 +- 1.5 |
+
+Nothing outside its interval; what there is, is the Fellowship slot's. A teacher no stronger than the first teaches
+little more. sp-m4b stays. Trap: the Shadow fit with card text runs out of a 28 GB heap at 1.88M rows, before the
+row cap applies (1.6M fits).
+
+**Who fights whom, searched: +4 points (2026-11-13).** The play-time search had only ever branched card plays. With
+`assign` among `-Dsearch.contexts`, at each assignment the bot's own answer and the assignment model's next three
+(`-Dsearch.assignK`) are played out through the skirmishes they set up and judged after them; the bot's own stands
+unless another beats it by `-Dsearch.assignMargin`. The open-gate search on sp-m4b (k 2, rollouts 2), test decks,
+seed 1, 3,168 games, matched against the same search without it (57.0 +- 1.4 at 2.51 CPU-s a game):
+
+| margin | against sp-m3 | matched | CPU-s a game | assignments changed (of ~19,800 searched) |
+|---|---|---|---|---|
+| **0.03** | **61.0 +- 1.4** | **+4.0 +- 1.4** | 3.30 | 2,733 (14%) |
+| 0 | 60.8 +- 1.4 | +3.8 +- 1.4 | 3.20 | 4,662 (24%) |
+| 0.06 | 60.3 +- 1.4 | +3.3 +- 1.4 | 3.23 | 1,811 (9%) |
+
+6.3 assignments a game for the searching side, half of them stopped after the first round; the margin hardly
+matters. **The strong bot: the open-gate search on sp-m4b with assignments searched, 61.0 +- 1.4 against sp-m3 at
+~2.4 CPU-s a side** (57.0 at 1.6 without). More in one step than the gate, the judge and the candidates together
+since the trees-root search -- and a stronger teacher for the trees, which is what the second round lacked. Next:
+assignment labels for FpAssignmentTrainer and ShadowAssignmentTrainer from it.
 
 ## How human is "agreement with people", and play by precedent (2026-10-31)
 
