@@ -165,7 +165,37 @@ public final class Searching implements BotPlayer {
         nanos.addAndGet(System.nanoTime() - t0);
         if (!best.equals(own))
             assignChanged.incrementAndGet();
+        if (STEPS != null && first < worlds.length)
+            assignmentSteps(gs, d, best, sums.keySet());
         return best;
+    }
+
+    /** -Dsearch.steps: an assignment searched through both rounds, as BotTeach.teachAssignment writes its labels. */
+    private void assignmentSteps(GameState gs, AwaitingDecision d, String pick, Collection<String> played) {
+        try {
+            double[] state = new com.gempukku.lotro.bots.rl.fotrstarters.GeneralStateFeatures()
+                    .extractFeatures(gs, d, getName());
+            boolean fp = getName().equals(gs.getCurrentPlayerId());
+            StringBuilder lines = new StringBuilder();
+            for (String answer : played)
+                try {
+                    var probe = com.gempukku.lotro.bots.rl.fotrstarters.models.assignment.AssignmentProbe.features(gs, d,
+                            com.gempukku.lotro.bots.rl.fotrstarters.models.assignment.AssignmentProbe.parse(answer));
+                    var step = new com.gempukku.lotro.bots.rl.LearningStep(state,
+                            new com.gempukku.lotro.bots.rl.semanticaction.AssignMinionsAction(answer, d, gs, fp)
+                                    .withProbe(probe), fp, d);
+                    step.reward = answer.equals(pick) ? 10.0 : 0.0;
+                    lines.append(step.toJson()).append('\n');
+                } catch (RuntimeException ignored) {
+                    // an assignment the semantic action cannot describe
+                }
+            synchronized (STEPS) {
+                STEPS.print(lines);
+                STEPS.flush();
+            }
+        } catch (RuntimeException e) {
+            // a label lost; the game goes on
+        }
     }
 
     /** The trees' scores of a card action (each option's probability, then pass's) as log-probabilities. */
