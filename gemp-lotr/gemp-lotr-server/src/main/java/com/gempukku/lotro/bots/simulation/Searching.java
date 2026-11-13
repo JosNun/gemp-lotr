@@ -78,6 +78,96 @@ public final class Searching implements BotPlayer {
         this.treesRoot = treesRoot;
     }
 
+    /**
+     * Who fights whom, searched (2026-11-13; "assign" in search.contexts). The search had only ever branched card
+     * plays; the assignment decides most games, and the old teacher gained most when it searched them (BOT-NOTES,
+     * 2026-10-18/20). The candidates are the bot's own assignment and the assignment model's next search.assignK
+     * (FotrStarterBot.assignmentCandidates, legal under the rules), each played out through the skirmishes it sets up
+     * and judged after them. The model gives the candidates no probabilities to anchor on, so the bot's own stands
+     * unless another beats it by search.assignMargin (a guess, not measured: 0.03 is what a card action 0.6 of a nat
+     * less likely must make up at lambda 0.05) -- one play-out answering alone overturned a third of all card actions
+     * and lost. Two rounds as for card actions: the first play-outs, the rest only where they spread the candidates.
+     */
+    static final int ASSIGN_K = Integer.getInteger("search.assignK", 3);
+    static final double ASSIGN_MARGIN = Double.parseDouble(System.getProperty("search.assignMargin", "0.03"));
+    static final java.util.concurrent.atomic.AtomicLong assignSearched = new java.util.concurrent.atomic.AtomicLong(),
+            assignChanged = new java.util.concurrent.atomic.AtomicLong(),
+            assignStopped = new java.util.concurrent.atomic.AtomicLong();
+
+    private String searchAssignment(GameState gs, AwaitingDecision d, String own) {
+        if (!(inner instanceof com.gempukku.lotro.bots.rl.fotrstarters.FotrStarterBot bot))
+            return own;
+        int[] used = perGame.computeIfAbsent(gs.getGame(), k -> new int[1]);
+        if (used[0] >= MAX_PER_GAME)
+            return own;
+        LinkedHashSet<String> cands = new LinkedHashSet<>();
+        cands.add(own);
+        cands.addAll(bot.assignmentCandidates(gs, d, ASSIGN_K + 1));
+        while (cands.size() > ASSIGN_K + 1) {
+            String last = null;
+            for (String c : cands)
+                last = c;
+            cands.remove(last);
+        }
+        if (cands.size() < 2)
+            return own;
+        used[0]++;
+        assignSearched.incrementAndGet();
+        long t0 = System.nanoTime();
+        long[] worlds = new SplittableRandom(com.gempukku.lotro.bots.BotRandom.current().nextLong()).longs(ROLLOUTS)
+                .toArray();
+        int first = STAGE1 > 0 ? Math.min(STAGE1, worlds.length) : worlds.length;
+        Map<String, double[]> sums = new LinkedHashMap<>(); // candidate -> {value sum, play-outs}
+        for (String c : cands) {
+            double[] qn = new double[2];
+            for (int i = 0; i < first; i++) {
+                Double v = playOut(gs, d, c, worlds[i], false, false, true);
+                if (v != null) {
+                    qn[0] += v;
+                    qn[1]++;
+                }
+            }
+            sums.put(c, qn);
+        }
+        if (first < worlds.length) {
+            double lo = Double.POSITIVE_INFINITY, hi = Double.NEGATIVE_INFINITY;
+            for (double[] qn : sums.values())
+                if (qn[1] > 0) {
+                    lo = Math.min(lo, qn[0] / qn[1]);
+                    hi = Math.max(hi, qn[0] / qn[1]);
+                }
+            if (!(hi - lo >= SPREAD)) {
+                assignStopped.incrementAndGet();
+                nanos.addAndGet(System.nanoTime() - t0);
+                return own; // the assignments look alike: the bot's own
+            }
+            for (var e : sums.entrySet())
+                for (int i = first; i < worlds.length; i++) {
+                    Double v = playOut(gs, d, e.getKey(), worlds[i], false, false, true);
+                    if (v != null) {
+                        e.getValue()[0] += v;
+                        e.getValue()[1]++;
+                    }
+                }
+        }
+        String best = own;
+        double bestScore = Double.NEGATIVE_INFINITY;
+        for (var e : sums.entrySet()) {
+            double q = e.getValue()[0], n = e.getValue()[1];
+            if (n == 0)
+                continue;
+            double score = q / n + (e.getKey().equals(own) ? ASSIGN_MARGIN : 0);
+            if (score > bestScore) {
+                bestScore = score;
+                best = e.getKey();
+            }
+        }
+        nanos.addAndGet(System.nanoTime() - t0);
+        if (!best.equals(own))
+            assignChanged.incrementAndGet();
+        return best;
+    }
+
     /** The trees' scores of a card action (each option's probability, then pass's) as log-probabilities. */
     private static double[] treesLogProbs(double[] scores) {
         double[] t = new double[scores.length];
@@ -101,6 +191,8 @@ public final class Searching implements BotPlayer {
         String own = inner.chooseAction(gs, d);
         try {
             String kind = BoardDump.kind(d);
+            if (own != null && net != null && "assign".equals(kind) && CONTEXTS.contains("assign"))
+                return searchAssignment(gs, d, own);
             if (own == null || net == null || !("action".equals(kind) || "move".equals(kind)))
                 return own;
             String context;
@@ -324,6 +416,12 @@ public final class Searching implements BotPlayer {
     /** As above; {@code immediate}: judge the first position of this player's after the answer, without playing on. */
     private Double playOut(GameState live, AwaitingDecision d, String answer, long world, boolean turnLong,
                            boolean immediate) {
+        return playOut(live, d, answer, world, turnLong, immediate, false);
+    }
+
+    /** As above; {@code fights}: play on until the assignment and skirmish phases are over (or the turn is). */
+    private Double playOut(GameState live, AwaitingDecision d, String answer, long world, boolean turnLong,
+                           boolean immediate, boolean fights) {
         String me = getName();
         try {
             DefaultLotroGame copy = copier.copy((DefaultLotroGame) live.getGame());
@@ -370,8 +468,11 @@ public final class Searching implements BotPlayer {
                         }
                     if (next == null)
                         return null;
+                    var now = gs.getCurrentPhase();
                     boolean far = immediate || (turnLong ? gs.getTurnNumber() > turn
-                            : gs.getCurrentPhase() != phase || gs.getTurnNumber() > turn);
+                            : fights ? gs.getTurnNumber() > turn || now != com.gempukku.lotro.common.Phase.ASSIGNMENT
+                                    && now != com.gempukku.lotro.common.Phase.SKIRMISH
+                            : now != phase || gs.getTurnNumber() > turn);
                     if (far && who.equals(me) && BoardDump.kind(next) != null) {
                         double[] st = BoardNet2.state(gs, next, me);
                         double[] o = st == null ? null : net.outcome(copy, next, me, st);
