@@ -330,6 +330,13 @@ public class BotVsBot {
                 System.out.printf("%s: %d searched, %d answered differently from the bot, %d stopped after the first "
                         + "round%n", k, c[0].get(), c[1].get(), c[2].get());
         });
+        if (!Searching.SELECT_PROMPTS.isEmpty()) {
+            System.out.println("picks by prompt: searched, answered differently, stopped after the first round");
+            Searching.SELECT_PROMPTS.entrySet().stream()
+                    .sorted((x, y) -> Long.compare(y.getValue()[0].get(), x.getValue()[0].get())).limit(60)
+                    .forEach(e -> System.out.printf("  %7d %6d %7d  %s%n", e.getValue()[0].get(),
+                            e.getValue()[1].get(), e.getValue()[2].get(), e.getKey()));
+        }
         System.exit(0); // ends any game thread still spinning in the engine
     }
 

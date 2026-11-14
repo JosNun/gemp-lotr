@@ -253,8 +253,35 @@ public final class Searching implements BotPlayer {
         List<String> cands = new ArrayList<>();
         cands.add(own);
         cands.addAll(options.subList(0, Math.min(SELECT_K, options.size())));
+        String prompt = prompt(context, d);
+        if (SELECT_ONLY != null && !SELECT_ONLY.matcher(prompt).find())
+            return own;
         used[0]++;
-        return byPlayOuts(gs, d, own, cands, false, SELECT_MARGIN, SELECT_COUNTS.get(context)).best();
+        var by = SELECT_PROMPTS.computeIfAbsent(prompt, k -> counts());
+        Played r = byPlayOuts(gs, d, own, cands, false, SELECT_MARGIN, SELECT_COUNTS.get(context));
+        by[0].incrementAndGet();
+        if (!r.best().equals(own))
+            by[1].incrementAndGet();
+        if (!r.bothRounds())
+            by[2].incrementAndGet();
+        return r.best();
+    }
+
+    /**
+     * Which picks and choices the search overturns (2026-11-14): 86% of picks stop after the first round and 3% change
+     * the answer, so most of their cost confirms the bot. Counts by prompt -- the context and the decision's text with
+     * tags and numbers taken out, 50 letters of it -- are printed after a run ("picks by prompt"), and
+     * -Dsearch.selectOnly=&lt;regex&gt; searches only the prompts it finds.
+     */
+    static final Map<String, java.util.concurrent.atomic.AtomicLong[]> SELECT_PROMPTS =
+            new java.util.concurrent.ConcurrentHashMap<>();
+    static final java.util.regex.Pattern SELECT_ONLY = System.getProperty("search.selectOnly") == null ? null
+            : java.util.regex.Pattern.compile(System.getProperty("search.selectOnly"));
+
+    private static String prompt(String context, AwaitingDecision d) {
+        String t = d.getText() == null ? "" : d.getText().replaceAll("<[^>]*>", "").replaceAll("[0-9]+", "#")
+                .replaceAll("\\s+", " ").trim();
+        return context + ": " + (t.length() > 50 ? t.substring(0, 50) : t);
     }
 
     /** -Dsearch.steps: an assignment searched through both rounds, as BotTeach.teachAssignment writes its labels. */
