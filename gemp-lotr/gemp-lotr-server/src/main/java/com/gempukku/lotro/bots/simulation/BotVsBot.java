@@ -402,6 +402,8 @@ public class BotVsBot {
             a = new Recording(a, BOARDS, BOARDS_RATE);
         if (BOARDS != null && (BOARDS_SEAT.equals("B") || BOARDS_SEAT.equals("both")))
             b = new Recording(b, BOARDS, BOARDS_RATE);
+        a = ReplayLog.wrap(a);
+        b = ReplayLog.wrap(b);
         Map<String, LotroDeck> decks = new HashMap<>();
         decks.put(DECK_1, deck1);
         decks.put(DECK_2, deck2);
@@ -420,6 +422,7 @@ public class BotVsBot {
         if (log != null)
             GameLog.CURRENT.set(log);
         A_NAME.set(aName);
+        ReplayLog.start();
         BotGame.Result r;
         try {
             r = BotGame.play(format, ctx.library(), players, decks, opts.maxDecisions(), seed);
@@ -428,6 +431,21 @@ public class BotVsBot {
             A_NAME.remove();
         }
         long cpu = threads.getCurrentThreadCpuTime() - cpu0;
+        if (ReplayLog.DIR != null) {
+            com.alibaba.fastjson2.JSONObject meta = new com.alibaba.fastjson2.JSONObject();
+            meta.put("format", format.getName());
+            meta.put("botA", opts.kindA());
+            meta.put("botB", opts.kindB());
+            meta.put("playerA", aName);
+            meta.put("playerB", bName);
+            meta.put("deckA", decks.get(aName).getDeckName());
+            meta.put("deckB", decks.get(bName).getDeckName());
+            meta.put("winner", r.winner() == null ? null : r.winner().equals(aName) ? "A" : "B");
+            meta.put("first", r.first() == null ? null : r.first().equals(aName) ? "A" : "B");
+            meta.put("reason", r.reason());
+            meta.put("turns", r.turns());
+            ReplayLog.finish(meta, matchup, game);
+        }
         if (r.finished())
             Recording.outcome(OUTCOMES, gameId, r.winner(), r.reason());
         if (log != null) {

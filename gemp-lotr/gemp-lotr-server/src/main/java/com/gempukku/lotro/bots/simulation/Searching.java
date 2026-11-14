@@ -47,6 +47,9 @@ public final class Searching implements BotPlayer {
      */
     static final java.io.PrintWriter BOARDS = Recording.open(System.getProperty("search.boards"));
 
+    /** What the bot would have answered, where the last decision on this thread was searched (ReplayLog shows it). */
+    static final ThreadLocal<String> LAST_OWN = new ThreadLocal<>();
+
     /** Searches made, decisions seen, by the bots of this run. */
     static final java.util.concurrent.atomic.AtomicLong searched = new java.util.concurrent.atomic.AtomicLong(),
             changed = new java.util.concurrent.atomic.AtomicLong(), nanos = new java.util.concurrent.atomic.AtomicLong(),
@@ -114,6 +117,7 @@ public final class Searching implements BotPlayer {
         if (cands.size() < 2)
             return own;
         used[0]++;
+        LAST_OWN.set(own);
         Played r = byPlayOuts(gs, d, own, cands, true, ASSIGN_MARGIN, ASSIGN_COUNTS);
         if (STEPS != null && r.bothRounds())
             assignmentSteps(gs, d, r.best(), r.sums(), own);
@@ -258,6 +262,7 @@ public final class Searching implements BotPlayer {
                 || SELECT_SKIP != null && SELECT_SKIP.matcher(prompt).find())
             return own;
         used[0]++;
+        LAST_OWN.set(own);
         var by = SELECT_PROMPTS.computeIfAbsent(prompt, k -> counts());
         Played r = byPlayOuts(gs, d, own, cands, false, SELECT_MARGIN, SELECT_COUNTS.get(context));
         by[0].incrementAndGet();
@@ -391,6 +396,7 @@ public final class Searching implements BotPlayer {
             if (cands.size() < 2)
                 return own;
             used[0]++;
+            LAST_OWN.set(own);
             searched.incrementAndGet();
             long t0 = System.nanoTime();
             boolean turnLong = TURN_LONG.contains(context);
