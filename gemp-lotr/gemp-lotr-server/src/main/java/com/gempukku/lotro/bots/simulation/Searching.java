@@ -93,6 +93,8 @@ public final class Searching implements BotPlayer {
     static final java.util.concurrent.atomic.AtomicLong assignSearched = new java.util.concurrent.atomic.AtomicLong(),
             assignChanged = new java.util.concurrent.atomic.AtomicLong(),
             assignStopped = new java.util.concurrent.atomic.AtomicLong();
+    private static final java.util.concurrent.atomic.AtomicLong[] ASSIGN_COUNTS = {assignSearched, assignChanged,
+            assignStopped};
 
     private String searchAssignment(GameState gs, AwaitingDecision d, String own) {
         if (!(inner instanceof com.gempukku.lotro.bots.rl.fotrstarters.FotrStarterBot bot))
@@ -112,7 +114,26 @@ public final class Searching implements BotPlayer {
         if (cands.size() < 2)
             return own;
         used[0]++;
-        assignSearched.incrementAndGet();
+        Played r = byPlayOuts(gs, d, own, cands, true, ASSIGN_MARGIN, ASSIGN_COUNTS);
+        if (STEPS != null && r.bothRounds())
+            assignmentSteps(gs, d, r.best(), r.sums(), own);
+        return r.best();
+    }
+
+    /** What a search of whole answers came to: the answer, each candidate's {value sum, play-outs}, and whether the
+     *  second round was played (the first did not find them alike). */
+    private record Played(String best, Map<String, double[]> sums, boolean bothRounds) {
+    }
+
+    /**
+     * Candidates that are whole answers with no probabilities to anchor on (assignments, picks of one card, choices):
+     * each played out in the same worlds -- through the skirmishes if {@code fights}, else to the end of the phase --
+     * in two rounds as card actions are, and the bot's own answer kept unless another's mean value beats it by
+     * {@code margin}. {@code counts}: {searched, answered differently, stopped after the first round}.
+     */
+    private Played byPlayOuts(GameState gs, AwaitingDecision d, String own, Collection<String> cands, boolean fights,
+                              double margin, java.util.concurrent.atomic.AtomicLong[] counts) {
+        counts[0].incrementAndGet();
         long t0 = System.nanoTime();
         long[] worlds = new SplittableRandom(com.gempukku.lotro.bots.BotRandom.current().nextLong()).longs(ROLLOUTS)
                 .toArray();
@@ -121,7 +142,7 @@ public final class Searching implements BotPlayer {
         for (String c : cands) {
             double[] qn = new double[2];
             for (int i = 0; i < first; i++) {
-                Double v = playOut(gs, d, c, worlds[i], false, false, true);
+                Double v = playOut(gs, d, c, worlds[i], false, false, fights);
                 if (v != null) {
                     qn[0] += v;
                     qn[1]++;
@@ -137,13 +158,13 @@ public final class Searching implements BotPlayer {
                     hi = Math.max(hi, qn[0] / qn[1]);
                 }
             if (!(hi - lo >= SPREAD)) {
-                assignStopped.incrementAndGet();
+                counts[2].incrementAndGet();
                 nanos.addAndGet(System.nanoTime() - t0);
-                return own; // the assignments look alike: the bot's own
+                return new Played(own, sums, false); // the candidates look alike: the bot's own
             }
             for (var e : sums.entrySet())
                 for (int i = first; i < worlds.length; i++) {
-                    Double v = playOut(gs, d, e.getKey(), worlds[i], false, false, true);
+                    Double v = playOut(gs, d, e.getKey(), worlds[i], false, false, fights);
                     if (v != null) {
                         e.getValue()[0] += v;
                         e.getValue()[1]++;
@@ -156,7 +177,7 @@ public final class Searching implements BotPlayer {
             double q = e.getValue()[0], n = e.getValue()[1];
             if (n == 0)
                 continue;
-            double score = q / n + (e.getKey().equals(own) ? ASSIGN_MARGIN : 0);
+            double score = q / n + (e.getKey().equals(own) ? margin : 0);
             if (score > bestScore) {
                 bestScore = score;
                 best = e.getKey();
@@ -164,10 +185,76 @@ public final class Searching implements BotPlayer {
         }
         nanos.addAndGet(System.nanoTime() - t0);
         if (!best.equals(own))
-            assignChanged.incrementAndGet();
-        if (STEPS != null && first < worlds.length)
-            assignmentSteps(gs, d, best, sums, own);
-        return best;
+            counts[1].incrementAndGet();
+        return new Played(best, sums, first < worlds.length);
+    }
+
+    /**
+     * The picks and choices nothing searched (2026-11-14): which card a cost or an effect lands on, who exerts, which
+     * skirmish next, a choice between a card's options. "select" (a pick of exactly one card in play), "arbitrary"
+     * (one card from a list shown) and "choice" (a multiple choice of up to four answers, "move again?" apart) in
+     * search.contexts: the bot's own answer against up to search.selectK others drawn at random -- there is no one
+     * model that ranks them all -- played out to the end of the phase. The bot's own stands unless beaten by
+     * search.selectMargin (0.03, the assignments' guess carried over, not measured).
+     */
+    static final int SELECT_K = Integer.getInteger("search.selectK", 3);
+    static final double SELECT_MARGIN = Double.parseDouble(System.getProperty("search.selectMargin", "0.03"));
+    static final Map<String, java.util.concurrent.atomic.AtomicLong[]> SELECT_COUNTS = new java.util.TreeMap<>();
+
+    static {
+        for (String k : List.of("select", "arbitrary", "choice"))
+            SELECT_COUNTS.put(k, counts());
+    }
+
+    private static java.util.concurrent.atomic.AtomicLong[] counts() {
+        return new java.util.concurrent.atomic.AtomicLong[]{new java.util.concurrent.atomic.AtomicLong(),
+                new java.util.concurrent.atomic.AtomicLong(), new java.util.concurrent.atomic.AtomicLong()};
+    }
+
+    /** The context a pick or choice is searched under, or null if it is not one of them. */
+    private static String selectContext(AwaitingDecision d) {
+        var p = d.getDecisionParameters();
+        switch (d.getDecisionType()) {
+            case CARD_SELECTION, ARBITRARY_CARDS -> {
+                String[] min = p.get("min"), max = p.get("max");
+                if (min == null || max == null || !"1".equals(min[0]) || !"1".equals(max[0]))
+                    return null;
+                return d.getDecisionType() == com.gempukku.lotro.logic.decisions.AwaitingDecisionType.CARD_SELECTION
+                        ? "select" : "arbitrary";
+            }
+            case MULTIPLE_CHOICE -> {
+                String[] results = p.get("results");
+                return results != null && results.length >= 2 && results.length <= 4 ? "choice" : null;
+            }
+            default -> {
+                return null;
+            }
+        }
+    }
+
+    private String searchSelection(GameState gs, AwaitingDecision d, String own, String context) {
+        var p = d.getDecisionParameters();
+        List<String> options = new ArrayList<>();
+        if (context.equals("choice")) {
+            for (int i = 0; i < p.get("results").length; i++)
+                options.add(String.valueOf(i));
+        } else {
+            String[] ids = p.getOrDefault("cardId", new String[0]), ok = p.get("selectable");
+            for (int i = 0; i < ids.length; i++)
+                if (ok == null || i >= ok.length || "true".equals(ok[i]))
+                    options.add(ids[i]);
+        }
+        if (!options.remove(own) || options.isEmpty())
+            return own; // an answer of another shape than one of the options: not ours to search
+        int[] used = perGame.computeIfAbsent(gs.getGame(), k -> new int[1]);
+        if (used[0] >= MAX_PER_GAME)
+            return own;
+        Collections.shuffle(options, new java.util.Random(com.gempukku.lotro.bots.BotRandom.current().nextLong()));
+        List<String> cands = new ArrayList<>();
+        cands.add(own);
+        cands.addAll(options.subList(0, Math.min(SELECT_K, options.size())));
+        used[0]++;
+        return byPlayOuts(gs, d, own, cands, false, SELECT_MARGIN, SELECT_COUNTS.get(context)).best();
     }
 
     /** -Dsearch.steps: an assignment searched through both rounds, as BotTeach.teachAssignment writes its labels. */
@@ -227,6 +314,11 @@ public final class Searching implements BotPlayer {
             String kind = BoardDump.kind(d);
             if (own != null && net != null && "assign".equals(kind) && CONTEXTS.contains("assign"))
                 return searchAssignment(gs, d, own);
+            if (own != null && net != null && kind == null) {
+                String sel = selectContext(d);
+                if (sel != null && CONTEXTS.contains(sel))
+                    return searchSelection(gs, d, own, sel);
+            }
             if (own == null || net == null || !("action".equals(kind) || "move".equals(kind)))
                 return own;
             String context;

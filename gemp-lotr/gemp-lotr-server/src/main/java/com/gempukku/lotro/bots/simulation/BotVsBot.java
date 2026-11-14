@@ -325,6 +325,11 @@ public class BotVsBot {
             System.out.printf("assignments: %d searched, %d answered differently from the bot, %d stopped after the "
                             + "first round%n", Searching.assignSearched.get(), Searching.assignChanged.get(),
                     Searching.assignStopped.get());
+        Searching.SELECT_COUNTS.forEach((k, c) -> {
+            if (c[0].get() > 0)
+                System.out.printf("%s: %d searched, %d answered differently from the bot, %d stopped after the first "
+                        + "round%n", k, c[0].get(), c[1].get(), c[2].get());
+        });
         System.exit(0); // ends any game thread still spinning in the engine
     }
 
