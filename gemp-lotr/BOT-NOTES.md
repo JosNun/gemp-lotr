@@ -2368,6 +2368,37 @@ prompt because the shipped bot's games are shorter (6.1 turns, 135 prompts a gam
 0.32 ms a prompt (0.04 CPU-s a game); sp-m4b 1.33 (0.30); sp-m4 5.87 (1.31); the strong bot 18.2 (4.26) -- 4x, 18x
 and 57x the shipped bot a prompt.
 
+**Overnight 2026-11-13/14: the assignment labels cut by value, and the search confirmed**
+(`labels/scripts/teach-1114.sh`, `labels/nn/teach-1114/teach.log`).
+
+*Labels by value.* 16,000 games of the assignment-searching bot against itself, dealt afresh (`--seed off`; **trap:
+a mirror with a seed plays each pair's two games identically, so half of rounds 1-3's rows were copies**), 4
+play-outs in the second round, each step carrying its option's value (`searchValue`, `searchOwn`, `searchId`).
+`labels/scripts/relabel.py`: an assignment good within 0.01 of its decision's best, bad a margin or more below, the
+rest left out. FpAssignmentTrainer of sp-m4b on ae-assign.jsonl plus those rows, against sp-m3 on the test decks,
+seed 1, matched against sp-m4b:
+
+| bot | labels | decisions kept | against sp-m3 | matched against sp-m4b |
+|---|---|---|---|---|
+| sp-m6a (round 3) | the answer good, every other candidate bad | ~121,000 | 51.0 +- 1.4 | -1.0 +- 1.3 |
+| sp-m6b | margin 0.05 | 91,041 | 52.5 +- 1.4 | +0.5 +- 1.4 |
+| sp-m6c | margin 0.1 | 55,216 | 52.5 +- 1.4 | +0.5 +- 1.3 |
+
+The blunt labels were the loss; cut by value they do no harm, and no measurable good. The four points assignment
+search finds are in what the play-outs see of the skirmishes to come, not in what this model reads. sp-m4b stays.
+
+*The search itself* (on sp-m4b, open gate, k 2, against sp-m3):
+
+| run | result | matched | CPU-s a game |
+|---|---|---|---|
+| training decks, seed 2, no assignment search | 58.6 +- 1.4 | -- | 2.75 |
+| training decks, seed 2, **assignments searched** | **62.7 +- 1.4** | **+4.1 +- 1.4** | 3.72 |
+| test decks, seed 1, five candidate assignments (`-Dsearch.assignK=5`) | 61.8 +- 1.4 | +0.8 +- 0.8 against three | 3.60 |
+| test decks, seed 1, four play-outs | 61.2 +- 1.4 | +0.2 +- 0.7 against two | 4.21 |
+
+Assignment search is +4 on both deck sets and both seeds. Five candidates may add under a point for 0.3 CPU-s a
+game; four play-outs add nothing.
+
 ## How human is "agreement with people", and play by precedent (2026-10-31)
 
 **The measure rewards the consensus.** The user asked whether a real person would score higher on it than the bot. No:

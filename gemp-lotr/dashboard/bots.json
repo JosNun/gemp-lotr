@@ -2416,7 +2416,7 @@
     "source": "labels/nn/paired/j6mL-m4b-assign-m0.03-test-seed1.out (the same run, alone on the machine; sp-m3 0.87 a side)"
    },
    "july": null,
-   "note": "Matched game for game against the same search without assignments (57.0): +4.0 points +- 1.4. Margins 0 and 0.06: +3.8 and +3.3."
+   "note": "Matched game for game against the same search without assignments (57.0): +4.0 points +- 1.4. Margins 0 and 0.06: +3.8 and +3.3. Confirmed on the training decks, seed 2: 62.7 against 58.6 without, +4.1 +- 1.4. Five candidates: 61.8, +0.8 +- 0.8."
   }
  ]
 }
