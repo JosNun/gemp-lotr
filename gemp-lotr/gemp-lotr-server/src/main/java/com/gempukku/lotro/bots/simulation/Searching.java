@@ -166,12 +166,14 @@ public final class Searching implements BotPlayer {
         if (!best.equals(own))
             assignChanged.incrementAndGet();
         if (STEPS != null && first < worlds.length)
-            assignmentSteps(gs, d, best, sums.keySet());
+            assignmentSteps(gs, d, best, sums, own);
         return best;
     }
 
     /** -Dsearch.steps: an assignment searched through both rounds, as BotTeach.teachAssignment writes its labels. */
-    private void assignmentSteps(GameState gs, AwaitingDecision d, String pick, Collection<String> played) {
+    private void assignmentSteps(GameState gs, AwaitingDecision d, String pick, Map<String, double[]> sums, String own) {
+        Collection<String> played = sums.keySet();
+        long id = STEP_IDS.incrementAndGet();
         try {
             double[] state = new com.gempukku.lotro.bots.rl.fotrstarters.GeneralStateFeatures()
                     .extractFeatures(gs, d, getName());
@@ -185,7 +187,9 @@ public final class Searching implements BotPlayer {
                             new com.gempukku.lotro.bots.rl.semanticaction.AssignMinionsAction(answer, d, gs, fp)
                                     .withProbe(probe), fp, d);
                     step.reward = answer.equals(pick) ? 10.0 : 0.0;
-                    lines.append(step.toJson()).append('\n');
+                    double[] qn = sums.get(answer);
+                    if (qn[1] > 0)
+                        lines.append(line(step, qn[0] / qn[1], answer.equals(own), id)).append('\n');
                 } catch (RuntimeException ignored) {
                     // an assignment the semantic action cannot describe
                 }
@@ -342,7 +346,7 @@ public final class Searching implements BotPlayer {
             if (BOARDS != null && values.size() > 1)
                 record(gs, d, kind, pick, values, answers.size(), ownIndex, Math.exp(lp[order[0]]));
             if (STEPS != null && values.size() > 1 && "action".equals(kind))
-                steps(gs, d, pick, values.keySet(), answers);
+                steps(gs, d, pick, values, answers, own);
             return pick;
         } catch (RuntimeException e) {
             return own;
@@ -358,7 +362,24 @@ public final class Searching implements BotPlayer {
      */
     static final java.io.PrintWriter STEPS = Recording.open(System.getProperty("search.steps"));
 
-    private void steps(GameState gs, AwaitingDecision d, String pick, Collection<Integer> played, List<String> answers) {
+    /** One number a searched decision, so a reader can put its options' steps back together. */
+    static final java.util.concurrent.atomic.AtomicLong STEP_IDS = new java.util.concurrent.atomic.AtomicLong();
+
+    /** A step's line with what the search knew: the option's mean play-out value, whether it was the bot's own
+     *  answer, and the decision's number -- so labels can be cut again without playing (the first labels marked every
+     *  option that was not the answer bad, near-ties and all; sp-m6a, -1.0). */
+    private static String line(com.gempukku.lotro.bots.rl.LearningStep step, double value, boolean own, long id) {
+        var o = step.toJson();
+        o.put("searchValue", value);
+        o.put("searchOwn", own);
+        o.put("searchId", id);
+        return o.toString();
+    }
+
+    private void steps(GameState gs, AwaitingDecision d, String pick, Map<Integer, Double> values, List<String> answers,
+                       String own) {
+        Collection<Integer> played = values.keySet();
+        long id = STEP_IDS.incrementAndGet();
         try {
             double[] state = new com.gempukku.lotro.bots.rl.fotrstarters.GeneralStateFeatures()
                     .extractFeatures(gs, d, getName());
@@ -378,7 +399,7 @@ public final class Searching implements BotPlayer {
                             new com.gempukku.lotro.bots.rl.semanticaction.CardActionChoiceAction(answer, d, gs)
                                     .withProbe(probe), fp, d);
                     step.reward = answer.equals(pick) ? 10.0 : 0.0; // trainers read reward > 0 as good
-                    lines.append(step.toJson()).append('\n');
+                    lines.append(line(step, values.get(c), answer.equals(own), id)).append('\n');
                 } catch (RuntimeException ignored) {
                     // an answer the semantic action cannot describe
                 }
