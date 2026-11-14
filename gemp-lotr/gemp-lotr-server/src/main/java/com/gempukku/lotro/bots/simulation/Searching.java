@@ -460,6 +460,13 @@ public final class Searching implements BotPlayer {
      * (or the turn) the judge reads the first decision of this player's it can, from this player's side. A game that
      * ends scores 1 or 0.
      */
+    /**
+     * -Dsearch.peek: a yardstick, not a bot -- the play-outs keep the opponent's true hand instead of dealing it again
+     * (decks are still shuffled). How much stronger the search is for it bounds what hidden information is worth
+     * here, and so what knowing the opponent's exact decklist (which the redeal draws from) can be worth.
+     */
+    static final boolean PEEK = Boolean.getBoolean("search.peek");
+
     private Double playOut(GameState live, AwaitingDecision d, String answer, long world, boolean turnLong) {
         return playOut(live, d, answer, world, turnLong, false);
     }
@@ -479,7 +486,7 @@ public final class Searching implements BotPlayer {
             GameState gs = copy.getGameState();
             gs.setDeckShuffler(null);
             gs.setRandomSeed(world);
-            if (gs.isInit())
+            if (gs.isInit() && !PEEK)
                 for (String p : gs.getPlayerNames()) {
                     if (p.equals(me))
                         continue;
