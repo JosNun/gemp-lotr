@@ -2445,6 +2445,17 @@ assignment, single pick and small choice searched, on sp-m4b's trees with the sm
 after the first round and 3% change the answer: most of select's 1.2 CPU-s a game is spent confirming, so a gate on
 which picks to search is the cost to cut next. Not yet confirmed on a second seed or the training decks.
 
+**Picks and choices confirmed, and which of them the search overturns.** Training decks, seed 2, 3,200 games:
+**66.7 +- 1.4 at 4.56 CPU-s a game, +3.9 +- 1.6** matched against the assignment-searching bot there (62.7). The same
+run by prompt (searched / answered differently; `picks by prompt` in
+`labels/nn/paired/m4b-assign-all-train-seed2.out`): the search overturns the bot most on the site to play (785 of
+5,875), the mulligan (387 of 3,200), wounding the Ring-bearer to prevent (146 of 715), archery wounds (306 of 4,333
+and 170 of 4,290), who or what to wound (165 of 4,189; 166 of 3,223), a card from the discard pile (214 of 4,015)
+and "choose action to perform" (290 of 6,533); hardly ever on the next skirmish to resolve (241 of 14,166, the
+commonest prompt), whose strength to modify (37 of 5,646), whom to heal (19 of 1,943), "choose one" (0 of 1,600) or
+where to attach a possession (0-11 of a few hundred each). `-Dsearch.selectSkip` / `-Dsearch.selectOnly` (regexes on
+the prompt) gate them.
+
 ## How human is "agreement with people", and play by precedent (2026-10-31)
 
 **The measure rewards the consensus.** The user asked whether a real person would score higher on it than the bot. No:

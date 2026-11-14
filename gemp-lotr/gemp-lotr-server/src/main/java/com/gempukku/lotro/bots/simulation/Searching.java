@@ -254,7 +254,8 @@ public final class Searching implements BotPlayer {
         cands.add(own);
         cands.addAll(options.subList(0, Math.min(SELECT_K, options.size())));
         String prompt = prompt(context, d);
-        if (SELECT_ONLY != null && !SELECT_ONLY.matcher(prompt).find())
+        if (SELECT_ONLY != null && !SELECT_ONLY.matcher(prompt).find()
+                || SELECT_SKIP != null && SELECT_SKIP.matcher(prompt).find())
             return own;
         used[0]++;
         var by = SELECT_PROMPTS.computeIfAbsent(prompt, k -> counts());
@@ -277,6 +278,10 @@ public final class Searching implements BotPlayer {
             new java.util.concurrent.ConcurrentHashMap<>();
     static final java.util.regex.Pattern SELECT_ONLY = System.getProperty("search.selectOnly") == null ? null
             : java.util.regex.Pattern.compile(System.getProperty("search.selectOnly"));
+
+    /** -Dsearch.selectSkip=&lt;regex&gt;: the prompts not to search (write it without spaces: "." for one). */
+    static final java.util.regex.Pattern SELECT_SKIP = System.getProperty("search.selectSkip") == null ? null
+            : java.util.regex.Pattern.compile(System.getProperty("search.selectSkip"));
 
     private static String prompt(String context, AwaitingDecision d) {
         String t = d.getText() == null ? "" : d.getText().replaceAll("<[^>]*>", "").replaceAll("[0-9]+", "#")
