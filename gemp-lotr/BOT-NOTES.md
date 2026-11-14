@@ -2343,6 +2343,31 @@ matters. **The strong bot: the open-gate search on sp-m4b with assignments searc
 since the trees-root search -- and a stronger teacher for the trees, which is what the second round lacked. Next:
 assignment labels for FpAssignmentTrainer and ShadowAssignmentTrainer from it.
 
+**The teacher's third round: assignment labels do not teach the assignment model (2026-11-13, night).** 20,000 games
+of the assignment-searching bot against itself (5.30 CPU-s a game): 260,747 assignments searched, 35,273 answered
+differently, 121,000 through both rounds and written -- 446,291 Free Peoples assignment rows (the search's answer
+good, the other candidates bad). FpAssignmentTrainer of sp-m4b refit on ae-assign.jsonl's 463,060 rows plus those
+(big5.sh's recipe, 902,563 rows, 17 minutes) -> sp-m6a: **51.0 +- 1.4 against sp-m3, -1.0 +- 1.3 matched against
+sp-m4b.** No gain, perhaps a loss. Two readings, not yet told apart: the labels (every candidate that was not the
+answer is marked bad, though most were the model's own next choices and within the margin of the answer -- BotTeach
+marked only the clearly worse ones and left the rest out; the values are not in the steps, so this needs a new
+labelling run to fix), or the gain itself (what the play-outs see of the skirmishes to come is not in the model's
+numbers). The run's 1.2M card-action rows from this stronger teacher are unused (`labels/nn/teach-1113/steps.jsonl`).
+
+**Against upstream's shipped bot (`fotr`), for scale (2026-11-13).** Seed 1; the strong bot is the assignment-searching
+one.
+
+| decks | strong bot | sp-m4 | how the shipped bot fares |
+|---|---|---|---|
+| Aragorn v Gandalf, the two decks it was trained on (400 games) | 76.8 +- 3.8 | 70.3 +- 4.1 | no guesses; games end by a dead Ring-bearer or site 9 |
+| every starter (`--suite starters`, 824 games) | 89.2 +- 2.0 | 84.1 +- 2.4 | guesses 4.7 answers a game |
+| real decks (suite-test, 1,584 games) | 96.5 +- 0.9 | 94.5 +- 1.1 | 1,078 games end with a Ring-bearer corrupted, mostly its own |
+
+CPU, each bot against itself on Aragorn v Gandalf (300 games, beside a labelling run, so ~15-20% high), by card-action
+prompt because the shipped bot's games are shorter (6.1 turns, 135 prompts a game, against ~8.8 and ~225): shipped
+0.32 ms a prompt (0.04 CPU-s a game); sp-m4b 1.33 (0.30); sp-m4 5.87 (1.31); the strong bot 18.2 (4.26) -- 4x, 18x
+and 57x the shipped bot a prompt.
+
 ## How human is "agreement with people", and play by precedent (2026-10-31)
 
 **The measure rewards the consensus.** The user asked whether a real person would score higher on it than the bot. No:
