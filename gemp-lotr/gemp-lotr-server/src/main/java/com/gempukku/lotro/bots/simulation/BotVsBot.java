@@ -234,7 +234,20 @@ public class BotVsBot {
         if (opts.listStarters()) {
             for (String name : new TreeSet<>(ctx.starters().keySet())) {
                 try {
-                    out.printf("%-58s %s%n", name, siteBlock(starterDeck(name, "fotr_block", ctx), library));
+                    // the sets its cards come from too: a starter's sites name its block, but the fan-made ones
+                    // ("Allies", "Alphabet", ...) hold cards from outside it and are not legal in the block's format
+                    LotroDeck deck = starterDeck(name, "fotr_block", ctx);
+                    TreeSet<Integer> sets = new TreeSet<>();
+                    List<String> ids = new ArrayList<>(deck.getDrawDeckCards());
+                    ids.addAll(deck.getSites());
+                    ids.add(deck.getRingBearer());
+                    ids.add(deck.getRing());
+                    for (String id : ids)
+                        try {
+                            sets.add(Integer.parseInt(id.substring(0, id.indexOf('_'))));
+                        } catch (RuntimeException ignored) {
+                        }
+                    out.printf("%-58s %-12s sets %s%n", name, siteBlock(deck, library), sets);
                 } catch (IllegalArgumentException e) {
                     System.err.println("skipped " + e.getMessage());
                 }

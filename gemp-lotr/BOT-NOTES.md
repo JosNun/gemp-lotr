@@ -2463,28 +2463,36 @@ machine). Half the picks go for 4% of the CPU -- they stop after one play-out ea
 
 **For the upstream developers: three bots on starter decks, and a page to watch them (2026-11-14, the user's
 brief).** Upstream's `fotr`, ours without search (sp-m4b, the trees alone: the user's choice for "cheap" -- no new
-dependencies) and ours with search (every context, on sp-m4b). Each block's starters, each against the next under
-the block's format; Movie: the three blocks' starters pooled, each against one of another block; and Aragorn v
-Gandalf, the two decks upstream's bot was trained on. Seed 1, `labels/scripts/share-1114.sh`,
+dependencies) and ours with search (every context, on sp-m4b), on Decipher's own starters, six a block: Fellowship
+(FotR, MoM, RotEL; sets 1-3), Towers (TTT, BoHD, EoF; 4-6), King (RotK, SoG, MD; 7-10). In a block every starter
+against every other under the block's format; Movie: every starter against every starter of the other two blocks;
+and Aragorn v Gandalf, the two decks upstream's bot was trained on. Seed 1, `labels/scripts/share-1114b.sh`,
 `labels/nn/share-1114/results.tsv`:
 
 | starters | new bot v upstream | new bot with search v upstream | search v no search |
 |---|---|---|---|
 | Aragorn v Gandalf (400 games) | 66.3 +- 4.3 | 71.5 +- 4.1 | -- |
-| Fellowship block (792) | 85.0 +- 2.4 | 88.9 +- 2.2 | 62.5 +- 2.7 |
-| Towers block (986) | 82.7 +- 2.3 | 88.9 +- 2.0 | 62.2 +- 2.5 |
-| King block (1,104) | 87.2 +- 1.9 | 92.1 +- 1.5 | 63.9 +- 2.3 |
-| Movie block (888) | 83.1 +- 2.4 | 88.6 +- 2.0 | 61.5 +- 2.5 |
+| Fellowship block (810) | 70.9 +- 2.9 | 78.4 +- 2.6 | 61.9 +- 2.6 |
+| Towers block (810) | 90.7 +- 2.0 | 94.6 +- 1.5 | 64.8 +- 2.8 |
+| King block (810) | 90.2 +- 2.0 | 94.4 +- 1.6 | 64.4 +- 2.9 |
+| Movie block (864) | 83.4 +- 2.5 | 89.4 +- 2.1 | 59.8 +- 2.6 |
+
+**Trap (the user caught it in the replays): `--suite starters` and `--list-starters` class a starter by its sites,
+and most "starter" products are fan-made ("Allies", "Alphabet", "Knighted", "Romance", ...) with a block's sites
+and cards from outside it -- not legal in the block's format, and nothing checks.** The first build of the page
+used them (85 / 83 / 87 against upstream; `share-1114/old-illegal/`). `--list-starters` now prints each starter's
+sets; only 18 are block-legal. The earlier `starters:train` / `starters:test` results in these notes are on the
+mixed pool.
 
 CPU a card-action decision, each bot against itself on the Fellowship starters, alone on the machine, the second
-half of the run (the first is the JVM warming up -- 88 games made upstream 0.66 ms): upstream 0.23 ms, the trees
-0.79 (3.4x), the search 22.2 (96x); 8.5, 10.1 and 10.7 turns a game.
+half of the run (the first is the JVM warming up -- 88 games made upstream 0.66 ms): upstream 0.22 ms, the trees
+0.67 (3x), the search 15.9 (72x); 190, 238 and 240 decisions a game.
 
 `ReplayLog` (`-Dbvb.replays=<dir>`) writes a game as the board at every decision with what was asked, the options
 and the answer in words, and where a search ran what the bot alone would have answered. `scripts/replay_page.py
 --results results.json --replays <dir> --out report.html` puts results and replays in one static page (charts, an
 index, a step-through viewer; replays gzipped in the page; card images from GEMP's image host with the names as
-text beneath): `labels/nn/share-1114/gemp-bot-report.html`, 60 games, 1.3 MB. Checked in Chrome from file:// only.
+text beneath): `labels/nn/share-1114/index.html`, 60 games, 1.2 MB. Checked in Chrome from file:// only.
 
 ## How human is "agreement with people", and play by precedent (2026-10-31)
 
