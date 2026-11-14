@@ -12,7 +12,8 @@ runs headless from this directory; no Docker, no database.
 | sp-m3, the yardstick (the cheap bot until 2026-11-12) | `general@bot-models-exp/sp-m3` | -- | 0.87 | 1.73 |
 | **the strong bot** | `search@bot-models-exp/sp-m3-j6mL-q8e` with the options below (`-Dsearch.k=2`): the trees at the root and in the play-outs, a small network (judge6m, d 192 x 3) only as judge | **54.6 +- 1.4** | 1.16 | 2.03 |
 | the same with the larger judge5b | `search@bot-models-exp/sp-m3-j5-q8e` (or `-j5L-q8e`, the same play read leaner) | 54.7 +- 1.4 | 2.1 | 2.99 |
-| **the strong bot (2026-11-13): assignments searched too** | as below with `-Dsearch.gate=1.01 -Dsearch.rollouts=2 -Dsearch.root=bot-models-exp/sp-m4b -Dsearch.policy=bot-models-exp/sp-m4b -Dsearch.maxPerGame=300 -Dsearch.contexts=skirmish,shadow,maneuver,archery,assignment,regroup,assign` | **61.0 +- 1.4** | ~2.4 | 3.30 |
+| **the strong bot (2026-11-14): picks and choices searched too** | as the next row with `,select,arbitrary,choice` added to `-Dsearch.contexts` | **65.0 +- 1.4** | ~4.0 | 4.87 |
+| assignments searched (2026-11-13) | as below with `-Dsearch.gate=1.01 -Dsearch.rollouts=2 -Dsearch.root=bot-models-exp/sp-m4b -Dsearch.policy=bot-models-exp/sp-m4b -Dsearch.maxPerGame=300 -Dsearch.contexts=skirmish,shadow,maneuver,archery,assignment,regroup,assign` | **61.0 +- 1.4** | ~2.4 | 3.30 |
 | every card action searched, no assignments | the same with `-Dsearch.gate=1.01 -Dsearch.rollouts=2` | 57.0 +- 1.4 | 1.60 | 2.47 |
 | ... and three candidates | with `-Dsearch.gate=1.01 -Dsearch.k=3` | 57.1 +- 1.4 | 4.0 | 4.84 |
 | sp-m3-trees, the cheapest | `general@bot-models-exp/sp-m3-trees` | 49.8 +- 1.4 | 0.16 | 1.08 |
@@ -2424,6 +2425,25 @@ style-matched decks fixed, 16 games a matchup (800 games each, +- 3.5), seed 1:
 Against sp-m3 the same edge is 9.0 (61.0 against 52.0). **The search's edge is the same against bots of other
 styles, and is not hidden information.** What this cannot show is people: the pool bots are still this line of
 trees with other Fellowship, Shadow and move-again models.
+
+**Picks and choices searched: +4 more (2026-11-14).** Three kinds of decision nothing searched, added to
+`-Dsearch.contexts`: `select` (a pick of exactly one card in play: where a cost or an effect lands, who exerts, which
+skirmish next), `arbitrary` (one card from a list shown) and `choice` (a multiple choice of up to four answers; "move
+again?" apart). The bot's own answer against up to three others drawn at random (`-Dsearch.selectK`), played out to
+the end of the phase, kept unless beaten by `-Dsearch.selectMargin` (0.03, the assignments' guess, not measured).
+The strong bot with them, test decks, seed 1, 3,168 games, matched against the strong bot as it stood (61.0 +- 1.4
+at 3.30 CPU-s a game):
+
+| added | against sp-m3 | matched | CPU-s a game | searched a game (searching side) / changed |
+|---|---|---|---|---|
+| **select, arbitrary, choice** | **65.0 +- 1.4** | **+4.0 +- 1.6** | 4.87 | 22.6 / 2.9%, 3.7 / 9.6%, 5.1 / 7.2% |
+| select alone | 63.8 +- 1.4 | +2.8 +- 1.4 | 4.50 | 22.4 / 2.9% |
+| choice alone | 62.3 +- 1.4 | +1.4 +- 1.4 | 3.46 | 5.0 / 7.8% |
+
+The parts about add up. **The strong bot: 65.0 +- 1.4 against sp-m3 at ~4.0 CPU-s a side** -- every card action,
+assignment, single pick and small choice searched, on sp-m4b's trees with the small judge. 86% of the picks stop
+after the first round and 3% change the answer: most of select's 1.2 CPU-s a game is spent confirming, so a gate on
+which picks to search is the cost to cut next. Not yet confirmed on a second seed or the training decks.
 
 ## How human is "agreement with people", and play by precedent (2026-10-31)
 

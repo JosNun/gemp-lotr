@@ -2417,6 +2417,27 @@
    },
    "july": null,
    "note": "Matched game for game against the same search without assignments (57.0): +4.0 points +- 1.4. Margins 0 and 0.06: +3.8 and +3.3. Confirmed on the training decks, seed 2: 62.7 against 58.6 without, +4.1 +- 1.4. Five candidates: 61.8, +0.8 +- 0.8."
+  },
+  {
+   "id": "search@sp-m4b j6mL-q8e open r2 assign select",
+   "date": "2026-11-14",
+   "kind": "search",
+   "parent": "search@sp-m4b j6mL-q8e open r2 assign",
+   "what": "The strong bot with single-card picks and small choices searched too (select, arbitrary, choice): the bot's own answer against up to three others, played out to the end of the phase.",
+   "strength": {
+    "a": "search@sp-m4b j6mL-q8e open r2 assign select",
+    "b": "sp-m3",
+    "rate": 65.0,
+    "ci": 1.4,
+    "source": "labels/nn/paired/m4b-assign-all-test-seed1.out (test decks, 4 games a matchup, seed 1, 3,168 games, interval by pair)"
+   },
+   "cost": {
+    "total": 4.87,
+    "vs": "sp-m3",
+    "source": "labels/nn/paired/m4b-assign-all-test-seed1.out (the same run, alone on the machine; sp-m3 0.87 a side)"
+   },
+   "july": null,
+   "note": "Matched game for game against the strong bot without them (61.0): +4.0 points +- 1.6. Picks alone +2.8 +- 1.4, choices alone +1.4 +- 1.4."
   }
  ]
 }
