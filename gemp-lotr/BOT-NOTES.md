@@ -2399,6 +2399,32 @@ search finds are in what the play-outs see of the skirmishes to come, not in wha
 Assignment search is +4 on both deck sets and both seeds. Five candidates may add under a point for 0.3 CPU-s a
 game; four play-outs add nothing.
 
+**Is the search cheating? (2026-11-14, the user's question.)** A play-out deals the opponent's hand again and
+shuffles both decks, so it never sees the hand or a draw to come. Two things it does know that a person would not:
+the opponent's exact remaining cards (the new hand is dealt from them), and how the opponent will answer (both sides
+of a play-out are the search's own trees -- a close model of sp-m3, the yardstick every gain was measured against).
+`labels/scripts/fair-1114.sh`:
+
+*Hidden information.* `-Dsearch.peek` keeps the opponent's true hand in the play-outs. The strong bot, test decks,
+seed 1: **62.4 +- 1.4, +1.4 +- 1.3 matched against the honest search** (61.0). Seeing the hand itself is worth a
+point and a half; knowing only which cards it could be is worth less than that.
+
+*Opponents that play differently.* The strong bot and its own trees (sp-m4b) against the five style-pool bots,
+style-matched decks fixed, 16 games a matchup (800 games each, +- 3.5), seed 1:
+
+| pool bot | sp-m4b | the strong bot | edge |
+|---|---|---|---|
+| racer | 46.3 | 53.8 | +7.5 |
+| builder | 45.9 | 54.5 | +8.6 |
+| wide fellowship | 55.8 | 62.0 | +6.2 |
+| big minions | 45.4 | 55.6 | +10.2 |
+| swarm grinder | 42.4 | 52.8 | +10.4 |
+| mean | 47.2 | 55.7 | **+8.6** (+- ~2.2; unmatched -- fixed decks have no pairs to match) |
+
+Against sp-m3 the same edge is 9.0 (61.0 against 52.0). **The search's edge is the same against bots of other
+styles, and is not hidden information.** What this cannot show is people: the pool bots are still this line of
+trees with other Fellowship, Shadow and move-again models.
+
 ## How human is "agreement with people", and play by precedent (2026-10-31)
 
 **The measure rewards the consensus.** The user asked whether a real person would score higher on it than the bot. No:
