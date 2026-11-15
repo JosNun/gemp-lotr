@@ -270,7 +270,52 @@ public final class Searching implements BotPlayer {
             by[1].incrementAndGet();
         if (!r.bothRounds())
             by[2].incrementAndGet();
+        if (STEPS != null && r.bothRounds())
+            selectionSteps(gs, d, r.best(), r.sums(), own);
         return r.best();
+    }
+
+    /**
+     * -Dsearch.steps: a pick or choice searched through both rounds, one step an option played out, shaped as
+     * TrainingSteps writes them (a card pick in a skirmish is the "assigned" kind; reconcile, exert and character picks
+     * carry their options). People's picks are written as the chosen card alone; here the options not chosen are
+     * written too, reward 0, with their play-out values, so whoever fits from them decides what to keep.
+     */
+    private void selectionSteps(GameState gs, AwaitingDecision d, String pick, Map<String, double[]> sums, String own) {
+        long id = STEP_IDS.incrementAndGet();
+        try {
+            double[] state = new com.gempukku.lotro.bots.rl.fotrstarters.GeneralStateFeatures()
+                    .extractFeatures(gs, d, getName());
+            boolean fp = getName().equals(gs.getCurrentPlayerId());
+            StringBuilder lines = new StringBuilder();
+            for (String answer : sums.keySet())
+                try {
+                    double[] qn = sums.get(answer);
+                    if (qn[1] <= 0)
+                        continue;
+                    com.gempukku.lotro.bots.rl.semanticaction.SemanticAction action = switch (d.getDecisionType()) {
+                        case MULTIPLE_CHOICE -> new com.gempukku.lotro.bots.rl.semanticaction.MultipleChoiceAction(answer, d);
+                        case ARBITRARY_CARDS ->
+                                new com.gempukku.lotro.bots.rl.semanticaction.ChooseFromArbitraryCardsAction(answer, d);
+                        default -> TrainingSteps.withOptions(
+                                gs.getCurrentPhase() == com.gempukku.lotro.common.Phase.SKIRMISH
+                                        ? new com.gempukku.lotro.bots.rl.semanticaction.CardSelectionAssignedAction(answer, d, gs)
+                                        : new com.gempukku.lotro.bots.rl.semanticaction.CardSelectionAction(answer, d, gs),
+                                gs, d, answer, getName());
+                    };
+                    var step = new com.gempukku.lotro.bots.rl.LearningStep(state, action, fp, d);
+                    step.reward = answer.equals(pick) ? 10.0 : 0.0;
+                    lines.append(line(step, qn[0] / qn[1], answer.equals(own), id)).append('\n');
+                } catch (RuntimeException ignored) {
+                    // an answer the semantic action cannot describe
+                }
+            synchronized (STEPS) {
+                STEPS.print(lines);
+                STEPS.flush();
+            }
+        } catch (RuntimeException e) {
+            // a label lost; the game goes on
+        }
     }
 
     /**

@@ -2494,6 +2494,31 @@ and the answer in words, and where a search ran what the bot alone would have an
 index, a step-through viewer; replays gzipped in the page; card images from GEMP's image host with the names as
 text beneath): `labels/nn/share-1114/index.html`, 60 games, 1.2 MB. Checked in Chrome from file:// only.
 
+**Teaching the trees the search's picks and choices ties (2026-11-15).** `Searching.selectionSteps` writes a searched
+card pick, list pick or choice as steps (each option played out, with `searchValue` / `searchOwn` / `searchId`), as it
+does card plays and assignments. 16,000 games of the full strong bot against itself on the training decks, `--seed off`
+(6.4 hours, 8.05 CPU-seconds a game): 1,852,767 rows; `labels/scripts/steps-by-prompt.py` gives decisions and changed
+answers by prompt (site to play 8,810 changed of 19,319 searched through both rounds -- Expanded only, numbered sites
+in Movie Block leave nothing to choose, and the bot answers it by a twilight rule; mulligan 4,268 of 12,099; "Choose
+action to perform" 3,437 of 15,167; archery wound on a character 3,177 of 13,774; card from discard 2,462 of 8,600;
+next skirmish 2,451 of 7,690). `labels/scripts/cut-picks.py` keeps a decision whose best option leads the next by
+0.03. One model each refit on sp-m4b, the data it was fit with plus those, against sp-m3 on the test decks, seed 1,
+matched against sp-m4b (52.0): `MulliganTrainer` (people's 69,706 + 10,441 decisions, both options) sp-m7a 52.6,
+**+0.6 +- 0.9**; `CardFromDiscardTrainer` (sel10 + 4,334 picks, 13,120 steps its own) sp-m7b 52.1, +0.0 +- 0.6;
+`SkirmishOrderChoiceTrainer` (sc-all + 6,462) sp-m7c 52.0, +0.0 +- 0.5; `GenericChoiceTrainer` (people's choices
+written again, `labels/choice-people.jsonl`, 67,443 rows of ten months, + 32,939 decisions) sp-m7d 52.4, +0.4 +- 0.6,
+agreement with people on those choices in July 76.6 -> 75.5% of 2,706. All four together, **sp-m7: 52.3, +0.3 +- 1.2**.
+Not adopted. With the assignment round (sp-m6b/c, +0.5) this is the third kind of decision where what the search
+gains is not something these models learn from its answers on their features; only the card-play slots took it (+2.2).
+Not tried: the archery-wound and wound picks (`CharacterChoiceTrainer`; its people's labels are not on disk either).
+
+**Memory (2026-11-14).** Live heap after forced collections (`jcmd GC.run`, read from `-Xlog:gc`), Movie starters, each
+bot against itself: upstream 71 MB with one game at a time, trees alone (sp-m4b) 291, the strong bot 465; twelve games
+at once 94 / 329 / 497 (peaks 119 / 391 / 548) -- 3 to 8 MB a game in progress, two bots in each, upstream's the same.
+Smallest `-Xmx` that finishes: 96 / 384 (292 by a finer search) / 512 MB. Outside the heap the network bots hold about
+550 MB more (process 1,061 MB at a 512 MB heap; sp-m4 1,131 at 384), the trees nothing to speak of (573 at 384;
+upstream 257 at 96). Reading `GC.heap_info` after `GC.run` instead overstates it by the garbage made in between.
+
 ## How human is "agreement with people", and play by precedent (2026-10-31)
 
 **The measure rewards the consensus.** The user asked whether a real person would score higher on it than the bot. No:

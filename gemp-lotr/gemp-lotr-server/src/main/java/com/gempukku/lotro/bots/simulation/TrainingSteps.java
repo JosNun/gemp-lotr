@@ -174,7 +174,7 @@ final class TrainingSteps implements HumanReplay.StepSink {
      * The options with what only the live game knows: at reconcile keep everything and each card
      * (ReconcileChoiceTrainer), at a one-of exert each character (ExertChoiceTrainer).
      */
-    private static CardSelectionAction withOptions(CardSelectionAction action, GameState gs, AwaitingDecision decision,
+    static CardSelectionAction withOptions(CardSelectionAction action, GameState gs, AwaitingDecision decision,
                                                    String answer, String player) {
         if (ReconcileChoiceTrainer.applies(decision)) {
             var o = ReconcileChoiceTrainer.options(gs, decision, player);
