@@ -2519,6 +2519,36 @@ Smallest `-Xmx` that finishes: 96 / 384 (292 by a finer search) / 512 MB. Outsid
 550 MB more (process 1,061 MB at a 512 MB heap; sp-m4 1,131 at 384), the trees nothing to speak of (573 at 384;
 upstream 257 at 96). Reading `GC.heap_info` after `GC.run` instead overstates it by the garbage made in between.
 
+**Did the refits learn the search's answers? About a quarter (2026-11-15).** The search on sp-m7 against the search on
+sp-m4b, 396 seeded test games: mulligans overturned 63 -> 47 of 396, "Choose action to perform" 68 -> 44 of ~1,050,
+card from discard 29 -> 21, next skirmish 27 -> 32, wound the Ring-bearer 19 -> 25. The trees did not take the lesson.
+
+**A one-step look is not a middle bot.** `-Dsearch.stage1=0 -Dsearch.stage1Mode=judge -Dsearch.rollouts=1`: every
+candidate card action applied on a copy, the judge reads this player's next position, no play-out. On sp-m4b, card
+actions: **53.0 +- 1.4 at 1.99 CPU-s a game, +1.0 +- 1.75** against the trees alone (52.0 at 1.10), answering 59% of
+card actions differently; the play-out search of the same decisions is 57.0 at 2.51. What the search gains is in
+playing the position on, not in judging the next one.
+
+**The search by parts: assignments and picks pay, card plays least** (sp-m4b, test decks, seed 1, 3,168 games, against
+sp-m3, matched against the trees alone; CPU-s a game for both sides, the trees' side about 0.55):
+
+| searched | vs sp-m3 | over the trees | CPU-s a game |
+|---|---|---|---|
+| nothing | 52.0 | | 1.10 |
+| skirmish card actions | 53.9 | +1.9 +- 1.1 | 1.76 |
+| every card action | 57.0 | +5.0 | 2.51 |
+| **assignments** (`-Dsearch.contexts=assign`) | **57.8** | **+5.8 +- 1.4** | **1.71** |
+| skirmish card actions + assignments | 58.9 | +6.8 +- 1.5 | 2.34 |
+| assignments, five candidates (`-Dsearch.assignK=5`) | 58.9 | +6.8 +- 1.4 (+1.0 +- 0.8 on three) | 2.03 |
+| **assignments + choices and list picks** (`assign,arbitrary,choice`) | **60.0** | **+8.0 +- 1.6** | **2.14** |
+| picks and choices | 57.2 | +5.2 +- 1.5 | 2.71 |
+| assignments + picks and choices | 62.1 | +10.0 +- 1.6 | 3.43 |
+| everything | 65.0 | +13.0 | 4.87 |
+
+Assignments are 6.3 searches a game (20,115 in 3,168 games, 14% answered differently) for 0.6 CPU-s; they and the
+picks add (5.8 + 5.2 -> 10.0); card plays on top of both are the last 3 points for 1.4 CPU-s. Of the picks, card
+selections are 69,438 searches with 3.4% changed, choices and list picks 26,747 with 8.5%.
+
 ## How human is "agreement with people", and play by precedent (2026-10-31)
 
 **The measure rewards the consensus.** The user asked whether a real person would score higher on it than the bot. No:
