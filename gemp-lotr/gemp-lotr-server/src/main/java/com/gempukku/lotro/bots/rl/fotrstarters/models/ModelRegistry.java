@@ -131,6 +131,17 @@ public class ModelRegistry {
         this.moveAdaptive = moveAdaptive;
     }
 
+    /** MulliganTrainer mulligans above this: the number in a "mulligan-threshold" file, else 0.5. */
+    private double mulliganThreshold = 0.5;
+
+    public double getMulliganThreshold() {
+        return mulliganThreshold;
+    }
+
+    public void setMulliganThreshold(double mulliganThreshold) {
+        this.mulliganThreshold = mulliganThreshold;
+    }
+
     /** AnotherMoveTrainer moves above this: the number in a "move-threshold" file, else 0.5. */
     private double moveThreshold = 0.5;
 

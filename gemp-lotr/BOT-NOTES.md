@@ -2606,6 +2606,14 @@ search already answering choices: the middle bot on sp-m8 63.1 at 2.63 (+0.4 +- 
 (+0.4 +- 1.0). The trees' other answers looked at the same way (first-listed option against chance, by prompt, in 60
 recorded games) show nothing as stark; answers at random are ~1,000 in 750,000 decisions.
 
+**Tried on 2026-11-17 and left out.** Optional responses searched (`respond`: each action offered and passing, alone
+on the trees): 52.1, +0.1 +- 1.0 at 1.44 (35,460 searched, 3,716 changed). No search where the judge already calls the
+game (`-Dsearch.decided=x`, under x or over 1 - x), on sp-m8: the middle bot (63.1 at 2.63) at 0.15 62.3 at 2.24,
+-0.8 +- 0.8 (14,368 searches skipped); at 0.3 59.0 at 1.72, -4.1 +- 1.3; the strong bot (69.9 at 6.90) at 0.2 65.8 at
+5.05, -4.2 +- 1.4 -- a game the judge calls 80/20 is not over, and the search earns as much there. The trees' fixed
+numbers by win rate, sp-m8 matched against itself: `mulligan-threshold` (new; 0.5) 0.4 +0.3 +- 0.5, 0.3 -0.1 +- 0.8,
+0.2 -0.6 +- 1.3; `move-threshold` (0.35) 0.25 -0.8 +- 0.9, 0.45 -0.2 +- 0.8. Both stay.
+
 ## How human is "agreement with people", and play by precedent (2026-10-31)
 
 **The measure rewards the consensus.** The user asked whether a real person would score higher on it than the bot. No:

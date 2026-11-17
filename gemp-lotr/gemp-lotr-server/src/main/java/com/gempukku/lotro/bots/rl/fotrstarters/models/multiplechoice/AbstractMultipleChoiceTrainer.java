@@ -34,7 +34,12 @@ public abstract class AbstractMultipleChoiceTrainer extends AbstractTrainer {
         double[] stateVector = features.extractFeatures(gameState, decision, playerName);
         double[] probs = new double[2];
         model.predict(stateVector, probs);
-        return probs[1] > probs[0] ? new MultipleChoiceAction(getPositiveOption()).toDecisionString(decision, gameState) : new MultipleChoiceAction(getNegativeOption()).toDecisionString(decision, gameState);
+        return probs[1] > threshold(modelRegistry) * (probs[0] + probs[1]) ? new MultipleChoiceAction(getPositiveOption()).toDecisionString(decision, gameState) : new MultipleChoiceAction(getNegativeOption()).toDecisionString(decision, gameState);
+    }
+
+    /** The positive option is answered when its share is above this; a half unless a trainer reads it elsewhere. */
+    protected double threshold(ModelRegistry modelRegistry) {
+        return 0.5;
     }
 
     protected List<LabeledPoint> extractTrainingData(List<LearningStep> steps) {
