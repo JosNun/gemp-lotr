@@ -2582,6 +2582,14 @@ trees 52.4, +0.4 +- 1.2 at 1.26 (12,159 searched, 1,224 changed); `number` (a ra
 left out of the strong bot's contexts until measured again. The middle bot with the move search on the training decks,
 seed 2: **63.7 at 2.45, +2.7 +- 1.4** on the same without it (61.0) -- as on the test decks (62.7, +2.7).
 
+**Fellowship plays on the strong bot: still not worth it (2026-11-17).** The 69.5 bot with `fellowship` in its
+contexts: 68.4 at 8.07 CPU-s a game, -1.1 +- 1.7 on the same games. Left out.
+
+**The share-out again with the strong bot as it is** (`labels/nn/share-1117/index.html`, Decipher starters, the
+cheap bot's cells carried over from share-1114): against upstream Aragorn v Gandalf 75.8 (was 71.5), Fellowship 78.8
+(78.4), Towers 96.8 (94.6), King 95.6 (94.4), Movie 92.2 (89.4); against sp-m4b 64.0 / 67.3 / 67.9 / 63.0 (61.9 / 64.8 /
+64.4 / 59.8). CPU a card-action decision: upstream 0.22 ms, trees 0.67, search 25.35 (15.9 before the new kinds).
+
 ## How human is "agreement with people", and play by precedent (2026-10-31)
 
 **The measure rewards the consensus.** The user asked whether a real person would score higher on it than the bot. No:
