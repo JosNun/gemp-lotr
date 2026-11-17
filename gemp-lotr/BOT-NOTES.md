@@ -2559,6 +2559,22 @@ candidates 61.6, +8.9 at 2.27). Five candidates in the bigger bots, test seed 1:
 **65.9 at 5.13** (65.0 at 4.87), training seed 2 **67.6 at 4.84** (66.7). The middle bot: sp-m4b with
 `-Dsearch.contexts=assign,arbitrary,choice`, three candidates -- 60.0 / 61.0 at ~2.1 CPU-s a game, both sides.
 
+**Assignment play-outs are saturated (2026-11-16).** On the assign-only bot (57.8 at 1.71): play-outs on to the next
+turn (`-Dsearch.assignDepth=turn`) 57.4, -0.4 +- 1.2 at 2.15; every search through both rounds (spread 0) 58.1,
++0.3 +- 0.6 at 1.98; that with four play-outs 58.3, +0.4 +- 0.7 at 2.74; next turn and spread 0 58.2, +0.3 +- 1.3.
+
+**Three more kinds of decision searched: "move again?", reconcile, optional picks -- 69.5 (2026-11-17).**
+`Searching.searchOther`, the bot's own answer against the others by play-outs, kept unless beaten by 0.03:
+`movepick` (yes against no, to this player's first decision of the next turn; the old "move" context, anchored on the
+network, gave nothing), `reconcile` (keep everything or one card, three others at random, to the next turn),
+`optional` (a pick of at most one card, none allowed, to the end of the phase). Alone on the trees (test, seed 1):
+move 53.7, +1.7 +- 1.4 at 1.41 (13,167 searched, 1,672 changed); reconcile 52.7, +0.7 +- 1.4 at 1.97; optional 52.8,
++0.8 +- 1.1 at 1.49; the three 56.2, **+4.1 +- 1.6** at 2.73. On the middle bot (assign,arbitrary,choice: 60.0 at 2.14):
++ move **62.7 at 2.55, +2.7 +- 1.4**; + the three 63.1 at 3.80 (+3.1 +- 1.6), training seed 2 63.3 at 3.59 (+2.3 +- 1.6).
+On everything with five assignment candidates (65.9 at 5.13): + move 67.4 at 5.61 (+1.5 +- 1.5); + the three
+**69.5 at 6.77, +3.6 +- 1.6**, training seed 2 **69.7 at 6.83, +2.1 +- 1.6** (over the trees alone +17.5 / +17.1).
+**The strong bot: every context and `-Dsearch.assignK=5`; the middle bot: `assign,arbitrary,choice,movepick`.**
+
 ## How human is "agreement with people", and play by precedent (2026-10-31)
 
 **The measure rewards the consensus.** The user asked whether a real person would score higher on it than the bot. No:

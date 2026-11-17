@@ -2501,6 +2501,48 @@
    },
    "july": null,
    "note": "Matched against the trees alone: +10.0 +- 1.6. Card plays on top are the last 3 points (65.0 at 4.87)."
+  },
+  {
+   "id": "search@sp-m4b assign+choice+list+move",
+   "date": "2026-11-17",
+   "kind": "search",
+   "parent": "sp-m4b",
+   "what": "The taught trees with assignments, choices, list picks and \"move again?\" searched; no card-play search.",
+   "strength": {
+    "a": "search@sp-m4b assign+choice+list+move",
+    "b": "sp-m3",
+    "rate": 62.7,
+    "ci": 1.4,
+    "source": "labels/nn/paired/carry-mid-move-test-seed1.out (test decks, 4 games a matchup, seed 1, 3,168 games, interval by pair)"
+   },
+   "cost": {
+    "total": 2.55,
+    "vs": "sp-m3",
+    "source": "labels/nn/paired/carry-mid-move-test-seed1.out (the same run, alone on the machine)"
+   },
+   "july": null,
+   "note": "The middle bot. +2.7 +- 1.4 matched against the same without the move search (60.0 at 2.14)."
+  },
+  {
+   "id": "search@sp-m4b everything k5 + move, reconcile, optional",
+   "date": "2026-11-17",
+   "kind": "search",
+   "parent": "sp-m4b",
+   "what": "Every searched kind of decision, five assignment candidates, and \"move again?\", the reconcile discard and optional picks searched too.",
+   "strength": {
+    "a": "search@sp-m4b everything k5 + move, reconcile, optional",
+    "b": "sp-m3",
+    "rate": 69.5,
+    "ci": 1.4,
+    "source": "labels/nn/paired/carry-all-k5-new-test-seed1.out (test decks, 4 games a matchup, seed 1, 3,168 games, interval by pair)"
+   },
+   "cost": {
+    "total": 6.77,
+    "vs": "sp-m3",
+    "source": "labels/nn/paired/carry-all-k5-new-test-seed1.out (the same run, alone on the machine)"
+   },
+   "july": null,
+   "note": "The strong bot. +3.6 +- 1.6 matched against the same without the three new kinds (65.9 at 5.13); training decks, seed 2: 69.7 at 6.83."
   }
  ]
 }

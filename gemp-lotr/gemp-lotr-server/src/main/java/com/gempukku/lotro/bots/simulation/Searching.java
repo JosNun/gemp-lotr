@@ -124,6 +124,10 @@ public final class Searching implements BotPlayer {
         return r.best();
     }
 
+    /** -Dsearch.assignDepth=turn: an assignment's play-outs go on to this player's first decision of the next turn
+     *  (through regroup and any further moves), not only through the skirmishes. */
+    static final boolean ASSIGN_TURN = "turn".equals(System.getProperty("search.assignDepth"));
+
     /** What a search of whole answers came to: the answer, each candidate's {value sum, play-outs}, and whether the
      *  second round was played (the first did not find them alike). */
     private record Played(String best, Map<String, double[]> sums, boolean bothRounds) {
@@ -137,6 +141,12 @@ public final class Searching implements BotPlayer {
      */
     private Played byPlayOuts(GameState gs, AwaitingDecision d, String own, Collection<String> cands, boolean fights,
                               double margin, java.util.concurrent.atomic.AtomicLong[] counts) {
+        return byPlayOuts(gs, d, own, cands, fights, fights && ASSIGN_TURN, margin, counts);
+    }
+
+    /** As above; {@code turnLong}: play-outs to this player's first decision of the next turn. */
+    private Played byPlayOuts(GameState gs, AwaitingDecision d, String own, Collection<String> cands, boolean fights,
+                              boolean turnLong, double margin, java.util.concurrent.atomic.AtomicLong[] counts) {
         counts[0].incrementAndGet();
         long t0 = System.nanoTime();
         long[] worlds = new SplittableRandom(com.gempukku.lotro.bots.BotRandom.current().nextLong()).longs(ROLLOUTS)
@@ -146,7 +156,7 @@ public final class Searching implements BotPlayer {
         for (String c : cands) {
             double[] qn = new double[2];
             for (int i = 0; i < first; i++) {
-                Double v = playOut(gs, d, c, worlds[i], false, false, fights);
+                Double v = playOut(gs, d, c, worlds[i], turnLong, false, fights);
                 if (v != null) {
                     qn[0] += v;
                     qn[1]++;
@@ -168,7 +178,7 @@ public final class Searching implements BotPlayer {
             }
             for (var e : sums.entrySet())
                 for (int i = first; i < worlds.length; i++) {
-                    Double v = playOut(gs, d, e.getKey(), worlds[i], false, false, fights);
+                    Double v = playOut(gs, d, e.getKey(), worlds[i], turnLong, false, fights);
                     if (v != null) {
                         e.getValue()[0] += v;
                         e.getValue()[1]++;
@@ -206,7 +216,7 @@ public final class Searching implements BotPlayer {
     static final Map<String, java.util.concurrent.atomic.AtomicLong[]> SELECT_COUNTS = new java.util.TreeMap<>();
 
     static {
-        for (String k : List.of("select", "arbitrary", "choice"))
+        for (String k : List.of("select", "arbitrary", "choice", "movepick", "reconcile", "optional"))
             SELECT_COUNTS.put(k, counts());
     }
 
@@ -318,6 +328,63 @@ public final class Searching implements BotPlayer {
         }
     }
 
+    /** A pick of at most one card in play, none allowed (min 0, max 1). */
+    private static boolean optional(AwaitingDecision d) {
+        if (d.getDecisionType() != com.gempukku.lotro.logic.decisions.AwaitingDecisionType.CARD_SELECTION)
+            return false;
+        String[] min = d.getDecisionParameters().get("min"), max = d.getDecisionParameters().get("max");
+        return min != null && max != null && "0".equals(min[0]) && "1".equals(max[0]);
+    }
+
+    /**
+     * Three kinds of decision nothing searched before (2026-11-16), each the bot's own answer against the others,
+     * kept unless beaten by search.selectMargin: "movepick" ("move again?": yes against no, play-outs to this
+     * player's first decision of the next turn -- the card-action search's "move" context anchored on the network and
+     * gave nothing); "reconcile" (the reconcile discard: keep everything or one card, up to search.selectK others at
+     * random, to the next turn as well -- the phase ends with the answer); "optional" (any other pick of at most one
+     * card, none allowed, to the end of the phase).
+     */
+    private String searchOther(GameState gs, AwaitingDecision d, String own, String context) {
+        var p = d.getDecisionParameters();
+        List<String> options = new ArrayList<>();
+        if (context.equals("movepick")) {
+            String[] results = p.get("results");
+            if (results == null || results.length != 2)
+                return own;
+            options.add("0");
+            options.add("1");
+        } else {
+            String[] ids = p.getOrDefault("cardId", new String[0]), min = p.get("min"), max = p.get("max");
+            if (max == null || !"1".equals(max[0]) && !(context.equals("reconcile") && own.indexOf(',') < 0))
+                return own;
+            for (String id : ids)
+                options.add(id);
+            if (min != null && "0".equals(min[0]))
+                options.add("");
+        }
+        if (!options.remove(own) || options.isEmpty())
+            return own;
+        int[] used = perGame.computeIfAbsent(gs.getGame(), k -> new int[1]);
+        if (used[0] >= MAX_PER_GAME)
+            return own;
+        Collections.shuffle(options, new java.util.Random(com.gempukku.lotro.bots.BotRandom.current().nextLong()));
+        List<String> cands = new ArrayList<>();
+        cands.add(own);
+        cands.addAll(options.subList(0, Math.min(SELECT_K, options.size())));
+        used[0]++;
+        LAST_OWN.set(own);
+        String prompt = prompt(context, d);
+        var by = SELECT_PROMPTS.computeIfAbsent(prompt, k -> counts());
+        Played r = byPlayOuts(gs, d, own, cands, false, !context.equals("optional"), SELECT_MARGIN,
+                SELECT_COUNTS.get(context));
+        by[0].incrementAndGet();
+        if (!r.best().equals(own))
+            by[1].incrementAndGet();
+        if (!r.bothRounds())
+            by[2].incrementAndGet();
+        return r.best();
+    }
+
     /**
      * Which picks and choices the search overturns (2026-11-14): 86% of picks stop after the first round and 3% change
      * the answer, so most of their cost confirms the bot. Counts by prompt -- the context and the decision's text with
@@ -401,6 +468,12 @@ public final class Searching implements BotPlayer {
                 if (sel != null && CONTEXTS.contains(sel))
                     return searchSelection(gs, d, own, sel);
             }
+            if (own != null && net != null && "move".equals(kind) && CONTEXTS.contains("movepick"))
+                return searchOther(gs, d, own, "movepick");
+            if (own != null && net != null && "reconcile".equals(kind) && CONTEXTS.contains("reconcile"))
+                return searchOther(gs, d, own, "reconcile");
+            if (own != null && net != null && kind == null && CONTEXTS.contains("optional") && optional(d))
+                return searchOther(gs, d, own, "optional");
             if (own == null || net == null || !("action".equals(kind) || "move".equals(kind)))
                 return own;
             String context;
