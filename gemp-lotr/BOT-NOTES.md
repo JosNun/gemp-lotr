@@ -2575,6 +2575,13 @@ On everything with five assignment candidates (65.9 at 5.13): + move 67.4 at 5.6
 **69.5 at 6.77, +3.6 +- 1.6**, training seed 2 **69.7 at 6.83, +2.1 +- 1.6** (over the trees alone +17.5 / +17.1).
 **The strong bot: every context and `-Dsearch.assignK=5`; the middle bot: `assign,arbitrary,choice,movepick`.**
 
+**Multi-card picks and number choices searched: nothing measurable (2026-11-17).** `Searching.searchMore`: `multi` (the
+bot's cards against three other sets of as many, at random; the starting fellowship's picks among them) alone on the
+trees 52.4, +0.4 +- 1.2 at 1.26 (12,159 searched, 1,224 changed); `number` (a range of at most six) 51.9, -0.1 +- 0.8
+(2,336 searched, 94 changed). Both on the strong bot: 70.6 at 6.77, +1.1 +- 1.7 on 69.5 -- within noise, at no cost;
+left out of the strong bot's contexts until measured again. The middle bot with the move search on the training decks,
+seed 2: **63.7 at 2.45, +2.7 +- 1.4** on the same without it (61.0) -- as on the test decks (62.7, +2.7).
+
 ## How human is "agreement with people", and play by precedent (2026-10-31)
 
 **The measure rewards the consensus.** The user asked whether a real person would score higher on it than the bot. No:

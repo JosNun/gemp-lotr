@@ -216,7 +216,7 @@ public final class Searching implements BotPlayer {
     static final Map<String, java.util.concurrent.atomic.AtomicLong[]> SELECT_COUNTS = new java.util.TreeMap<>();
 
     static {
-        for (String k : List.of("select", "arbitrary", "choice", "movepick", "reconcile", "optional"))
+        for (String k : List.of("select", "arbitrary", "choice", "movepick", "reconcile", "optional", "multi", "number"))
             SELECT_COUNTS.put(k, counts());
     }
 
@@ -326,6 +326,72 @@ public final class Searching implements BotPlayer {
         } catch (RuntimeException e) {
             // a label lost; the game goes on
         }
+    }
+
+    /**
+     * Two more kinds (2026-11-17), as searchOther: "multi" (a pick of several cards, in play or from a list: the bot's
+     * own cards against up to search.selectK other sets of as many, drawn at random) and "number" (a number from a
+     * range of at most six: the bot's own against up to search.selectK others), played out to the end of the phase.
+     */
+    private String searchMore(GameState gs, AwaitingDecision d, String own, String context) {
+        var p = d.getDecisionParameters();
+        var rnd = new java.util.Random(com.gempukku.lotro.bots.BotRandom.current().nextLong());
+        LinkedHashSet<String> cands = new LinkedHashSet<>();
+        cands.add(own);
+        if (context.equals("number")) {
+            String[] min = p.get("min"), max = p.get("max");
+            if (min == null || max == null)
+                return own;
+            int lo = Integer.parseInt(min[0]), hi = Integer.parseInt(max[0]);
+            if (hi - lo < 1 || hi - lo > 5)
+                return own;
+            List<String> others = new ArrayList<>();
+            for (int i = lo; i <= hi; i++)
+                if (!String.valueOf(i).equals(own))
+                    others.add(String.valueOf(i));
+            if (others.size() != hi - lo)
+                return own; // the bot's answer is not a number of the range
+            Collections.shuffle(others, rnd);
+            cands.addAll(others.subList(0, Math.min(SELECT_K, others.size())));
+        } else {
+            String[] ids = p.getOrDefault("cardId", new String[0]), ok = p.get("selectable");
+            List<String> pool = new ArrayList<>();
+            for (int i = 0; i < ids.length; i++)
+                if (ok == null || i >= ok.length || "true".equals(ok[i]))
+                    pool.add(ids[i]);
+            List<String> mine = own.isEmpty() ? List.of() : List.of(own.split(","));
+            if (mine.isEmpty() || mine.size() >= pool.size() || !pool.containsAll(mine))
+                return own; // nothing picked, everything picked, or an answer of another shape
+            String key = canonical(mine);
+            for (int tries = 0; tries < 4 * SELECT_K && cands.size() <= SELECT_K; tries++) {
+                List<String> draw = new ArrayList<>(pool);
+                Collections.shuffle(draw, rnd);
+                List<String> set = draw.subList(0, mine.size());
+                if (!canonical(set).equals(key) && cands.stream().noneMatch(c -> canonical(List.of(c.split(","))).equals(canonical(set))))
+                    cands.add(String.join(",", set));
+            }
+        }
+        if (cands.size() < 2)
+            return own;
+        int[] used = perGame.computeIfAbsent(gs.getGame(), k -> new int[1]);
+        if (used[0] >= MAX_PER_GAME)
+            return own;
+        used[0]++;
+        LAST_OWN.set(own);
+        var by = SELECT_PROMPTS.computeIfAbsent(prompt(context, d), k -> counts());
+        Played r = byPlayOuts(gs, d, own, cands, false, false, SELECT_MARGIN, SELECT_COUNTS.get(context));
+        by[0].incrementAndGet();
+        if (!r.best().equals(own))
+            by[1].incrementAndGet();
+        if (!r.bothRounds())
+            by[2].incrementAndGet();
+        return r.best();
+    }
+
+    private static String canonical(List<String> ids) {
+        List<String> sorted = new ArrayList<>(ids);
+        Collections.sort(sorted);
+        return String.join(",", sorted);
     }
 
     /** A pick of at most one card in play, none allowed (min 0, max 1). */
@@ -474,6 +540,15 @@ public final class Searching implements BotPlayer {
                 return searchOther(gs, d, own, "reconcile");
             if (own != null && net != null && kind == null && CONTEXTS.contains("optional") && optional(d))
                 return searchOther(gs, d, own, "optional");
+            if (own != null && net != null && kind == null && selectContext(d) == null && !optional(d)) {
+                var type = d.getDecisionType();
+                boolean cards = type == com.gempukku.lotro.logic.decisions.AwaitingDecisionType.CARD_SELECTION
+                        || type == com.gempukku.lotro.logic.decisions.AwaitingDecisionType.ARBITRARY_CARDS;
+                if (cards && CONTEXTS.contains("multi"))
+                    return searchMore(gs, d, own, "multi");
+                if (type == com.gempukku.lotro.logic.decisions.AwaitingDecisionType.INTEGER && CONTEXTS.contains("number"))
+                    return searchMore(gs, d, own, "number");
+            }
             if (own == null || net == null || !("action".equals(kind) || "move".equals(kind)))
                 return own;
             String context;
