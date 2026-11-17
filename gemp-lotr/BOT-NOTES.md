@@ -2549,6 +2549,16 @@ Assignments are 6.3 searches a game (20,115 in 3,168 games, 14% answered differe
 picks add (5.8 + 5.2 -> 10.0); card plays on top of both are the last 3 points for 1.4 CPU-s. Of the picks, card
 selections are 69,438 searches with 3.4% changed, choices and list picks 26,747 with 8.5%.
 
+**The ladder confirmed, and five assignment candidates (2026-11-16).** Assignment candidates on the assign-only bot
+(test, seed 1): three 57.8, five 58.9 (+1.0 +- 0.8), eight 59.2 at 2.40 (+0.3 +- 0.8 on five), five with
+`assignMargin=0` 58.1 (-0.8 +- 1.1). Training decks, seed 2 (trees alone 52.6 at 1.09): assignments 58.0, +5.4 +- 1.3
+at 1.70; five candidates 59.3, +6.6 +- 1.4 at 1.99; assignments + choices and list picks 61.0, +8.4 +- 1.6 at 2.03 (five
+candidates 61.6, +8.9 at 2.27). Five candidates in the bigger bots, test seed 1: + choices and list picks 60.1 at 2.42
+(three: 60.0 at 2.14 -- nothing); those + card selections of wounds and plays from hand only
+(`-Dsearch.selectOnly=wound|play.from.hand`) 60.6 at 2.40; + every pick 62.4 at 3.68 (62.1 at 3.43); everything
+**65.9 at 5.13** (65.0 at 4.87), training seed 2 **67.6 at 4.84** (66.7). The middle bot: sp-m4b with
+`-Dsearch.contexts=assign,arbitrary,choice`, three candidates -- 60.0 / 61.0 at ~2.1 CPU-s a game, both sides.
+
 ## How human is "agreement with people", and play by precedent (2026-10-31)
 
 **The measure rewards the consensus.** The user asked whether a real person would score higher on it than the bot. No:
