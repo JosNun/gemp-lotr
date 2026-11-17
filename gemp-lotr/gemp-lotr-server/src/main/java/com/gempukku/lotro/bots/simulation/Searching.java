@@ -116,6 +116,8 @@ public final class Searching implements BotPlayer {
         }
         if (cands.size() < 2)
             return own;
+        if (decided(gs, d))
+            return own;
         used[0]++;
         LAST_OWN.set(own);
         Played r = byPlayOuts(gs, d, own, cands, true, ASSIGN_MARGIN, ASSIGN_COUNTS);
@@ -127,6 +129,37 @@ public final class Searching implements BotPlayer {
     /** -Dsearch.assignDepth=turn: an assignment's play-outs go on to this player's first decision of the next turn
      *  (through regroup and any further moves), not only through the skirmishes. */
     static final boolean ASSIGN_TURN = "turn".equals(System.getProperty("search.assignDepth"));
+
+    /**
+     * -Dsearch.decided=x (2026-11-17): no search where the judge already gives this player less than x or more than
+     * 1 - x of winning -- a game decided either way has nothing for a search to change. The judge reads the position
+     * at the decision; where it cannot (a pick, a choice), its last reading of this game stands in.
+     */
+    static final double DECIDED = Double.parseDouble(System.getProperty("search.decided", "0"));
+    static final java.util.concurrent.atomic.AtomicLong decidedSkips = new java.util.concurrent.atomic.AtomicLong();
+    private final Map<Object, double[]> lastJudged = Collections.synchronizedMap(new java.util.WeakHashMap<>());
+
+    private boolean decided(GameState gs, AwaitingDecision d) {
+        if (DECIDED <= 0 || net == null)
+            return false;
+        double[] last = null;
+        try {
+            if (BoardDump.kind(d) != null) {
+                double[] st = BoardNet2.state(gs, d, getName());
+                double[] o = st == null ? null : net.outcome(gs.getGame(), d, getName(), st);
+                if (o != null)
+                    lastJudged.put(gs.getGame(), last = new double[]{o[0] + o[1] + o[2]});
+            }
+        } catch (RuntimeException e) {
+            // unread: the last reading stands in
+        }
+        if (last == null)
+            last = lastJudged.get(gs.getGame());
+        if (last == null || last[0] >= DECIDED && last[0] <= 1 - DECIDED)
+            return false;
+        decidedSkips.incrementAndGet();
+        return true;
+    }
 
     /** What a search of whole answers came to: the answer, each candidate's {value sum, play-outs}, and whether the
      *  second round was played (the first did not find them alike). */
@@ -216,7 +249,7 @@ public final class Searching implements BotPlayer {
     static final Map<String, java.util.concurrent.atomic.AtomicLong[]> SELECT_COUNTS = new java.util.TreeMap<>();
 
     static {
-        for (String k : List.of("select", "arbitrary", "choice", "movepick", "reconcile", "optional", "multi", "number"))
+        for (String k : List.of("select", "arbitrary", "choice", "movepick", "reconcile", "optional", "multi", "number", "respond"))
             SELECT_COUNTS.put(k, counts());
     }
 
@@ -270,6 +303,8 @@ public final class Searching implements BotPlayer {
         String prompt = prompt(context, d);
         if (SELECT_ONLY != null && !SELECT_ONLY.matcher(prompt).find()
                 || SELECT_SKIP != null && SELECT_SKIP.matcher(prompt).find())
+            return own;
+        if (decided(gs, d))
             return own;
         used[0]++;
         LAST_OWN.set(own);
@@ -376,6 +411,8 @@ public final class Searching implements BotPlayer {
         int[] used = perGame.computeIfAbsent(gs.getGame(), k -> new int[1]);
         if (used[0] >= MAX_PER_GAME)
             return own;
+        if (decided(gs, d))
+            return own;
         used[0]++;
         LAST_OWN.set(own);
         var by = SELECT_PROMPTS.computeIfAbsent(prompt(context, d), k -> counts());
@@ -419,6 +456,12 @@ public final class Searching implements BotPlayer {
                 return own;
             options.add("0");
             options.add("1");
+        } else if (context.equals("respond")) {
+            // an optional response (2026-11-17): each action offered, and passing; the card-action search does not
+            // reach these (their context is "other", and the trees leave no scores for them)
+            for (String id : p.getOrDefault("actionId", new String[0]))
+                options.add(id);
+            options.add("");
         } else {
             String[] ids = p.getOrDefault("cardId", new String[0]), min = p.get("min"), max = p.get("max");
             if (max == null || !"1".equals(max[0]) && !(context.equals("reconcile") && own.indexOf(',') < 0))
@@ -437,11 +480,13 @@ public final class Searching implements BotPlayer {
         List<String> cands = new ArrayList<>();
         cands.add(own);
         cands.addAll(options.subList(0, Math.min(SELECT_K, options.size())));
+        if (decided(gs, d))
+            return own;
         used[0]++;
         LAST_OWN.set(own);
         String prompt = prompt(context, d);
         var by = SELECT_PROMPTS.computeIfAbsent(prompt, k -> counts());
-        Played r = byPlayOuts(gs, d, own, cands, false, !context.equals("optional"), SELECT_MARGIN,
+        Played r = byPlayOuts(gs, d, own, cands, false, context.equals("movepick") || context.equals("reconcile"), SELECT_MARGIN,
                 SELECT_COUNTS.get(context));
         by[0].incrementAndGet();
         if (!r.best().equals(own))
@@ -534,6 +579,9 @@ public final class Searching implements BotPlayer {
                 if (sel != null && CONTEXTS.contains(sel))
                     return searchSelection(gs, d, own, sel);
             }
+            if (own != null && net != null && "action".equals(kind) && CONTEXTS.contains("respond")
+                    && d.getText() != null && d.getText().contains("Optional responses"))
+                return searchOther(gs, d, own, "respond");
             if (own != null && net != null && "move".equals(kind) && CONTEXTS.contains("movepick"))
                 return searchOther(gs, d, own, "movepick");
             if (own != null && net != null && "reconcile".equals(kind) && CONTEXTS.contains("reconcile"))
@@ -587,6 +635,8 @@ public final class Searching implements BotPlayer {
             for (int i = 0; i < Math.min(K, order.length); i++)
                 cands.add(order[i]);
             if (cands.size() < 2)
+                return own;
+            if (decided(gs, d))
                 return own;
             used[0]++;
             LAST_OWN.set(own);

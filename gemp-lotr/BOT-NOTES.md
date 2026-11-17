@@ -2590,6 +2590,22 @@ cheap bot's cells carried over from share-1114): against upstream Aragorn v Gand
 (78.4), Towers 96.8 (94.6), King 95.6 (94.4), Movie 92.2 (89.4); against sp-m4b 64.0 / 67.3 / 67.9 / 63.0 (61.9 / 64.8 /
 64.4 / 59.8). CPU a card-action decision: upstream 0.22 ms, trees 0.67, search 25.35 (15.9 before the new kinds).
 
+**The bot said yes to every yes/no prompt: fixed, sp-m8 (2026-11-17).** Which way the search overturns the trees
+(teach-1115's choices): "wound the Ring-bearer to prevent adding a burden" the bot's answer yes 1,753 of 1,753, the
+search's no 1,601 times; "add burdens to prevent the opponent drawing" yes 1,064 of 1,064, no 1,016; "discard cards to
+draw" yes 833 of 833, no 297; mulligan no 11,080 of 12,099, changed to yes 3,925 times. `GenericChoiceTrainer`
+describes an option by the words of its own text, and "Yes" and "No" hold none of its words: the two get the same
+numbers, the same score, and the first -- "Yes" -- is taken. 25,604 of people's 67,443 choice rows are yes/no.
+`-Dchoice.yesNo=true` (fit) / a `choice-yes-no` file in the model folder (play): a yes or no option carries the
+question's words and number, and one more number tells them apart. On sp-m4b, against sp-m3, test decks, seed 1,
+matched against sp-m4b (52.0), with July's agreement with people on these 2,706 choices (sp-m4b 76.6%):
+people's rows alone sp-m8p **53.1, +1.1 +- 0.7, 81.0%**; people's + the search's (32,939 decisions) **sp-m8 54.1,
++2.1 +- 0.9, 79.6%** -- the teaching that gave +0.4 before the fix. Training decks, seed 2: sp-m8 54.6, +1.9 +- 0.9.
+**sp-m8 is the trees-alone bot to use** (stronger on both, more like people). Under the search it changes little, the
+search already answering choices: the middle bot on sp-m8 63.1 at 2.63 (+0.4 +- 0.8), the strong bot 69.9 at 6.90
+(+0.4 +- 1.0). The trees' other answers looked at the same way (first-listed option against chance, by prompt, in 60
+recorded games) show nothing as stark; answers at random are ~1,000 in 750,000 decisions.
+
 ## How human is "agreement with people", and play by precedent (2026-10-31)
 
 **The measure rewards the consensus.** The user asked whether a real person would score higher on it than the bot. No:

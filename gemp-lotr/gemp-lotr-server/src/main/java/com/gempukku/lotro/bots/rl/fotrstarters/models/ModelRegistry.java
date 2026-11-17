@@ -98,6 +98,17 @@ public class ModelRegistry {
         this.numberBid = numberBid;
     }
 
+    /** GenericChoiceTrainer's model was fit with yes/no options reading the question: a "choice-yes-no" file. */
+    private boolean choiceYesNo;
+
+    public boolean isChoiceYesNo() {
+        return choiceYesNo;
+    }
+
+    public void setChoiceYesNo(boolean choiceYesNo) {
+        this.choiceYesNo = choiceYesNo;
+    }
+
     /** CharacterChoiceTrainer only outside a skirmish, the fixed rule inside: a "character-outside-skirmish" file. */
     private boolean characterOutsideSkirmish;
 

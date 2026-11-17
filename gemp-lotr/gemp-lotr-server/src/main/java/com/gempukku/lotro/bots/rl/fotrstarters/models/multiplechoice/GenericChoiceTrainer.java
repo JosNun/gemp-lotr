@@ -47,6 +47,28 @@ public class GenericChoiceTrainer extends AbstractTrainer {
         return f;
     }
 
+    /**
+     * -Dchoice.yesNo=true: a "Yes" or "No" option reads the question. Without it the two have the same numbers (no
+     * word of the list is in "Yes" or in "No"), the model scores them alike and the first, "Yes", is always the
+     * answer: of the search's fully searched yes/no prompts (2026-11-17) the bot said yes to every one, and the search
+     * said no to 91% of "wound the Ring-bearer to prevent adding a burden". With it both carry the question's words
+     * and number, and one more number tells them apart (+1 yes, -1 no, 0 any other option). Fit with the property; a
+     * `choice-yes-no` file in the model folder says the model was (ModelRegistry.isChoiceYesNo), bot by bot.
+     */
+    static final boolean YES_NO = Boolean.getBoolean("choice.yesNo");
+
+    private static double[] vector(double[] state, String option, int options, String question, boolean yesNo) {
+        if (!yesNo)
+            return vector(state, option, options);
+        String t = option == null ? "" : option.trim();
+        int yn = t.equalsIgnoreCase("yes") ? 1 : t.equalsIgnoreCase("no") ? -1 : 0;
+        double[] o = optionFeatures(yn != 0 && question != null ? question : option, options);
+        double[] x = Arrays.copyOf(state, state.length + o.length + 1);
+        System.arraycopy(o, 0, x, state.length, o.length);
+        x[state.length + o.length] = yn;
+        return x;
+    }
+
     private static double[] vector(double[] state, String option, int options) {
         double[] o = optionFeatures(option, options);
         double[] x = Arrays.copyOf(state, state.length + o.length);
@@ -82,7 +104,7 @@ public class GenericChoiceTrainer extends AbstractTrainer {
         double top = Double.NEGATIVE_INFINITY;
         for (int i = 0; i < results.length; i++) {
             double[] p = new double[2];
-            model.predict(vector(state, results[i], results.length), p);
+            model.predict(vector(state, results[i], results.length, decision.getText(), modelRegistry.isChoiceYesNo()), p);
             if (p[1] > top) {
                 top = p[1];
                 best = i;
@@ -101,7 +123,7 @@ public class GenericChoiceTrainer extends AbstractTrainer {
             String option = ((MultipleChoiceAction) step.action).getChosenOption();
             if (option == null || results == null)
                 continue;
-            data.add(new LabeledPoint(step.reward > 0 ? 1 : 0, vector(step.state, option, results.length), step.group));
+            data.add(new LabeledPoint(step.reward > 0 ? 1 : 0, vector(step.state, option, results.length, step.decision.getText(), YES_NO), step.group));
         }
         return data;
     }

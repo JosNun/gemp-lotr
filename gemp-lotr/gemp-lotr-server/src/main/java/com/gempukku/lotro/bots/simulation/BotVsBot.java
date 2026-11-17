@@ -334,6 +334,9 @@ public class BotVsBot {
                     Searching.nanos.get() / 1e9 / Searching.searched.get(), Searching.playOuts.get(),
                     (double) Searching.steps.get() / Math.max(1, Searching.playOuts.get()), Searching.judged.get(),
                     Searching.stoppedEarly.get());
+        if (Searching.decidedSkips.get() > 0)
+            System.out.printf("decided: %d searches skipped, the judge under %.2f or over %.2f%n", Searching.decidedSkips.get(),
+                    Searching.DECIDED, 1 - Searching.DECIDED);
         if (Searching.assignSearched.get() > 0)
             System.out.printf("assignments: %d searched, %d answered differently from the bot, %d stopped after the "
                             + "first round%n", Searching.assignSearched.get(), Searching.assignChanged.get(),
