@@ -2564,6 +2564,27 @@
    },
    "july": null,
    "note": "+2.1 +- 0.9 matched against sp-m4b; training decks, seed 2: 54.6, +1.9 +- 0.9. Agreement with people on choices in July 76.6 -> 79.6%."
+  },
+  {
+   "id": "sp-m9",
+   "date": "2026-11-18",
+   "kind": "plain",
+   "parent": "sp-m8",
+   "what": "sp-m8 with the move-again model refit on people's moves and the search's, moving above 0.50. Trees alone, no network.",
+   "strength": {
+    "a": "sp-m9",
+    "b": "sp-m3",
+    "rate": 55.1,
+    "ci": 1.4,
+    "source": "labels/nn/paired/sp-m9a-t0.50-vs-sp-m3-test-seed1.out (test decks, 4 games a matchup, seed 1, 3,168 games, interval by pair)"
+   },
+   "cost": {
+    "total": 1.1,
+    "vs": "sp-m3",
+    "source": "as sp-m4b (the same models but two)"
+   },
+   "july": null,
+   "note": "+1.0 +- 1.4 matched against sp-m8 on the test decks, +3.0 +- 1.3 on the training decks, seed 2 (57.6). Agreement with people on moves in July 78.8 -> 79.2%."
   }
  ]
 }

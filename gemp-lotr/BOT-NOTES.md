@@ -2621,6 +2621,19 @@ the judge 1%. The middle bot (63.1 at 2.63) with sel10-e (the trees before the b
 (`-Dsearch.playoutTrees`): 200 62.3 at 2.45, -0.7 +- 1.0; 100 61.5 at 2.34, -1.5 +- 1.1; 50 61.2 at 2.41, -1.8 +- 1.2.
 The play-out bot's quality does count, and its trees are not where the time can be had cheaply.
 
+**"Move again?" taught by the search: sp-m9 (2026-11-18).** `searchOther` writes its move and reconcile searches as
+labels. 16,000 games of the middle bot on sp-m8 with reconcile searched too, against itself (training decks, `--seed
+off`, 4 hours): 141,547 moves searched, 16,286 changed; 288,131 reconciles, 25,029 changed; 1,035,764 rows.
+`AnotherMoveTrainer` (300 x 64) on people's moves (`moves-people.jsonl`) + the search's 100,868 decisions that led by
+0.03, both answers: sp-m9a 55.1 against sp-m3, +1.0 +- 1.3 matched against sp-m8 (54.1); with the old race teacher's
+labels three times too (sp-m9b) 54.8, +0.7. Its `move-threshold`: 0.28 +0.1, 0.35 +1.0, 0.42 +1.0, 0.50 +1.0 (test);
+at 0.50 on the training decks, seed 2: **57.6, +3.0 +- 1.3** on sp-m8 (54.6). July's 4,166 move decisions: sp-m8 agrees
+with people 78.8% (moving 29.4% of the time), sp-m9a at 0.35 78.2% (25.9%), at 0.50 **79.2%** (15.3%).
+**sp-m9 = sp-m8 with that model and `move-threshold` 0.50: the trees-alone bot to use.**
+`ReconcileChoiceTrainer` on `rec-all.jsonl` + the search's 20,813 picks (27 GB heap -- 14 ran out -- and 4.5 hours):
+sp-m9c 53.6, -0.5 +- 1.5; with the move model (sp-m9-rec) +1.6 +- 1.7 (test), +2.1 +- 1.7 (training) -- under the move
+model alone. Not kept.
+
 ## How human is "agreement with people", and play by precedent (2026-10-31)
 
 **The measure rewards the consensus.** The user asked whether a real person would score higher on it than the bot. No:
