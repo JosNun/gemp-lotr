@@ -2634,6 +2634,12 @@ with people 78.8% (moving 29.4% of the time), sp-m9a at 0.35 78.2% (25.9%), at 0
 sp-m9c 53.6, -0.5 +- 1.5; with the move model (sp-m9-rec) +1.6 +- 1.7 (test), +2.1 +- 1.7 (training) -- under the move
 model alone. Not kept.
 
+**The bots to use, 2026-11-18** (against sp-m3, test decks, seed 1; CPU-s a game for both sides): the trees alone
+**sp-m9 55.1 at 1.1**; the middle bot, sp-m9 with `-Dsearch.contexts=assign,arbitrary,choice,movepick`, **63.9 at 2.66**
+(+0.8 +- 0.8 on the same on sp-m8); the strong bot, sp-m9 with the card contexts and
+`assign,select,arbitrary,choice,movepick,reconcile,optional`, `-Dsearch.assignK=5`, **69.6 at 6.93** (-0.3 +- 1.1 on
+sp-m8's 69.9).
+
 ## How human is "agreement with people", and play by precedent (2026-10-31)
 
 **The measure rewards the consensus.** The user asked whether a real person would score higher on it than the bot. No:
