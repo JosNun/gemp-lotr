@@ -2614,6 +2614,13 @@ game (`-Dsearch.decided=x`, under x or over 1 - x), on sp-m8: the middle bot (63
 numbers by win rate, sp-m8 matched against itself: `mulligan-threshold` (new; 0.5) 0.4 +0.3 +- 0.5, 0.3 -0.1 +- 0.8,
 0.2 -0.6 +- 1.3; `move-threshold` (0.35) 0.25 -0.8 +- 0.9, 0.45 -0.2 +- 0.8. Both stay.
 
+**Cheaper play-outs by lighter trees: not a bargain (2026-11-17).** A JFR profile of the middle bot on sp-m8 (156
+games): trees 32% of the CPU (`FlatTrees$Tree.predict` 27%), the engine's filters 23%, game copies 12%, modifiers 11%,
+the judge 1%. The middle bot (63.1 at 2.63) with sel10-e (the trees before the bigger ones) playing the play-outs
+(`-Dsearch.policy`): 61.8 at 2.26, -1.3 +- 1.3. With the listwise models answering play-outs from their first N trees
+(`-Dsearch.playoutTrees`): 200 62.3 at 2.45, -0.7 +- 1.0; 100 61.5 at 2.34, -1.5 +- 1.1; 50 61.2 at 2.41, -1.8 +- 1.2.
+The play-out bot's quality does count, and its trees are not where the time can be had cheaply.
+
 ## How human is "agreement with people", and play by precedent (2026-10-31)
 
 **The measure rewards the consensus.** The user asked whether a real person would score higher on it than the bot. No:

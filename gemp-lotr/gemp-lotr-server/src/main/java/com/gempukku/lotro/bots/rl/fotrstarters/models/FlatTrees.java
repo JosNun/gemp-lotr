@@ -141,10 +141,21 @@ public final class FlatTrees {
         }
     }
 
+    /**
+     * -Dsearch.playoutTrees=N: inside a search's play-out (Searching sets IN_PLAYOUT on its thread) a boosted model
+     * answers with its first N trees only. A profile of the middle bot (2026-11-17) has 32% of its CPU in the trees,
+     * most of it play-outs.
+     */
+    public static final int PLAYOUT_TREES = Integer.getInteger("search.playoutTrees", 0);
+    public static final ThreadLocal<Boolean> IN_PLAYOUT = ThreadLocal.withInitial(() -> false);
+
     static double sum(Tree[] trees, double shrinkage, double[] x) {
+        int n = trees.length;
+        if (PLAYOUT_TREES > 0 && PLAYOUT_TREES < n && IN_PLAYOUT.get())
+            n = PLAYOUT_TREES;
         double s = 0;
-        for (Tree t : trees)
-            s += shrinkage * t.predict(x);
+        for (int i = 0; i < n; i++)
+            s += shrinkage * trees[i].predict(x);
         return s;
     }
 

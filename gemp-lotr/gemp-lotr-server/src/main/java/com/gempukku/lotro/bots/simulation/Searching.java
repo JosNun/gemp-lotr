@@ -488,6 +488,8 @@ public final class Searching implements BotPlayer {
         var by = SELECT_PROMPTS.computeIfAbsent(prompt, k -> counts());
         Played r = byPlayOuts(gs, d, own, cands, false, context.equals("movepick") || context.equals("reconcile"), SELECT_MARGIN,
                 SELECT_COUNTS.get(context));
+        if (STEPS != null && r.bothRounds() && !context.equals("respond"))
+            selectionSteps(gs, d, r.best(), r.sums(), own); // "move again?" and reconcile as labels too
         by[0].incrementAndGet();
         if (!r.best().equals(own))
             by[1].incrementAndGet();
@@ -870,6 +872,8 @@ public final class Searching implements BotPlayer {
                         gs.playerDrawsCard(p);
                 }
             java.util.Random previous = com.gempukku.lotro.bots.BotRandom.use(new java.util.Random(world ^ 0x5DEECE66DL));
+            boolean wasIn = com.gempukku.lotro.bots.rl.fotrstarters.models.FlatTrees.IN_PLAYOUT.get();
+            com.gempukku.lotro.bots.rl.fotrstarters.models.FlatTrees.IN_PLAYOUT.set(true);
             try {
                 for (String p : gs.getPlayerNames())
                     gs.shuffleDeck(p);
@@ -919,6 +923,7 @@ public final class Searching implements BotPlayer {
                 }
                 return null;
             } finally {
+                com.gempukku.lotro.bots.rl.fotrstarters.models.FlatTrees.IN_PLAYOUT.set(wasIn);
                 com.gempukku.lotro.bots.BotRandom.use(previous);
             }
         } catch (Exception e) {
