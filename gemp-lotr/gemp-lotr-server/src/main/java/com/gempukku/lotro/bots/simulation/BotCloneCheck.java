@@ -295,7 +295,7 @@ public class BotCloneCheck {
                 answer = i == actionIds.length ? "" : actionIds[i];
             }
             // by replay, exactly as BotTeach.Branch.value
-            BotTeach.Shared byReplay = new BotTeach.Shared(prefix, here.player(), answer, world, depth);
+            BotTeach.Shared byReplay = new BotTeach.Shared(prefix, here.player(), answer, world, depth, false);
             long[] branchedAt = {0};
             long r0 = cpu();
             List<BotPlayer> replayBots = new ArrayList<>();
@@ -317,7 +317,7 @@ public class BotCloneCheck {
             }
             BotGame.Result r1 = BotGame.play(format, ctx.library(), replayBots, decks, 1000, seed);
             // by copy, as BotTeach --clone
-            BotTeach.Shared byCopy = new BotTeach.Shared(List.of(), here.player(), answer, world, depth);
+            BotTeach.Shared byCopy = new BotTeach.Shared(List.of(), here.player(), answer, world, depth, false);
             BotGame.Result r2 = CloneRollout.play(copier, live, prefix, byCopy, BotVsBot.bot(policy, "~a", ctx),
                     BotVsBot.bot(policy, "~b", ctx));
             if (branchedAt[0] > 0) {
