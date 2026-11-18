@@ -349,6 +349,14 @@ public final class GameCopier {
 
     /** The copied game's feedback, which holds the decision it waits on. */
     public static DefaultUserFeedback feedback(DefaultLotroGame game) {
+        DefaultUserFeedback f = playersFeedback(game);
+        if (f == null)
+            throw new IllegalStateException("not a game with a DefaultUserFeedback: " + game.getUserFeedback());
+        return f;
+    }
+
+    /** As feedback, for any game: null if its players' feedback is of another kind. */
+    public static DefaultUserFeedback playersFeedback(com.gempukku.lotro.game.state.LotroGame game) {
         Object f = game.getUserFeedback();
         // the game's own feedback is a LoopFeedback standing in front of the players' (upstream's loop handling):
         // the decisions wait in the one behind it
@@ -358,7 +366,7 @@ public final class GameCopier {
             } catch (IllegalAccessException e) {
                 throw new IllegalStateException(e);
             }
-        return (DefaultUserFeedback) f;
+        return f instanceof DefaultUserFeedback d ? d : null;
     }
 
     private static final java.lang.reflect.Field LOOP_PLAYERS;
@@ -594,6 +602,8 @@ public final class GameCopier {
             return new HashPlan(c);
         if (HASHED_IMMUTABLE.contains(c.getName()))
             return new ImmutableHashPlan();
+        if (c == IdentityHashMap.class || c.getName().equals("java.util.Collections$SetFromMap"))
+            return new IdentityPlan();
         if (isJdk(c) && !RAW_JDK.contains(c.getName())) {
             boolean stateless = true; // Collections.emptySet() and the like: nothing to copy, and == keeps working
             for (Class<?> k = c; k != null && k != Object.class; k = k.getSuperclass())
@@ -895,6 +905,46 @@ public final class GameCopier {
                 float lf = U.getFloat(inner, LOAD_FACTOR);
                 c = type == LinkedHashSet.class ? new LinkedHashSet<>(cap == 0 ? 16 : cap, lf)
                         : new HashSet<>(cap == 0 ? 16 : cap, lf);
+            }
+            s.copies.put(o, c);
+            s.hashFill.add(o);
+            s.hashFill.add(c);
+            return c;
+        }
+
+        @Override
+        List<Object> referents(Object o) {
+            throw new IllegalStateException("walked through the API");
+        }
+    }
+
+    /**
+     * An IdentityHashMap, or a set made over one (Collections.newSetFromMap): laid out by identity hashes, which the
+     * copies of its keys do not share, so it is rebuilt through its API once what it holds is copied. Upstream's
+     * LoopFeedback keeps the decisions it is recording in such a set. Iteration order is the JDK's, by identity hash,
+     * in the original as in the copy: nothing that must replay may depend on it.
+     */
+    private static final class IdentityPlan extends Plan {
+        static final long SET_M;
+
+        static {
+            try {
+                SET_M = U.objectFieldOffset(Class.forName("java.util.Collections$SetFromMap").getDeclaredField("m"));
+            } catch (ReflectiveOperationException e) {
+                throw new ExceptionInInitializerError(e);
+            }
+        }
+
+        @Override
+        Object copy(Session s, Object o) {
+            Object c;
+            if (o instanceof IdentityHashMap) {
+                c = new IdentityHashMap<>();
+            } else {
+                Object m = U.getObject(o, SET_M);
+                if (!(m instanceof IdentityHashMap))
+                    throw new UnsupportedOperationException("cannot copy a set made over a " + m.getClass().getName());
+                c = Collections.newSetFromMap(new IdentityHashMap<>());
             }
             s.copies.put(o, c);
             s.hashFill.add(o);

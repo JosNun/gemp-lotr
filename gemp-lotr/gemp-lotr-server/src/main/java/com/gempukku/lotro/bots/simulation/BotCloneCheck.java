@@ -256,8 +256,8 @@ public class BotCloneCheck {
                                     : "same steps, end " + r.winner() + "/" + r.turns() + "/" + r.reason() + "/"
                                     + r.error() + " vs " + original.winner() + "/" + original.turns() + "/"
                                     + original.reason()));
-                        if (!before.equals(BotGame.fingerprint(live.getUserFeedback() instanceof
-                                com.gempukku.lotro.game.DefaultUserFeedback f ? f.getAwaitingDecision(name) : null)))
+                        if (!before.equals(BotGame.fingerprint(GameCopier.playersFeedback(live) != null
+                                ? GameCopier.playersFeedback(live).getAwaitingDecision(name) : null)))
                             failures.add(label + " (b): the live decision changed while copies were played");
                     }
                 }

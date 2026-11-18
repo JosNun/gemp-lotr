@@ -110,7 +110,7 @@ public final class EffectProbe {
         if (fork == null || !(gs.getGame() instanceof DefaultLotroGame live))
             return null;
         // the trees and the network's record both probe a skirmish's options: once per decision on this thread
-        Object asked = live.getUserFeedback() instanceof DefaultUserFeedback f ? f.getAwaitingDecision(me) : null;
+        Object asked = com.gempukku.lotro.bots.simulation.GameCopier.playersFeedback(live) != null ? com.gempukku.lotro.bots.simulation.GameCopier.playersFeedback(live).getAwaitingDecision(me) : null;
         Object[] cache = CACHE.get();
         if (asked == null || cache == null || cache[0] != asked || !me.equals(cache[1])) {
             cache = new Object[]{asked, me, new HashMap<String, double[]>()};
@@ -135,7 +135,8 @@ public final class EffectProbe {
         try {
             Board before = Board.read(gs, me);
             DefaultLotroGame copy = fork.apply(live);
-            if (!(copy.getUserFeedback() instanceof DefaultUserFeedback feedback))
+            DefaultUserFeedback feedback = com.gempukku.lotro.bots.simulation.GameCopier.playersFeedback(copy);
+            if (feedback == null)
                 return null;
             AwaitingDecision pending = feedback.getAwaitingDecision(me);
             if (pending == null)
