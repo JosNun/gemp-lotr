@@ -83,7 +83,7 @@ public class BotCloneCheck {
 
     private static void run(PrintStream out, String suite, String policy, int perMatchup, int worlds, int depth,
                             long master, int jobs) throws Exception {
-        BotVsBot.Context ctx = BotVsBot.context(Path.of("gemp-lotr-cards/src/main/resources"), Path.of("bot-models"));
+        BotVsBot.Context ctx = BotVsBot.context(BotVsBot.defaultResources(), Path.of("bot-models"));
         List<BotVsBot.Matchup> matchups = BotVsBot.loadSuite(suite, ctx);
         Map<String, LotroDeck> decks = new HashMap<>();
         for (BotVsBot.Matchup m : matchups)

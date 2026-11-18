@@ -208,7 +208,7 @@ public class BotTeach {
         PrintStream out = System.out;
         System.setOut(new PrintStream(OutputStream.nullOutputStream(), true, StandardCharsets.UTF_8));
 
-        BotVsBot.Context ctx = BotVsBot.context(Path.of("gemp-lotr-cards/src/main/resources"), opts.base());
+        BotVsBot.Context ctx = BotVsBot.context(BotVsBot.defaultResources(), opts.base());
         Files.createDirectories(opts.out());
         Path stepsFile = opts.steps() != null ? opts.steps() : opts.out().resolve("teacher-steps.jsonl");
         if (opts.play()) {

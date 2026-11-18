@@ -15,7 +15,7 @@ import java.io.*; import java.lang.reflect.Method; import java.nio.file.*; impor
 public class ScoreProbe {
     public static void main(String[] a) throws Exception {
         PrintStream out = System.out; System.setOut(new PrintStream(OutputStream.nullOutputStream()));
-        BotVsBot.context(Path.of("gemp-lotr-cards/src/main/resources"), Path.of("bot-models"));
+        BotVsBot.context(BotVsBot.defaultResources(), Path.of("bot-models"));
         var reg = BotVsBot.loadModels(Path.of(a[0]));
         CardFeatures.setVersion(reg.getFeatureVersion());
         var model = reg.getModel(AnyPhaseCardActionTrainer.class);

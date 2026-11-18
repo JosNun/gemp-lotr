@@ -38,7 +38,7 @@ public class BotTrace {
         PrintStream out = System.out;
         System.setOut(new PrintStream(OutputStream.nullOutputStream()));
 
-        BotVsBot.Context ctx = BotVsBot.context(Path.of("gemp-lotr-cards/src/main/resources"), Path.of("bot-models"));
+        BotVsBot.Context ctx = BotVsBot.context(BotVsBot.defaultResources(), Path.of("bot-models"));
         List<BotVsBot.Matchup> matchups = BotVsBot.loadSuite(suite, ctx);
         ExecutorService pool = Executors.newFixedThreadPool(jobs);
         var threads = java.lang.management.ManagementFactory.getThreadMXBean();

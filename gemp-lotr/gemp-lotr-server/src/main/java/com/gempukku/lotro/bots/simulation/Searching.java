@@ -279,6 +279,17 @@ public final class Searching implements BotPlayer {
         }
     }
 
+    /** -Dsearch.dropNoEffect: see chooseAction. Counted whether or not the search then runs. */
+    static final boolean DROP_NO_EFFECT = Boolean.getBoolean("search.dropNoEffect");
+    static final java.util.concurrent.atomic.AtomicLong noEffectDropped = new java.util.concurrent.atomic.AtomicLong();
+
+    /**
+     * -Dsearch.selectFights: a pick's play-outs run on through the assignment and skirmish phases, as an assignment's
+     * do, not to the end of the phase it was made in. For picks whose worth shows only in the fights: who takes an
+     * archery wound, judged at the end of the archery phase, is judged before anyone has fought.
+     */
+    static final boolean SELECT_FIGHTS = Boolean.getBoolean("search.selectFights");
+
     private String searchSelection(GameState gs, AwaitingDecision d, String own, String context) {
         var p = d.getDecisionParameters();
         List<String> options = new ArrayList<>();
@@ -309,7 +320,10 @@ public final class Searching implements BotPlayer {
         used[0]++;
         LAST_OWN.set(own);
         var by = SELECT_PROMPTS.computeIfAbsent(prompt, k -> counts());
-        Played r = byPlayOuts(gs, d, own, cands, false, SELECT_MARGIN, SELECT_COUNTS.get(context));
+        var ph = gs.getCurrentPhase();
+        boolean fights = SELECT_FIGHTS && ph != null && ph.ordinal() >= com.gempukku.lotro.common.Phase.SHADOW.ordinal()
+                && ph.ordinal() < com.gempukku.lotro.common.Phase.REGROUP.ordinal();
+        Played r = byPlayOuts(gs, d, own, cands, fights, false, SELECT_MARGIN, SELECT_COUNTS.get(context));
         by[0].incrementAndGet();
         if (!r.best().equals(own))
             by[1].incrementAndGet();
@@ -634,8 +648,18 @@ public final class Searching implements BotPlayer {
             int ownIndex = answers.indexOf(own);
             if (ownIndex >= 0)
                 cands.add(ownIndex); // the bot's own answer, and the network's top K
-            for (int i = 0; i < Math.min(K, order.length); i++)
-                cands.add(order[i]);
+            // search.dropNoEffect: an action upstream flags as doing nothing is not played out (the bot's own answer
+            // still is); the next of the trees' answers takes its place
+            String[] idle = DROP_NO_EFFECT && "action".equals(kind) ? d.getDecisionParameters().get("noEffect") : null;
+            for (int i = 0, taken = 0; i < order.length && taken < K; i++) {
+                int c = order[i];
+                if (idle != null && c < idle.length && !"false".equals(idle[c])) {
+                    noEffectDropped.incrementAndGet();
+                    continue;
+                }
+                cands.add(c);
+                taken++;
+            }
             if (cands.size() < 2)
                 return own;
             if (decided(gs, d))
@@ -852,7 +876,7 @@ public final class Searching implements BotPlayer {
         return playOut(live, d, answer, world, turnLong, immediate, false);
     }
 
-    /** As above; {@code fights}: play on until the assignment and skirmish phases are over (or the turn is). */
+    /** As above; {@code fights}: play on until the regroup phase (the fights are over) or the next turn. */
     private Double playOut(GameState live, AwaitingDecision d, String answer, long world, boolean turnLong,
                            boolean immediate, boolean fights) {
         String me = getName();
@@ -905,8 +929,7 @@ public final class Searching implements BotPlayer {
                         return null;
                     var now = gs.getCurrentPhase();
                     boolean far = immediate || (turnLong ? gs.getTurnNumber() > turn
-                            : fights ? gs.getTurnNumber() > turn || now != com.gempukku.lotro.common.Phase.ASSIGNMENT
-                                    && now != com.gempukku.lotro.common.Phase.SKIRMISH
+                            : fights ? gs.getTurnNumber() > turn || now.ordinal() >= com.gempukku.lotro.common.Phase.REGROUP.ordinal()
                             : now != phase || gs.getTurnNumber() > turn);
                     if (far && who.equals(me) && BoardDump.kind(next) != null) {
                         double[] st = BoardNet2.state(gs, next, me);

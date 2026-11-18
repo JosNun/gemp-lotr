@@ -1441,7 +1441,7 @@ public class HumanReplay {
         }
         PrintStream out = System.out;
         System.setOut(new PrintStream(OutputStream.nullOutputStream()));
-        BotVsBot.Context ctx = BotVsBot.context(Path.of("gemp-lotr-cards/src/main/resources"), Path.of("bot-models"));
+        BotVsBot.Context ctx = BotVsBot.context(BotVsBot.defaultResources(), Path.of("bot-models"));
         GameCopier copier = new GameCopier(ctx.library(), ctx.formats());
         if (probeBot != null) {
             String kind = probeBot;

@@ -236,7 +236,7 @@ public class BotTrain {
         double vsRandom = 0.2;
         int jobs = Math.max(1, Runtime.getRuntime().availableProcessors() - 2);
         int maxDecisions = 1000;
-        Path resources = Path.of("gemp-lotr-cards/src/main/resources");
+        Path resources = BotVsBot.defaultResources();
         boolean extended = false;
         int features = 1;
         for (int i = 0; i < args.length; i++) {

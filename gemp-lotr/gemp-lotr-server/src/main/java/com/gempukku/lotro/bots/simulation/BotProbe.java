@@ -94,7 +94,7 @@ public class BotProbe {
                     + " positions from " + fit + ") in " + saveValue.resolve("value.model"));
             System.exit(0);
         }
-        BotVsBot.Context ctx = BotVsBot.context(Path.of("gemp-lotr-cards/src/main/resources"), Path.of("bot-models"));
+        BotVsBot.Context ctx = BotVsBot.context(BotVsBot.defaultResources(), Path.of("bot-models"));
         ExecutorService pool = Executors.newFixedThreadPool(jobs);
         List<Game> all = play(suite, games, kind, ctx, pool);
         // decks the value model never saw: what scoring a new deck's games needs. Split by game instead, the

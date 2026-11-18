@@ -520,7 +520,7 @@ public final class BoardDump {
     public static void main(String[] args) throws Exception {
         if (args.length != 2 || !args[0].equals("cards"))
             throw new IllegalArgumentException("usage: BoardDump cards <out.tsv>");
-        BotVsBot.context(Path.of("gemp-lotr-cards/src/main/resources"), null);
+        BotVsBot.context(BotVsBot.defaultResources(), null);
         CardFeatures.setVersion(2);
         List<String> vocab = CardTextFeatures.vocabulary(Path.of("bot-models-exp/sel10-big5/card-text"));
         try (PrintWriter out = new PrintWriter(Files.newBufferedWriter(Path.of(args[1]), StandardCharsets.UTF_8))) {

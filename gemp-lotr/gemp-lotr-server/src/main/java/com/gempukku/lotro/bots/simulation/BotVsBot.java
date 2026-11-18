@@ -194,10 +194,32 @@ public class BotVsBot {
         return ModelDirectory.readModel(file);
     }
 
+    /**
+     * Where the card definitions are: -Dgemp.resources, else the copy that sits beside the compiled card classes on the
+     * classpath, else the source tree. The classpath copy comes first so a run from a snapshot of the classes reads the
+     * card data that was snapshotted with them: read from the working directory, a later checkout or rebase changes
+     * the cards under a job built against the old ones ("no such card 7_201", 2026-11-18).
+     */
+    static Path defaultResources() {
+        String set = System.getProperty("gemp.resources");
+        if (set != null) return Path.of(set);
+        try {
+            java.net.URL url = BotVsBot.class.getClassLoader().getResource("setConfig.hjson");
+            if (url != null && "file".equals(url.getProtocol())) {
+                Path dir = Path.of(url.toURI()).getParent();
+                if (Files.isDirectory(dir.resolve("cards"))) return dir;
+            }
+        } catch (Exception e) {
+            // fall through to the source tree
+        }
+        return Path.of("gemp-lotr-cards/src/main/resources");
+    }
+
     /** The card and format libraries, read straight from gemp-lotr-cards with no server configuration. */
     static Context context(Path res, Path modelDir) {
         if (!Files.isDirectory(res.resolve("cards")))
             die("No cards under " + res.toAbsolutePath() + " -- run from gemp-lotr/, or pass --resources");
+        System.err.println("cards from " + res.toAbsolutePath());
         LotroCardBlueprintLibrary library = new LotroCardBlueprintLibrary(res.resolve("cards").toFile(),
                 res.resolve("blueprintMapping.txt").toFile(), res.resolve("setConfig.hjson").toFile(),
                 res.resolve("rarities").toFile());
@@ -334,6 +356,8 @@ public class BotVsBot {
                     Searching.nanos.get() / 1e9 / Searching.searched.get(), Searching.playOuts.get(),
                     (double) Searching.steps.get() / Math.max(1, Searching.playOuts.get()), Searching.judged.get(),
                     Searching.stoppedEarly.get());
+        if (Searching.DROP_NO_EFFECT)
+            System.out.printf("no-effect candidates left out of searches: %d%n", Searching.noEffectDropped.get());
         if (Searching.decidedSkips.get() > 0)
             System.out.printf("decided: %d searches skipped, the judge under %.2f or over %.2f%n", Searching.decidedSkips.get(),
                     Searching.DECIDED, 1 - Searching.DECIDED);
@@ -922,7 +946,7 @@ public class BotVsBot {
         int games = 20;
         int jobs = Math.max(1, Runtime.getRuntime().availableProcessors() - 2);
         int maxDecisions = 1000;
-        Path resources = Path.of("gemp-lotr-cards/src/main/resources");
+        Path resources = BotVsBot.defaultResources();
         Path models = Path.of("bot-models");
         boolean verbose = false;
         boolean listStarters = false;
