@@ -337,6 +337,10 @@ public class BotVsBot {
         if (Searching.decidedSkips.get() > 0)
             System.out.printf("decided: %d searches skipped, the judge under %.2f or over %.2f%n", Searching.decidedSkips.get(),
                     Searching.DECIDED, 1 - Searching.DECIDED);
+        var ne = com.gempukku.lotro.bots.rl.fotrstarters.models.cardaction.AnyPhaseCardActionTrainer.NO_EFFECT;
+        if (ne[0].get() > 0)
+            System.out.printf("no-effect: %d card-action decisions scored by the trees (both bots, probes included), %d "
+                    + "offered a flagged action, %d had one as the trees' pick%n", ne[0].get(), ne[1].get(), ne[2].get());
         if (Searching.assignSearched.get() > 0)
             System.out.printf("assignments: %d searched, %d answered differently from the bot, %d stopped after the "
                             + "first round%n", Searching.assignSearched.get(), Searching.assignChanged.get(),

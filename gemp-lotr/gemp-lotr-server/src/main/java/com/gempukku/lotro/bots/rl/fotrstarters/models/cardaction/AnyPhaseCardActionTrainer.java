@@ -186,6 +186,10 @@ public class AnyPhaseCardActionTrainer extends AbstractTrainer {
         return step.action instanceof CardActionChoiceAction && actionIds != null && actionIds.length > 0;
     }
 
+    /** Card-action decisions the trees scored; those offering a no-effect action; those where it was their pick. */
+    public static final java.util.concurrent.atomic.AtomicLong[] NO_EFFECT = {new java.util.concurrent.atomic.AtomicLong(),
+            new java.util.concurrent.atomic.AtomicLong(), new java.util.concurrent.atomic.AtomicLong()};
+
     @Override
     public String getAnswer(GameState gameState, AwaitingDecision decision, String playerName,
                             RLGameStateFeatures features, ModelRegistry modelRegistry) {
@@ -226,6 +230,15 @@ public class AnyPhaseCardActionTrainer extends AbstractTrainer {
         java.util.function.Function<String, com.gempukku.lotro.bots.BotPlayer> bots = p -> new FotrStarterBot(features, p,
                 modelRegistry, null, 0.0, true);
 
+        // upstream's flag on an action that would do nothing ("effect"), is at its limit ("limit") or has no one in
+        // this skirmish to act on ("skirmish"); "false" otherwise. Counted, and with a "skip-no-effect" file in the
+        // model directory such an action is not considered.
+        String[] noEffect = decision.getDecisionParameters().get("noEffect");
+        boolean skipIdle = modelRegistry.isSkipNoEffect();
+        int bestAll = -1;
+        double bestAllScore;
+        boolean anyIdle = false;
+
         int best = -1; // -1 is pass
         double bestScore, passScore;
         double[] scores = new double[cardIds.length];
@@ -238,6 +251,7 @@ public class AnyPhaseCardActionTrainer extends AbstractTrainer {
         } catch (CardNotFoundException e) {
             return null; // cannot happen: PASS is all zeros
         }
+        bestAllScore = passScore;
         for (int i = 0; i < cardIds.length; i++) {
             try {
                 int cardId = Integer.parseInt(cardIds[i]);
@@ -254,6 +268,14 @@ public class AnyPhaseCardActionTrainer extends AbstractTrainer {
                         rich ? liveExtra(gameState, cardId, bp) : null, did,
                         text == null ? null : CardTextFeatures.of(text, bp, actionTexts[i], contextName),
                         forecast ? response(state, bp, actionTexts[i], contextName) : null, opp);
+                boolean idle = noEffect != null && i < noEffect.length && !"false".equals(noEffect[i]);
+                anyIdle |= idle;
+                if (s > bestAllScore) {
+                    bestAllScore = s;
+                    bestAll = i;
+                }
+                if (idle && skipIdle)
+                    continue;
                 scores[i] = s;
                 if (s > bestScore) {
                     bestScore = s;
@@ -263,6 +285,11 @@ public class AnyPhaseCardActionTrainer extends AbstractTrainer {
                 // a card the features cannot describe is not offered
             }
         }
+        NO_EFFECT[0].incrementAndGet();
+        if (anyIdle)
+            NO_EFFECT[1].incrementAndGet();
+        if (bestAll >= 0 && noEffect != null && bestAll < noEffect.length && !"false".equals(noEffect[bestAll]))
+            NO_EFFECT[2].incrementAndGet();
         LAST_SCORES.set(append(scores, new double[]{passScore}));
         var net2 = modelRegistry.getBoardNet2();
         if (net2 != null) {

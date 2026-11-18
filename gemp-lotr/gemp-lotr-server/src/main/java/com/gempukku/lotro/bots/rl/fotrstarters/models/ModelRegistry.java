@@ -142,6 +142,17 @@ public class ModelRegistry {
         this.mulliganThreshold = mulliganThreshold;
     }
 
+    /** The card-action trees leave out actions upstream flags as doing nothing: a "skip-no-effect" file. */
+    private boolean skipNoEffect;
+
+    public boolean isSkipNoEffect() {
+        return skipNoEffect;
+    }
+
+    public void setSkipNoEffect(boolean skipNoEffect) {
+        this.skipNoEffect = skipNoEffect;
+    }
+
     /** AnotherMoveTrainer moves above this: the number in a "move-threshold" file, else 0.5. */
     private double moveThreshold = 0.5;
 

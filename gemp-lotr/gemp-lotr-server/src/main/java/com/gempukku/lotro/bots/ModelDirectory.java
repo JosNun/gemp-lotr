@@ -110,6 +110,7 @@ public final class ModelDirectory {
                     .split("\\s+")).mapToDouble(Double::parseDouble).toArray());
         if (Files.exists(dir.resolve("mulligan-threshold")))
             registry.setMulliganThreshold(Double.parseDouble(Files.readString(dir.resolve("mulligan-threshold")).trim()));
+        registry.setSkipNoEffect(Files.exists(dir.resolve("skip-no-effect")));
         if (Files.exists(dir.resolve("move-threshold")))
             registry.setMoveThreshold(Double.parseDouble(Files.readString(dir.resolve("move-threshold")).trim()));
         // the probe's value numbers: the model directory carries the value model it was fit with
