@@ -2648,6 +2648,29 @@ picks alone. On sp-m9, `sc-all.jsonl` + the search's 19,983 picks that led by 0.
 decks, seed 2: -0.3 +- 0.8), July's agreement on wound and heal picks 69.4 -> 69.2% of 6,986; the search's three times:
 sp-m10b -0.3 +- 0.9, 68.5%. Not kept.
 
+**Rebased onto upstream 9db7eeeb3 (2026-11-18).** `git rebase --rebase-merges`; the old tip is the tag
+`bot-generalisation-pre-rebase`. Upstream's engine moved 17,000 lines under us (card tests, effect forecasts, loop
+handling), so **games before this date do not pair with games after it**: baselines are run again
+(`labels/nn/paired/rb-*`; sp-m9 against sp-m3, test decks, seed 1: **54.4 +- 1.4 at 1.15 CPU-s a game**, 55.1 before).
+What it took: upstream now has a `GameRandom` behind every random outcome, where we had put a seedable `Random`;
+theirs is kept and `GameState.setRandomSeed` / `setDeckShuffler` install a seeded one of their kind. The game's own
+feedback is a `LoopFeedback` in front of the players': `GameCopier.playersFeedback` reads past it (BotGame,
+EffectProbe -- which tested for the old class and would have returned nothing, silently, the skirmish models playing
+without their probe -- and BotCloneCheck). `GameCopier.IdentityPlan` copies the identity set LoopFeedback keeps. A
+play-out that throws prints its error the first three times. BotCloneCheck: 20 of 20 copies continue identically, 40
+of 40 rollouts match; a seeded search run twice is the same 40 games. A trap while two checkouts existed: the harness
+reads card definitions from `gemp-lotr-cards/src/main/resources` under the directory it is run from, whatever classes
+it runs (a snapshot's too) -- new engine on old card data failed on one card (`--resources` names another place).
+
+**Upstream's no-effect flag (2026-11-18).** Every card-action decision now carries `noEffect`, a word an action:
+"false", or "effect" (it would do nothing), "limit" (at its limit), "skirmish" (no one in this skirmish to act on).
+Counted in `AnyPhaseCardActionTrainer.NO_EFFECT` (BotVsBot prints it): of 566,817 card-action decisions the trees
+scored in 3,168 games (both bots, probes' included), 93,506 (16%) offered a flagged action and it was the trees' pick
+in 4,281 (0.8% of all, 4.6% of those offering one; about 1.4 a game). With a `skip-no-effect` file the trees do not
+consider a flagged action: sp-m9-skip 55.0, **+0.7 +- 0.8** matched against sp-m9. The trees already mostly leave them
+alone; as a rule it is at best a small gain. Not tried: the flag as an input to the model, or in the search's
+candidates.
+
 ## How human is "agreement with people", and play by precedent (2026-10-31)
 
 **The measure rewards the consensus.** The user asked whether a real person would score higher on it than the bot. No:
