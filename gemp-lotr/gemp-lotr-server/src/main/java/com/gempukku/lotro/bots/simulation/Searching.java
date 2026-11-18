@@ -927,7 +927,11 @@ public final class Searching implements BotPlayer {
                 com.gempukku.lotro.bots.BotRandom.use(previous);
             }
         } catch (Exception e) {
+            if (PLAYOUT_ERRORS.getAndIncrement() < 3)
+                e.printStackTrace(System.out); // a play-out that cannot be played says so, the first few times
             return null;
         }
     }
+
+    static final java.util.concurrent.atomic.AtomicInteger PLAYOUT_ERRORS = new java.util.concurrent.atomic.AtomicInteger();
 }

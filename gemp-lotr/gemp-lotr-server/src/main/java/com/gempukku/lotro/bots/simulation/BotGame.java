@@ -152,7 +152,7 @@ public final class BotGame {
         java.util.Random botRandom = com.gempukku.lotro.bots.BotRandom.use(gameBotRandom);
         try {
             DefaultLotroGame game = setup.get();
-            DefaultUserFeedback feedback = (DefaultUserFeedback) game.getUserFeedback();
+            DefaultUserFeedback feedback = GameCopier.feedback(game);
             GameLog log = GameLog.CURRENT.get();
             if (log != null && start)
                 log.bind(game); // the first game started here; copies played inside a decision are not it

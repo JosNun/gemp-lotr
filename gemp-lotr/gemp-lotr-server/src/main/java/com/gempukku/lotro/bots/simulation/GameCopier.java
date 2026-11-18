@@ -349,7 +349,27 @@ public final class GameCopier {
 
     /** The copied game's feedback, which holds the decision it waits on. */
     public static DefaultUserFeedback feedback(DefaultLotroGame game) {
-        return (DefaultUserFeedback) game.getUserFeedback();
+        Object f = game.getUserFeedback();
+        // the game's own feedback is a LoopFeedback standing in front of the players' (upstream's loop handling):
+        // the decisions wait in the one behind it
+        if (f instanceof com.gempukku.lotro.logic.timing.loops.LoopFeedback)
+            try {
+                f = LOOP_PLAYERS.get(f);
+            } catch (IllegalAccessException e) {
+                throw new IllegalStateException(e);
+            }
+        return (DefaultUserFeedback) f;
+    }
+
+    private static final java.lang.reflect.Field LOOP_PLAYERS;
+
+    static {
+        try {
+            LOOP_PLAYERS = com.gempukku.lotro.logic.timing.loops.LoopFeedback.class.getDeclaredField("_players");
+            LOOP_PLAYERS.setAccessible(true);
+        } catch (ReflectiveOperationException e) {
+            throw new ExceptionInInitializerError(e);
+        }
     }
 
     private static Object field(Object o, Class<?> c, String name) throws ReflectiveOperationException {
@@ -532,6 +552,7 @@ public final class GameCopier {
             "java.util.concurrent.atomic.AtomicLong", "java.util.concurrent.atomic.AtomicBoolean",
             "java.util.concurrent.atomic.AtomicReference", "java.util.BitSet", "java.lang.StringBuilder",
             "java.util.Arrays$ArrayList", "java.util.Collections$EmptyList",
+            "java.util.Collections$EmptyMap", "java.util.Collections$EmptySet", // as the empty list; upstream's loop state holds one
             // views: their fields point at the list they view, which is copied with them, so the copy views the copy
             "java.util.AbstractList$SubList", "java.util.AbstractList$RandomAccessSubList",
             "java.util.Optional", "java.util.AbstractMap$SimpleEntry",
