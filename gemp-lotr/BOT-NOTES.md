@@ -2640,6 +2640,14 @@ model alone. Not kept.
 `assign,select,arbitrary,choice,movepick,reconcile,optional`, `-Dsearch.assignK=5`, **69.6 at 6.93** (-0.3 +- 1.1 on
 sp-m8's 69.9).
 
+**Who takes a wound, taught by the search: a tie (2026-11-18).** Where the search changed the trees' pick (teach-1115):
+archery wounds on one's own companions (3,154) -- the bot's pick the Ring-bearer 53%, the search's 9%; a companion
+that dies of it 7% against 45%; other wounds (3,795) -- the Ring-bearer 30% against 7%, a character that dies 24%
+against 37%. `CharacterChoiceTrainer` has those numbers (vitality, Ring-bearer, dies of it) and was fit on people's
+picks alone. On sp-m9, `sc-all.jsonl` + the search's 19,983 picks that led by 0.03: sp-m10a 55.2, +0.1 +- 0.7 (training
+decks, seed 2: -0.3 +- 0.8), July's agreement on wound and heal picks 69.4 -> 69.2% of 6,986; the search's three times:
+sp-m10b -0.3 +- 0.9, 68.5%. Not kept.
+
 ## How human is "agreement with people", and play by precedent (2026-10-31)
 
 **The measure rewards the consensus.** The user asked whether a real person would score higher on it than the bot. No:
