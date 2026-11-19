@@ -2718,6 +2718,15 @@ against 8.02 (-4.9%)**. The visits saved were the assignment models' -- small mo
 not a cost. Not faster: the trees' nodes packed into one array. Not exact: a second copy of a card in hand given the
 first's score (3 of 11,110 differed).
 
+**Open, a separate item: the rules engine's modifier lookup (noted 2026-11-19, not started).** A quiet-machine
+profile of the strong bot (JFR, 792 games, test decks): rules engine 43% of CPU, trees 24%, game copies 11%, features
+9%. `ModifiersLogic.getKeywordModifiersAffectingCard` is on the stack for 30% of all CPU (`isInForce` 24%): every
+question about a card works out every modifier's condition again, and a condition spots over the cards in play
+(`GameState.iterateActiveCards` 20%, `isCardInPlayActive` 6% self, `getAttachedCards` a scan of all in play). The
+effect probe -- each card-action option tried on a copy -- is 32% of the total, most of it this. It is upstream's
+rules code, changed recently (CR 4.2 loops), and decides real games: to be done as its own piece of work, guarded by
+the engine's tests and by seeded games replaying the same, and offered upstream rather than carried here.
+
 ## How human is "agreement with people", and play by precedent (2026-10-31)
 
 **The measure rewards the consensus.** The user asked whether a real person would score higher on it than the bot. No:
