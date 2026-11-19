@@ -2671,6 +2671,25 @@ consider a flagged action: sp-m9-skip 55.0, **+0.7 +- 0.8** matched against sp-m
 alone; as a rule it is at best a small gain. Not tried: the flag as an input to the model, or in the search's
 candidates.
 
+**The bots re-measured on the rebased engine; no-effect in the search; archery wounds searched alone (2026-11-18,
+evening).** Upstream 9db7eeeb3, sp-m9, test decks seed 1 (3,168 games) against sp-m3, snapshot `labels/nn/rb-1118`.
+Trees alone 54.4 at 1.15 CPU-s a game (old engine 55.1). Middle bot (`assign,arbitrary,choice,movepick`)
+**61.2 +- 1.4 at 2.53**, +6.8 +- 1.6 over the trees on the same games (old engine 63.9 at 2.66). Strong bot (card
+plays, `assign` K 5, `select,arbitrary,choice,movepick,reconcile,optional`) **69.6 +- 1.4 at 7.03**, +15.3 +- 1.8
+(old engine 69.6 at 6.93). The card-play search answered differently from the trees 8,658 times in 204,777 searches,
+against 19,327 in 220,916 on the old engine; not explained.
+`-Dsearch.dropNoEffect` (flagged actions not taken as candidates; 21,112 left out): 69.2 at 7.68, **-0.4 +- 1.1**
+against the strong bot on the same games -- no. The trees never picking a flagged action (`skip-no-effect`), on the
+training decks seed 2: 57.2 against 56.0, **+1.2 +- 0.8** (test seed 1 was +0.7 +- 0.8): two suites, the same sign,
+about a point together.
+Who takes an archery wound (`select`, `-Dsearch.selectOnly=character.to.assign.archery`), searched alone on the
+trees: play-outs to the end of the archery phase 55.3 at 1.19, **+0.9 +- 0.8**; through the fights
+(`-Dsearch.selectFights`) 55.6 at 1.36, **+1.2 +- 0.8**; about 4,480 searches, 320-340 answered differently. So the
+search's wound picks are worth something by themselves, at next to no cost; the refit that tried to teach them to the
+trees (sp-m10a/b) had tied.
+The harness now reads card data from beside the classes it runs (`BotVsBot.defaultResources`), so a snapshot carries
+its own cards.
+
 ## How human is "agreement with people", and play by precedent (2026-10-31)
 
 **The measure rewards the consensus.** The user asked whether a real person would score higher on it than the bot. No:
