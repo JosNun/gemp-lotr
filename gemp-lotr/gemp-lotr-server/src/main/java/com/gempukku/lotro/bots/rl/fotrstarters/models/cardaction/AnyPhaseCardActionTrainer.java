@@ -15,6 +15,7 @@ import com.gempukku.lotro.game.PhysicalCard;
 import com.gempukku.lotro.game.state.GameState;
 import com.gempukku.lotro.logic.decisions.AwaitingDecision;
 import com.gempukku.lotro.logic.decisions.AwaitingDecisionType;
+import com.gempukku.lotro.bots.rl.fotrstarters.models.FlatTrees;
 import smile.classification.SoftClassifier;
 
 import java.util.ArrayList;
@@ -376,8 +377,14 @@ public class AnyPhaseCardActionTrainer extends AbstractTrainer {
                          String blueprintId, int wounds, double[] extra, double[] probe, double[] text,
                          double[] response, double[] opp) throws CardNotFoundException {
         double[] probs = new double[2];
-        model.predict(append(append(append(append(vector(state, context, actionText, blueprintId, wounds, extra), probe),
-                text), response), opp), probs);
+        // the options of a decision share the state and context the vector begins with (set 2's; set 1 trims the state)
+        int sharedBefore = FlatTrees.share(CardFeatures.version() >= 2 ? state.length + context.length : 0);
+        try {
+            model.predict(append(append(append(append(vector(state, context, actionText, blueprintId, wounds, extra), probe),
+                    text), response), opp), probs);
+        } finally {
+            FlatTrees.share(sharedBefore);
+        }
         return probs[1];
     }
 

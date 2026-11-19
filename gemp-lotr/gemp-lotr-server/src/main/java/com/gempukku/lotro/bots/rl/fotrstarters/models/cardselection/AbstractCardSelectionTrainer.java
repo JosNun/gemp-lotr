@@ -72,6 +72,8 @@ public abstract class AbstractCardSelectionTrainer extends AbstractTrainer {
         double[] stateVector = features.extractFeatures(gameState, decision, playerName);
         List<ScoredCard> scoredCards = new ArrayList<>();
 
+        int sharedBefore = com.gempukku.lotro.bots.rl.fotrstarters.models.FlatTrees.share(stateVector.length);
+        try {
         for (String physicalId : cardIds) {
             try {
                 String blueprintId = gameState.getBlueprintId(Integer.parseInt(physicalId));
@@ -90,6 +92,9 @@ public abstract class AbstractCardSelectionTrainer extends AbstractTrainer {
             } catch (CardNotFoundException ignored) {
 
             }
+        }
+        } finally {
+            com.gempukku.lotro.bots.rl.fotrstarters.models.FlatTrees.share(sharedBefore);
         }
 
         scoredCards.sort(Comparator.comparingDouble(c -> -c.score));

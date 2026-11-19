@@ -24,6 +24,19 @@ import java.util.stream.Stream;
 public abstract class AbstractAssignmentTrainer extends AbstractTrainer {
     protected abstract boolean isForFp();
 
+    /** -Dassign.dedupe=false: score every candidate, as before 2026-11-19. -Dassign.count: print how many were alike. */
+    static final boolean DEDUPE = !"false".equals(System.getProperty("assign.dedupe")),
+            COUNT_DUPLICATES = Boolean.getBoolean("assign.count");
+    static final java.util.concurrent.atomic.LongAdder DISTINCT = new java.util.concurrent.atomic.LongAdder(),
+            DUPLICATE = new java.util.concurrent.atomic.LongAdder();
+
+    static {
+        if (COUNT_DUPLICATES)
+            Runtime.getRuntime().addShutdownHook(new Thread(() -> System.err.printf(
+                    "assignments scored: %d distinct candidates, %d more with the same numbers as one before%n",
+                    DISTINCT.sum(), DUPLICATE.sum())));
+    }
+
     protected abstract void generateAssignmentsRecursive(Map<String, String> minionsToAssign,
                                                          List<String> minionKeys, int index,
                                                          Map<String, String> freeChars,
@@ -170,6 +183,11 @@ public abstract class AbstractAssignmentTrainer extends AbstractTrainer {
         // the network deciding alone (trees' share 0): enumerate and check legality, but leave the scoring to it
         var alone = modelRegistry.getBoardNet2();
         boolean netAlone = alone != null && isForFp() && alone.treeWeight("assign fp") == 0;
+        // every candidate is scored on the state and then its own numbers: the trees walk the state's part once
+        int sharedBefore = com.gempukku.lotro.bots.rl.fotrstarters.models.FlatTrees.share(stateVector.length);
+        Map<java.nio.DoubleBuffer, Double> scored = new HashMap<>();
+        Map<List<Object>, double[]> featuresKnown = new HashMap<>();
+        try {
         for (AssignmentInfo assignment : allAssignments) {
             if (netAlone) {
                 if (legality.isLegal(side, freeCharIds, minionIds, assignment.physicalAssignment()))
@@ -179,16 +197,35 @@ public abstract class AbstractAssignmentTrainer extends AbstractTrainer {
                 continue;
             }
             try {
-                double[] assignmentVector = CardFeatures.getAssignmentFeatures(assignment.blueprintAssignment(), woundsOnFp,
+                // the features are a function of these three (and the wounds, the same all loop): entries in the
+                // map's own order, since the features' sort keeps it among equal strengths
+                List<Object> featureKey = List.of(new ArrayList<>(assignment.blueprintAssignment().entrySet()),
                         assignment.numberOfUnassignedMinions(), assignment.strengthOfUnassignedMinions());
+                double[] assignmentVector = DEDUPE ? featuresKnown.get(featureKey) : null;
+                if (assignmentVector == null) {
+                    assignmentVector = CardFeatures.getAssignmentFeatures(assignment.blueprintAssignment(), woundsOnFp,
+                            assignment.numberOfUnassignedMinions(), assignment.strengthOfUnassignedMinions());
+                    featuresKnown.put(featureKey, assignmentVector);
+                }
                 if (modelRegistry.getAssignProbe().contains(side()))
                     assignmentVector = append(assignmentVector,
                             AssignmentProbe.features(gameState, decision, assignment.physicalAssignment()));
-                double[] extended = Arrays.copyOf(stateVector, stateVector.length + assignmentVector.length);
-                System.arraycopy(assignmentVector, 0, extended, stateVector.length, assignmentVector.length);
-
                 double[] probs = new double[2];
-                model.predict(extended, probs);
+                // candidates that differ only in which of two like minions goes where have the same numbers, and
+                // the same score: each distinct vector is scored once
+                java.nio.DoubleBuffer key = java.nio.DoubleBuffer.wrap(assignmentVector);
+                Double known = scored.get(key);
+                if (COUNT_DUPLICATES) {
+                    (known == null ? DISTINCT : DUPLICATE).increment();
+                }
+                if (known != null && DEDUPE)
+                    probs[1] = known;
+                else {
+                    double[] extended = Arrays.copyOf(stateVector, stateVector.length + assignmentVector.length);
+                    System.arraycopy(assignmentVector, 0, extended, stateVector.length, assignmentVector.length);
+                    model.predict(extended, probs);
+                    scored.put(key, probs[1]);
+                }
                 if (!legality.isLegal(side, freeCharIds, minionIds, assignment.physicalAssignment())) {
                     if (probs[1] > bestIllegalScore) {
                         bestIllegalScore = probs[1];
@@ -198,6 +235,9 @@ public abstract class AbstractAssignmentTrainer extends AbstractTrainer {
                     legal.add(Map.entry(probs[1], assignment.physicalAssignment()));
             } catch (CardNotFoundException ignore) {
             }
+        }
+        } finally {
+            com.gempukku.lotro.bots.rl.fotrstarters.models.FlatTrees.share(sharedBefore);
         }
         var net2 = modelRegistry.getBoardNet2();
         if (net2 != null && isForFp() && legal.size() > 1) {

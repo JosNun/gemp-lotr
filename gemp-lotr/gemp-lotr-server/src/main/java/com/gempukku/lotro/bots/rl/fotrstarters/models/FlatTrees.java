@@ -130,9 +130,7 @@ public final class FlatTrees {
 
         /** As GradientTreeBoost.predict(Tuple, double[]) for two classes. */
         int predict(double[] x, double[] posteriori) {
-            double y = b;
-            for (Tree t : trees)
-                y += shrinkage * t.predict(x);
+            double y = walk(trees, trees.length, b, shrinkage, x);
             if (posteriori != null) {
                 posteriori[0] = 1.0 / (1.0 + Math.exp(2 * y));
                 posteriori[1] = 1.0 - posteriori[0];
@@ -153,10 +151,122 @@ public final class FlatTrees {
         int n = trees.length;
         if (PLAYOUT_TREES > 0 && PLAYOUT_TREES < n && IN_PLAYOUT.get())
             n = PLAYOUT_TREES;
-        double s = 0;
-        for (int i = 0; i < n; i++)
-            s += shrinkage * trees[i].predict(x);
-        return s;
+        return walk(trees, n, 0, shrinkage, x);
+    }
+
+    /**
+     * Options scored against one state (2026-11-19). A decision's options are scored one at a time on vectors that
+     * begin with the same state, and a tree's splits on the state come out the same for every one of them. A scorer
+     * that knows where the state ends says so around its loop ({@link #share}); the first vector is walked as ever,
+     * remembering for each tree the first node that asks about something past the state, and every later vector with
+     * the same state starts there. The state is compared, not trusted, and the sums are added in the same order:
+     * the same numbers to the last bit. -Dtrees.share=false walks every tree from its root; -Dtrees.count prints the
+     * nodes visited. The trees' walk was 39% of the middle bot's CPU (JFR, 2026-11-19).
+     */
+    static final boolean SHARE = !"false".equals(System.getProperty("trees.share"));
+    static final boolean COUNT = Boolean.getBoolean("trees.count");
+    static final java.util.concurrent.atomic.LongAdder VISITS = new java.util.concurrent.atomic.LongAdder(),
+            CALLS = new java.util.concurrent.atomic.LongAdder(), HITS = new java.util.concurrent.atomic.LongAdder(),
+            HINTED = new java.util.concurrent.atomic.LongAdder();
+
+    static {
+        if (COUNT)
+            Runtime.getRuntime().addShutdownHook(new Thread(() -> System.err.printf(
+                    "trees: %d model calls, %d with a shared state declared, %d of them started past the state; %d nodes visited%n",
+                    CALLS.sum(), HINTED.sum(), HITS.sum(), VISITS.sum())));
+    }
+
+    private static final ThreadLocal<int[]> SHARED = ThreadLocal.withInitial(() -> new int[1]);
+
+    /** The vectors scored on this thread from here on begin with the same {@code length} numbers; returns the
+     * length declared before, to give back when the loop is over (0: nothing shared). */
+    public static int share(int length) {
+        int[] s = SHARED.get();
+        int old = s[0];
+        s[0] = length;
+        return old;
+    }
+
+    private static final class Prefix {
+        double[] base;
+        int[] entry;
+        int n;
+    }
+
+    private static final ThreadLocal<java.util.IdentityHashMap<Tree[], Prefix>> PREFIXES =
+            ThreadLocal.withInitial(java.util.IdentityHashMap::new);
+
+    /** y + shrinkage * each of the first n trees' leaves for x, added in order. */
+    static double walk(Tree[] trees, int n, double y, double shrinkage, double[] x) {
+        int cut = SHARE ? SHARED.get()[0] : 0;
+        long visits = 0;
+        if (COUNT)
+            CALLS.increment();
+        if (cut <= 0 || cut >= x.length) {
+            if (!COUNT) {
+                for (int t = 0; t < n; t++)
+                    y += shrinkage * trees[t].predict(x);
+                return y;
+            }
+            for (int t = 0; t < n; t++) {
+                Tree tr = trees[t];
+                int i = 0;
+                while (tr.feature[i] >= 0) {
+                    i = x[tr.feature[i]] <= tr.threshold[i] ? tr.left[i] : tr.right[i];
+                    visits++;
+                }
+                y += shrinkage * tr.leaf[i];
+            }
+            VISITS.add(visits);
+            return y;
+        }
+        if (COUNT)
+            HINTED.increment();
+        var map = PREFIXES.get();
+        Prefix p = map.get(trees);
+        if (p == null)
+            map.put(trees, p = new Prefix());
+        if (p.base != null && p.base.length == cut && p.n >= n && java.util.Arrays.mismatch(p.base, 0, cut, x, 0, cut) < 0) {
+            final int[] entry = p.entry;
+            for (int t = 0; t < n; t++) {
+                Tree tr = trees[t];
+                final int[] feature = tr.feature;
+                int i = entry[t];
+                while (feature[i] >= 0) {
+                    i = x[feature[i]] <= tr.threshold[i] ? tr.left[i] : tr.right[i];
+                    visits++;
+                }
+                y += shrinkage * tr.leaf[i];
+            }
+            if (COUNT) {
+                HITS.increment();
+                VISITS.add(visits);
+            }
+            return y;
+        }
+        p.base = java.util.Arrays.copyOf(x, cut);
+        if (p.entry == null || p.entry.length < trees.length)
+            p.entry = new int[trees.length];
+        p.n = n;
+        final int[] entry = p.entry;
+        for (int t = 0; t < n; t++) {
+            Tree tr = trees[t];
+            final int[] feature = tr.feature;
+            int i = 0, f;
+            while ((f = feature[i]) >= 0 && f < cut) {
+                i = x[f] <= tr.threshold[i] ? tr.left[i] : tr.right[i];
+                visits++;
+            }
+            entry[t] = i;
+            while ((f = feature[i]) >= 0) {
+                i = x[f] <= tr.threshold[i] ? tr.left[i] : tr.right[i];
+                visits++;
+            }
+            y += shrinkage * tr.leaf[i];
+        }
+        if (COUNT)
+            VISITS.add(visits);
+        return y;
     }
 
     /** Every TreeModel and ListwiseTreeModel reachable from {@code o} through the bot's own classes and lists. */
