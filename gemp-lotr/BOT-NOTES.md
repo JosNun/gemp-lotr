@@ -2703,6 +2703,21 @@ bot without selectFights; cheap v upstream / strong v upstream / strong v cheap)
 82.5 / 83.5 / 63.6; Towers 94.7 / 97.7 / 68.8; King 92.5 / 96.4 / 66.9; Movie 88.8 / 92.7 / 62.6. Per card-action
 decision: upstream 0.22 ms, cheap 0.76, strong 24.78.
 
+**sp-m10; the share page with both gains; exact savings in the play-outs worth 4-5% (2026-11-19).** sp-m10 is sp-m9
+with the `skip-no-effect` file: the cheap bot from here (55.0 against sp-m3 on the test decks, +0.7 and +1.2 over
+sp-m9 on two suites). The strong bot on it (fight-long picks): 71.0 at 7.97, -0.4 +- 0.9 against the same on sp-m9.
+Share page `labels/nn/share-1120/index.html` (sp-m10; strong with `-Dsearch.selectFights`; cheap v upstream / strong
+v upstream / strong v cheap): home 77.8 / 82.5 / --; Fellowship 82.0 / 84.8 / 65.4; Towers 94.8 / 97.4 / 68.8; King
+92.6 / 96.5 / 68.4; Movie 88.7 / 93.4 / 63.3; per card-action decision 0.23 / 0.75 / 24.03 ms (profiling runs shared
+the machine for part of it).
+Play-outs cheaper with no answer changed (commit 0ed682988): like assignments scored once and their features
+computed once, and the trees walking a shared state once. Tree nodes visited fell from 9.74 to 3.99 billion over 108
+Movie-starter games, but the CPU did not follow: the same 3,168 games (test decks seed 1, sp-m9), every pair the same
+(+0.0 +- 0.00) -- middle bot **2.44 CPU-s a game against 2.53 (-3.6%)**, strong bot with fight-long picks **7.63
+against 8.02 (-4.9%)**. The visits saved were the assignment models' -- small models, cheap to walk; a node count is
+not a cost. Not faster: the trees' nodes packed into one array. Not exact: a second copy of a card in hand given the
+first's score (3 of 11,110 differed).
+
 ## How human is "agreement with people", and play by precedent (2026-10-31)
 
 **The measure rewards the consensus.** The user asked whether a real person would score higher on it than the bot. No:
