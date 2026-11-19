@@ -290,6 +290,13 @@ public final class Searching implements BotPlayer {
      */
     static final boolean SELECT_FIGHTS = Boolean.getBoolean("search.selectFights");
 
+    /**
+     * -Dsearch.actionFights=&lt;contexts&gt;: card actions in these contexts (shadow, maneuver, archery, assignment,
+     * skirmish) are played out to the regroup phase, as picks are under search.selectFights, not to the end of the
+     * phase they are played in.
+     */
+    static final Set<String> ACTION_FIGHTS = new HashSet<>(List.of(System.getProperty("search.actionFights", "").split(",")));
+
     private String searchSelection(GameState gs, AwaitingDecision d, String own, String context) {
         var p = d.getDecisionParameters();
         List<String> options = new ArrayList<>();
@@ -669,6 +676,10 @@ public final class Searching implements BotPlayer {
             searched.incrementAndGet();
             long t0 = System.nanoTime();
             boolean turnLong = TURN_LONG.contains(context);
+            var phaseNow = gs.getCurrentPhase();
+            boolean fights = ACTION_FIGHTS.contains(context) && phaseNow != null
+                    && phaseNow.ordinal() >= com.gempukku.lotro.common.Phase.SHADOW.ordinal()
+                    && phaseNow.ordinal() < com.gempukku.lotro.common.Phase.REGROUP.ordinal();
             // from the bots' Random, which a seeded game seeds apart from the engine's: the same game searches the same
             // futures again, and the redeals owe nothing to the real deal's draws
             long[] worlds = new SplittableRandom(com.gempukku.lotro.bots.BotRandom.current().nextLong()).longs(ROLLOUTS)
@@ -684,7 +695,7 @@ public final class Searching implements BotPlayer {
             for (int c : cands) {
                 double[] qn = new double[2];
                 for (int i = 0; i < first; i++) {
-                    Double v = playOut(gs, d, answers.get(c), worlds[i], turnLong, STAGE1_JUDGE);
+                    Double v = playOut(gs, d, answers.get(c), worlds[i], turnLong, STAGE1_JUDGE, fights);
                     if (v != null) {
                         qn[0] += v;
                         qn[1]++;
@@ -717,7 +728,7 @@ public final class Searching implements BotPlayer {
                 int from = STAGE1_JUDGE ? 0 : first;
                 for (var e : sums.entrySet())
                     for (int i = from; i < worlds.length; i++) {
-                        Double v = playOut(gs, d, answers.get(e.getKey()), worlds[i], turnLong);
+                        Double v = playOut(gs, d, answers.get(e.getKey()), worlds[i], turnLong, false, fights);
                         if (v != null) {
                             e.getValue()[0] += v;
                             e.getValue()[1]++;

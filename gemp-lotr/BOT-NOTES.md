@@ -2718,6 +2718,16 @@ against 8.02 (-4.9%)**. The visits saved were the assignment models' -- small mo
 not a cost. Not faster: the trees' nodes packed into one array. Not exact: a second copy of a card in hand given the
 first's score (3 of 11,110 differed).
 
+**Why the card-play search "changed" half as many answers on the rebased engine (2026-11-19).** Both builds side
+by side (old snapshot `teach-1118`, its own cards; 120 Fellowship-starter games, seed 1, card plays searched,
+`-Dsearch.boards`): 436 changed answers of 5,433 searches against 153 of 5,205. The difference is one site: on the old
+engine 281 of the changes were pass turned into "Use The Bridge of Khazad-dum" in the Shadow phase, an action
+offered with nothing to play (Shadow-phase records with one option: 426 against 126); on the new engine, 4.
+Upstream's set-1 card work (564d9a02f) stopped offering it. The changes that went were no-ops, which is why the
+strong bot's strength did not move (69.6 both). The middle bot's 61.2 against 63.9 has no such cause: it searches and
+changes the same numbers on both engines (assignments 19,779 / 2,624 against 19,840 / 2,666; site picks, discards,
+mulligans, moves alike), so the gap is the two engines' games being different games, at about the size two runs differ.
+
 **Open, a separate item: the rules engine's modifier lookup (noted 2026-11-19, not started).** A quiet-machine
 profile of the strong bot (JFR, 792 games, test decks): rules engine 43% of CPU, trees 24%, game copies 11%, features
 9%. `ModifiersLogic.getKeywordModifiersAffectingCard` is on the stack for 30% of all CPU (`isInForce` 24%): every
