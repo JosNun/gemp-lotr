@@ -2690,6 +2690,19 @@ trees (sp-m10a/b) had tied.
 The harness now reads card data from beside the classes it runs (`BotVsBot.defaultResources`), so a snapshot carries
 its own cards.
 
+**Picks played through the fights: the strong bot at 71.4 (2026-11-19).** Rebased engine, sp-m9, against sp-m3.
+`-Dsearch.selectFights`: a pick made between the Shadow phase and the skirmishes is played out to the regroup phase,
+as assignments are, not to the end of its own phase. Strong bot with it, test decks seed 1: **71.4 +- 1.4 at 8.02
+CPU-s a game, +1.8 +- 1.05** matched against the strong bot (69.6 at 7.03); training decks seed 2: **72.2 at 7.78,
++2.2 +- 1.04** against 70.0 at 6.72. Both suites, the same size: kept, the strong bot from here.
+What did not carry to the middle bot (61.2 at 2.53): the archery-wound search with it 60.5 at 2.44, -0.7 +- 1.5 (it
+was +1.2 +- 0.8 on the trees alone -- once assignments are searched it adds nothing measurable); the skip-no-effect
+trees under it 61.4, +0.2 +- 0.8 (a point on the trees alone, nothing under the search).
+The share-out page on the rebased engine (`labels/nn/share-1119/index.html`, sp-m9 without the skip rule, the strong
+bot without selectFights; cheap v upstream / strong v upstream / strong v cheap): home 78.8 / 82.0 / --; Fellowship
+82.5 / 83.5 / 63.6; Towers 94.7 / 97.7 / 68.8; King 92.5 / 96.4 / 66.9; Movie 88.8 / 92.7 / 62.6. Per card-action
+decision: upstream 0.22 ms, cheap 0.76, strong 24.78.
+
 ## How human is "agreement with people", and play by precedent (2026-10-31)
 
 **The measure rewards the consensus.** The user asked whether a real person would score higher on it than the bot. No:

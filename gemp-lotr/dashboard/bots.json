@@ -2585,6 +2585,69 @@
    },
    "july": null,
    "note": "+1.0 +- 1.4 matched against sp-m8 on the test decks, +3.0 +- 1.3 on the training decks, seed 2 (57.6). Agreement with people on moves in July 78.8 -> 79.2%."
+  },
+  {
+   "id": "search@sp-m9 middle (rebased engine)",
+   "date": "2026-11-19",
+   "kind": "search",
+   "parent": "sp-m9",
+   "what": "sp-m9's trees with assignments, choices, list picks and \"move again?\" searched; no card-play search. Re-measured on the engine rebased onto upstream.",
+   "strength": {
+    "a": "search@sp-m9 middle (rebased engine)",
+    "b": "sp-m3",
+    "rate": 61.2,
+    "ci": 1.4,
+    "source": "labels/nn/paired/rb-mid.out (rebased engine, upstream 9db7eeeb3; test decks, 4 games a matchup, seed 1, 3,168 games, interval by pair)"
+   },
+   "cost": {
+    "total": 2.53,
+    "vs": "sp-m3",
+    "source": "labels/nn/paired/rb-mid.out (the same run, alone on the machine)"
+   },
+   "july": null,
+   "note": "The middle bot. +6.8 +- 1.6 matched against sp-m9 alone on this engine (54.4 at 1.15). Old engine: 63.9 at 2.66. Adding the archery-wound search: -0.7 +- 1.5; on the skip-no-effect trees: +0.2 +- 0.8."
+  },
+  {
+   "id": "search@sp-m9 strong (rebased engine)",
+   "date": "2026-11-19",
+   "kind": "search",
+   "parent": "sp-m9",
+   "what": "Every searched kind of decision on sp-m9's trees, five assignment candidates. Re-measured on the engine rebased onto upstream.",
+   "strength": {
+    "a": "search@sp-m9 strong (rebased engine)",
+    "b": "sp-m3",
+    "rate": 69.6,
+    "ci": 1.4,
+    "source": "labels/nn/paired/rb-strong.out (rebased engine, upstream 9db7eeeb3; test decks, 4 games a matchup, seed 1, 3,168 games, interval by pair)"
+   },
+   "cost": {
+    "total": 7.03,
+    "vs": "sp-m3",
+    "source": "labels/nn/paired/rb-strong.out (the same run, alone on the machine)"
+   },
+   "july": null,
+   "note": "+15.3 +- 1.8 matched against sp-m9 alone on this engine. Old engine: 69.6 at 6.93. Training decks, seed 2: 70.0 at 6.72. Leaving no-effect actions out of the candidates: -0.4 +- 1.1 at 7.68."
+  },
+  {
+   "id": "search@sp-m9 strong, picks through the fights",
+   "date": "2026-11-19",
+   "kind": "search",
+   "parent": "sp-m9",
+   "what": "The strong bot with every pick's play-outs run on to the regroup phase (-Dsearch.selectFights) instead of the end of the phase the pick was made in.",
+   "strength": {
+    "a": "search@sp-m9 strong, picks through the fights",
+    "b": "sp-m3",
+    "rate": 71.4,
+    "ci": 1.4,
+    "source": "labels/nn/paired/rb-strong-fights.out (rebased engine, upstream 9db7eeeb3; test decks, 4 games a matchup, seed 1, 3,168 games, interval by pair)"
+   },
+   "cost": {
+    "total": 8.02,
+    "vs": "sp-m3",
+    "source": "labels/nn/paired/rb-strong-fights.out (the same run, alone on the machine)"
+   },
+   "july": null,
+   "note": "The strong bot. +1.8 +- 1.05 matched against the same without it (69.6 at 7.03); training decks, seed 2: 72.2 at 7.78, +2.2 +- 1.04."
   }
  ]
 }
