@@ -2728,6 +2728,19 @@ strong bot's strength did not move (69.6 both). The middle bot's 61.2 against 63
 changes the same numbers on both engines (assignments 19,779 / 2,624 against 19,840 / 2,666; site picks, discards,
 mulligans, moves alike), so the gap is the two engines' games being different games, at about the size two runs differ.
 
+**Card plays played out through the fights: the strong bot at 73.2 (2026-11-19).** `-Dsearch.actionFights=<contexts>`:
+a card action in those contexts is played out to the regroup phase, as picks are. On sp-m10 with fight-long picks,
+test decks seed 1, matched against the same without (71.0; 7.97 CPU-s a game before the exact savings, about 7.6
+with): maneuver, archery, assignment **72.3 at 7.99, +1.3 +- 0.9**; with shadow **72.8 at 8.82, +1.8 +- 1.3**; with
+skirmish too **73.2 +- 1.4 at 8.73, +2.2 +- 1.3**. Training decks seed 2 (on sp-m9, against 72.2): all five
+**74.3 +- 1.3 at 8.50, +2.1 +- 1.3**; the three pre-fight phases alone 72.8 at 7.79, +0.6 +- 0.9. All five kept: the
+strong bot from here. sp-m10 against people, card actions, July 2022: 81.04% of 35,076 (sp-m9 81.00%): the
+skip-no-effect rule is no less human.
+One or two games a run were abandoned at 15 minutes, the same Expanded matchups each time (1579fca073 v fc92953dc6,
+b564e923e0 v ffc806aed8; 68bfd71e83 v e81380b99f on the training decks). Not a loop: 38 CPU-s a game where it
+finishes, the stacks RequirementCondition -> CanSpot -> RequirementCondition nested many deep under the modifier
+lookup -- the engine item below, in one matchup.
+
 **Open, a separate item: the rules engine's modifier lookup (noted 2026-11-19, not started).** A quiet-machine
 profile of the strong bot (JFR, 792 games, test decks): rules engine 43% of CPU, trees 24%, game copies 11%, features
 9%. `ModifiersLogic.getKeywordModifiersAffectingCard` is on the stack for 30% of all CPU (`isInForce` 24%): every
