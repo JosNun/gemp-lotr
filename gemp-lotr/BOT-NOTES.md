@@ -2741,6 +2741,17 @@ b564e923e0 v ffc806aed8; 68bfd71e83 v e81380b99f on the training decks). Not a l
 finishes, the stacks RequirementCondition -> CanSpot -> RequirementCondition nested many deep under the modifier
 lookup -- the engine item below, in one matchup.
 
+**Picks re-taught from fight-long labels: a tie again (2026-11-20).** 16,000 games of the strong bot (picks and card
+plays played out to the regroup phase, sp-m10 under it) against itself on the training decks: 13.1 hours, 16.83
+CPU-s a game, 2.45 million label rows (`labels/nn/teach-1119/steps.jsonl`); 43,933 wound and heal picks kept (led by
+0.03), about a third of them not the trees' own. CharacterChoiceTrainer refit on sp-m10, test decks seed 1 against
+sp-m3, matched against sp-m10 (55.0): **sp-m11a** (people's picks + the search's) 55.2, **+0.2 +- 0.7**; **sp-m11b**
+(the search's three times) 54.9, **-0.2 +- 0.8**. With people in July on those prompts: 71.7% and 71.0% of 2,809
+(sp-m10 71.8%). The same answer as 11-18's sp-m10a/b from end-of-phase labels (+0.1, -0.3): where the play-outs stop
+was not why the refit did nothing. The search's wound picks are worth a point alone on the trees (11-18), and this
+model does not learn them from 44,000 examples -- what it is shown of a pick, not the label, is the next suspect.
+Neither kept.
+
 **Open, a separate item: the rules engine's modifier lookup (noted 2026-11-19, not started).** A quiet-machine
 profile of the strong bot (JFR, 792 games, test decks): rules engine 43% of CPU, trees 24%, game copies 11%, features
 9%. `ModifiersLogic.getKeywordModifiersAffectingCard` is on the stack for 30% of all CPU (`isInForce` 24%): every
