@@ -2752,6 +2752,30 @@ was not why the refit did nothing. The search's wound picks are worth a point al
 model does not learn them from 44,000 examples -- what it is shown of a pick, not the label, is the next suspect.
 Neither kept.
 
+**Why the pick refits do nothing: the inputs, not the labels (2026-11-20).** Two checks (`scripts/pick-1120.sh`,
+`labels/nn/pick-1120/pick.log`).
+The search against itself (`-Dsearch.selfCheck`: a pick searched through both rounds is searched again in other
+worlds; trees sp-m10, only wound and heal picks searched, fight-long, 3,200 games): the same pick 9,754 times in
+10,266 (95%) -- character to take an archery wound 97%, characters to wound 98%, cards to wound 92%, minion to take an
+archery wound 92%; where the first search had changed the trees' answer, the second named the same 1,834 times in
+2,198 (83%; 90% for the archery wound on a character).
+The model on picks held out (a fifth by hash; `PickCheck`), share named, chance 33.1% on the search's and 35.3% on
+people's:
+
+| CharacterChoiceTrainer fit on | the search's held-out picks (3,860) | people's held-out picks (10,168) |
+|---|---|---|
+| people's picks alone | 62.8 | 64.3 |
+| the search's picks alone | **67.4** | 52.5 |
+| both | 66.2 | 63.8 |
+
+Character to take an archery wound: 47.4 / 56.6 / 51.5 on the search's, chance 25.7. A model fit on nothing but the
+search's picks names two thirds of them where the search names its own nineteen times in twenty, and five points more
+than a model that never saw one: it is not shown what decides them. (The label is the best of the bot's answer and up
+to three others drawn at random, which caps the match somewhat.) People's picks are no easier for it: 64%.
+Also found: of the 43,933 picks the 11-20 refit was handed, about 19,500 were ones this model reads -- sanctuary
+healing is written without its options (and was counted twice, its prompt matching two filters), picks inside a
+skirmish belong to another model.
+
 **Open, a separate item: the rules engine's modifier lookup (noted 2026-11-19, not started).** A quiet-machine
 profile of the strong bot (JFR, 792 games, test decks): rules engine 43% of CPU, trees 24%, game copies 11%, features
 9%. `ModifiersLogic.getKeywordModifiersAffectingCard` is on the stack for 30% of all CPU (`isInForce` 24%): every

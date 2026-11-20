@@ -297,6 +297,24 @@ public final class Searching implements BotPlayer {
      */
     static final Set<String> ACTION_FIGHTS = new HashSet<>(List.of(System.getProperty("search.actionFights", "").split(",")));
 
+    /**
+     * -Dsearch.selfCheck: a pick searched through both rounds is searched a second time in other worlds, and the two
+     * answers compared, by prompt -- how much of a label from this search is the position and how much the draw
+     * (2026-11-20). The second search's answer is not used; the game's later draws differ for it.
+     */
+    static final boolean SELF_CHECK = Boolean.getBoolean("search.selfCheck");
+    static final Map<String, long[]> SELF = new java.util.concurrent.ConcurrentSkipListMap<>();
+
+    static {
+        if (SELF_CHECK)
+            Runtime.getRuntime().addShutdownHook(new Thread(() -> {
+                System.err.println("self-check: searched twice | same pick | first changed the bot's answer | second "
+                        + "named the same | second went back to the bot's | second stopped after its first round");
+                SELF.forEach((k, c) -> System.err.printf("%7d %7d %7d %7d %7d %7d  %s%n", c[0], c[1], c[2], c[3], c[4],
+                        c[5], k));
+            }));
+    }
+
     private String searchSelection(GameState gs, AwaitingDecision d, String own, String context) {
         var p = d.getDecisionParameters();
         List<String> options = new ArrayList<>();
@@ -338,6 +356,25 @@ public final class Searching implements BotPlayer {
             by[2].incrementAndGet();
         if (STEPS != null && r.bothRounds())
             selectionSteps(gs, d, r.best(), r.sums(), own);
+        if (SELF_CHECK && r.bothRounds()) {
+            // the same candidates searched again in other worlds: does the search name the same pick twice?
+            Played again = byPlayOuts(gs, d, own, cands, fights, false, SELECT_MARGIN, counts());
+            long[] c = SELF.computeIfAbsent(prompt, k -> new long[6]);
+            synchronized (c) {
+                c[0]++;
+                if (again.best().equals(r.best()))
+                    c[1]++;
+                if (!r.best().equals(own)) {
+                    c[2]++;
+                    if (again.best().equals(r.best()))
+                        c[3]++;
+                    else if (again.best().equals(own))
+                        c[4]++;
+                    if (!again.bothRounds())
+                        c[5]++;
+                }
+            }
+        }
         return r.best();
     }
 

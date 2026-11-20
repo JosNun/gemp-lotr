@@ -87,7 +87,7 @@ public class ExertChoiceTrainer extends AbstractTrainer {
         return Arrays.asList(decision.getDecisionParameters().get("cardId")).indexOf(answer.split(",")[0].trim());
     }
 
-    static double[] vector(double[] state, String blueprint, int wounds, double[] extra) throws CardNotFoundException {
+    public static double[] vector(double[] state, String blueprint, int wounds, double[] extra) throws CardNotFoundException {
         double[] card = CardFeatures.getCardFeatures(blueprint, wounds);
         double[] option = Arrays.copyOf(card, card.length + extra.length);
         System.arraycopy(extra, 0, option, card.length, extra.length);
