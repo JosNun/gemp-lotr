@@ -104,6 +104,7 @@ public final class ModelDirectory {
         registry.setNoSkirmishRule(Files.exists(dir.resolve("no-skirmish-rule")));
         registry.setNumberBid(Files.exists(dir.resolve("number-bid")));
         registry.setCharacterOutsideSkirmish(Files.exists(dir.resolve("character-outside-skirmish")));
+        registry.setCharacterWide(Files.exists(dir.resolve("character-wide")));
         registry.setChoiceYesNo(Files.exists(dir.resolve("choice-yes-no")));
         if (Files.exists(dir.resolve("move-adaptive")))
             registry.setMoveAdaptive(java.util.Arrays.stream(Files.readString(dir.resolve("move-adaptive")).trim()

@@ -44,7 +44,8 @@ public class PickCheck {
                 double top = Double.NEGATIVE_INFINITY;
                 for (int i = 0; i < a.getOptionBlueprints().length; i++) {
                     double[] e = a.getOptionExtras()[i], p = new double[2];
-                    model.predict(ExertChoiceTrainer.vector(step.state, a.getOptionBlueprints()[i], (int) e[8], e), p);
+                    model.predict(ExertChoiceTrainer.vector(step.state, a.getOptionBlueprints()[i], (int) e[8],
+                            CharacterChoiceTrainer.shaped(e, registry.isCharacterWide())), p);
                     if (p[1] > top) {
                         top = p[1];
                         best = i;

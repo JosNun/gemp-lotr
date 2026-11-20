@@ -111,6 +111,16 @@ public class ModelRegistry {
 
     /** CharacterChoiceTrainer only outside a skirmish, the fixed rule inside: a "character-outside-skirmish" file. */
     private boolean characterOutsideSkirmish;
+    /** CharacterChoiceTrainer's model was fit on the wider numbers of a candidate ("character-wide"). */
+    private boolean characterWide;
+
+    public boolean isCharacterWide() {
+        return characterWide;
+    }
+
+    public void setCharacterWide(boolean characterWide) {
+        this.characterWide = characterWide;
+    }
 
     public boolean isCharacterOutsideSkirmish() {
         return characterOutsideSkirmish;
