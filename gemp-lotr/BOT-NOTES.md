@@ -2776,6 +2776,35 @@ Also found: of the 43,933 picks the 11-20 refit was handed, about 19,500 were on
 healing is written without its options (and was counted twice, its prompt matching two filters), picks inside a
 skirmish belong to another model.
 
+**The wider pick inputs change nothing: where the search departs from the trees is not in the board's numbers
+(2026-11-20).** `scripts/pick-1120b.sh`, `labels/nn/pick-1120/wide.log`. Labels written with all 49 numbers: people's
+wound and heal picks from ten months of 2022 (17,733 with options), the search's from 24,000 games of sp-m10 with only
+these picks searched, fight-long (25,806 that led by 0.03; 9,626 of them not the trees' own). Share of held-out picks
+named, the same picks for both widths:
+
+| fit on | 15 numbers: the search's / people's | 49 numbers: the search's / people's |
+|---|---|---|
+| the search's picks | 66.7 / 55.6 | 66.5 / 55.9 |
+| people's picks | 58.9 / 67.5 | 58.8 / 68.1 |
+| both | 65.9 / 66.7 | 65.1 / 66.6 |
+
+And the split that explains every tied refit. The search's held-out picks, by whether it kept the trees' answer
+(3,225) or changed it (1,932; chance 29.2%):
+
+| model | kept: named | changed: named |
+|---|---|---|
+| sp-m10 | 99.5 | 0.5 |
+| fit on the search's picks, 15 numbers | 88.2 | 30.8 |
+| fit on the search's picks, 49 numbers | 87.0 | 32.4 |
+| fit on both, 49 numbers | 89.6 | 24.3 |
+
+A model fit on the search's picks learns to answer as sp-m10 does and names the search's changes at chance, with or
+without ranks, keywords, assigned minions and the other side's strength. Yet the search names its own change again
+83% of the time in other worlds (above): what decides it is fixed by the position and is not in the 74 state numbers
+or the candidate's -- the hand, the cards in play by name, what the play-out then does with them. For these picks the
+refit route is closed at this kind of input; what is left is looking ahead (the search itself), or a model that reads
+the cards.
+
 **Open, a separate item: the rules engine's modifier lookup (noted 2026-11-19, not started).** A quiet-machine
 profile of the strong bot (JFR, 792 games, test decks): rules engine 43% of CPU, trees 24%, game copies 11%, features
 9%. `ModifiersLogic.getKeywordModifiersAffectingCard` is on the stack for 30% of all CPU (`isInForce` 24%): every
