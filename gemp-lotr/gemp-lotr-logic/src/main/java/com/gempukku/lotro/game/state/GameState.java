@@ -36,7 +36,24 @@ public class GameState {
     private final Map<String, List<PhysicalCardImpl>> _voidsFromHand = new HashMap<>();
     private final Map<String, List<PhysicalCardImpl>> _removed = new HashMap<>();
 
-    private final List<PhysicalCardImpl> _inPlay = new LinkedList<>();
+    // An ArrayList: the cards in play are walked for every filter, spot and attachment question, and walking a
+    // linked list's nodes was 6% of a bot game's CPU (JFR, 2026-11-20). Same order, same answers.
+    private final List<PhysicalCardImpl> _inPlay = new ArrayList<>();
+
+    // Counts the changes to what a question about the game can read.  Every method here that is not a plain
+    // question bumps it; so does a question asked as if something were otherwise (asIfBeingPlayed, withWoundsToCome,
+    // withThreatsToCome), going in and coming out; and the cards and skirmishes made here share it and bump it when
+    // they are changed directly.  ModifiersLogic keeps an answer only while this (and its own count) stands still.
+    private final long[] _queryEpoch = new long[1];
+
+    public long getQueryEpoch() {
+        return _queryEpoch[0];
+    }
+
+    /** Something a question about the game can read has changed, somewhere that is not this class. */
+    public void touched() {
+        _queryEpoch[0]++;
+    }
 
     private final Map<Integer, PhysicalCardImpl> _allCards = new HashMap<>();
 
@@ -119,12 +136,14 @@ public class GameState {
     }
 
     private int nextCardId() {
+        _queryEpoch[0]++;
         return _nextCardId++;
     }
 
     //This happens before the bidding, so it has to be done separately from init
     public void initPreGame(PreGameInfo preGameInfo, Map<String, LotroDeck> decks,
             Map<String, List<String>> metaSiteBlueprintIds, LotroCardBlueprintLibrary library, LotroGame game) {
+        _queryEpoch[0]++;
         _preGameInfo = preGameInfo;
         _lotroDecks = decks;
         for (GameStateListener listener : getAllGameStateListeners()) {
@@ -161,6 +180,7 @@ public class GameState {
             Map<String, String> ringBearers, Map<String, String> rings, Map<String, String> maps,
             Map<String, List<String>> metaSiteBlueprintIds,
             LotroCardBlueprintLibrary library, LotroFormat format) {
+        _queryEpoch[0]++;
         _isInit = true;
         _playerOrder = playerOrder;
         _currentPlayerId = firstPlayer;
@@ -235,6 +255,7 @@ public class GameState {
     }
 
     private void addPlayerCards(String playerId, List<String> cards, LotroCardBlueprintLibrary library) {
+        _queryEpoch[0]++;
         for (String blueprintId : cards) {
             try {
                 PhysicalCardImpl physicalCard = createPhysicalCardImpl(playerId, library, blueprintId);
@@ -256,6 +277,7 @@ public class GameState {
     }
 
     public PhysicalCard createPhysicalCard(String ownerPlayerId, LotroCardBlueprintLibrary library, String blueprintId) throws CardNotFoundException {
+        _queryEpoch[0]++;
         PhysicalCard card = createPhysicalCardImpl(ownerPlayerId, library, blueprintId);
         if (_cardCreationCallback != null) {
             _cardCreationCallback.accept(card);
@@ -264,10 +286,12 @@ public class GameState {
     }
 
     private PhysicalCardImpl createPhysicalCardImpl(String playerId, LotroCardBlueprintLibrary library, String blueprintId) throws CardNotFoundException {
+        _queryEpoch[0]++;
         LotroCardBlueprint card = library.getLotroCardBlueprint(blueprintId);
 
         int cardId = nextCardId();
         PhysicalCardImpl result = new PhysicalCardImpl(cardId, blueprintId, playerId, card);
+        result.shareQueryEpoch(_queryEpoch);
 
         _allCards.put(cardId, result);
 
@@ -279,10 +303,12 @@ public class GameState {
     }
 
     public void setConsecutiveAction(boolean consecutiveAction) {
+        _queryEpoch[0]++;
         _consecutiveAction = consecutiveAction;
     }
 
     public void setWearingRing(boolean wearingRing) {
+        _queryEpoch[0]++;
         _wearingRing = wearingRing;
     }
 
@@ -306,6 +332,7 @@ public class GameState {
     }
 
     private void terminateOldListener(String playerId) {
+        _queryEpoch[0]++;
         for(var listener : new HashSet<>(_gameStateListeners)) {
             if(listener.isLiveConnection() && listener.getAssignedPlayerId().equals(playerId)) {
                 _gameStateListeners.remove(listener);
@@ -371,6 +398,7 @@ public class GameState {
     // A listener as the senders see it while events are held back: what it is told is kept back for it, and what
     // is asked of it (whose it is, whether it is a person's) it answers at once.
     private GameStateListener heldBack(GameStateListener listener) {
+        _queryEpoch[0]++;
         return (GameStateListener) java.lang.reflect.Proxy.newProxyInstance(GameStateListener.class.getClassLoader(),
                 new Class<?>[]{GameStateListener.class},
                 (proxy, method, args) -> {
@@ -559,6 +587,7 @@ public class GameState {
     }
 
     public void transferCard(PhysicalCard card, PhysicalCard transferTo) {
+        _queryEpoch[0]++;
         if (card.getZone() != Zone.ATTACHED)
             ((PhysicalCardImpl) card).setZone(Zone.ATTACHED);
 
@@ -569,6 +598,7 @@ public class GameState {
     }
 
     public void transferCardAsMinion(PhysicalCard card) {
+        _queryEpoch[0]++;
         if (card.getZone() != Zone.SHADOW_CHARACTERS)
             ((PhysicalCardImpl) card).setZone(Zone.SHADOW_CHARACTERS);
 
@@ -595,6 +625,7 @@ public class GameState {
      * @param bearerWasInSkirmish Whether the bearer was the fellowship character of the skirmish being fought.
      */
     public void layCardWhereItsBearerWas(PhysicalCard card, Zone bearersZone, boolean bearerWasInSkirmish) {
+        _queryEpoch[0]++;
         ((PhysicalCardImpl) card).attachTo(null);
         ((PhysicalCardImpl) card).setZone(bearersZone);
         for (GameStateListener listener : getAllGameStateListeners())
@@ -608,6 +639,7 @@ public class GameState {
     }
 
     public void takeControlOfCard(String playerId, LotroGame game, PhysicalCard card, Zone zone) {
+        _queryEpoch[0]++;
         ((PhysicalCardImpl) card).setCardController(playerId);
         ((PhysicalCardImpl) card).setZone(zone);
         if (card.getBlueprint().getCardType() == CardType.SITE)
@@ -617,6 +649,7 @@ public class GameState {
     }
 
     public void loseControlOfCard(PhysicalCard card, Zone zone) {
+        _queryEpoch[0]++;
         if (card.getBlueprint().getCardType() == CardType.SITE)
             stopAffectingControlledSite(card);
         ((PhysicalCardImpl) card).setCardController(null);
@@ -626,6 +659,7 @@ public class GameState {
     }
 
     public void attachCard(LotroGame game, PhysicalCard card, PhysicalCard attachTo) throws InvalidParameterException {
+        _queryEpoch[0]++;
         if(card == attachTo)
             throw new InvalidParameterException("Cannot attach card to itself!");
 
@@ -634,6 +668,7 @@ public class GameState {
     }
 
     public void stackCard(LotroGame game, PhysicalCard card, PhysicalCard stackOn) throws InvalidParameterException {
+        _queryEpoch[0]++;
         if(card == stackOn)
             throw new InvalidParameterException("Cannot stack card on itself!");
 
@@ -673,6 +708,7 @@ public class GameState {
      * several phases, the current one among them, is an event of the current phase alone.
      */
     public void eventPlayStarted(PhysicalCard event) {
+        _queryEpoch[0]++;
         final Timeword phase = getPhaseAnEventWouldBePlayedIn(event);
         if (phase != null)
             _phaseOfEventBeingPlayed.put(event, phase);
@@ -682,6 +718,7 @@ public class GameState {
      * The play of an event is over, whatever became of the card: it is again what is printed on it.
      */
     public void eventPlayFinished(PhysicalCard event) {
+        _queryEpoch[0]++;
         _phaseOfEventBeingPlayed.remove(event);
     }
 
@@ -700,9 +737,11 @@ public class GameState {
             return question.get();
 
         _phaseOfEventBeingPlayed.put(card, phase);
+        _queryEpoch[0]++;
         try {
             return question.get();
         } finally {
+            _queryEpoch[0]++;
             _phaseOfEventBeingPlayed.remove(card);
         }
     }
@@ -728,6 +767,7 @@ public class GameState {
     }
 
     public void setRingBearer(PhysicalCard card) {
+        _queryEpoch[0]++;
         _ringBearers.put(card.getOwner(), card);
     }
 
@@ -771,10 +811,12 @@ public class GameState {
     }
 
     public void removeCardsFromZone(String playerPerforming, Collection<PhysicalCard> cards) {
+        _queryEpoch[0]++;
         removeCardsFromZone(playerPerforming, cards, false);
     }
 
     public void removeCardsFromZone(String playerPerforming, Collection<PhysicalCard> cards, boolean skipSkirmishReset) {
+        _queryEpoch[0]++;
         for (PhysicalCard card : cards) {
             List<PhysicalCardImpl> zoneCards = getZoneCards(card.getOwner(), card.getZone());
             if (!zoneCards.contains(card))
@@ -831,10 +873,12 @@ public class GameState {
     }
 
     public void addCardToZone(LotroGame game, PhysicalCard card, Zone zone) {
+        _queryEpoch[0]++;
         addCardToZone(game, card, zone, true);
     }
 
     private void addCardToZone(LotroGame game, PhysicalCard card, Zone zone, boolean end) {
+        _queryEpoch[0]++;
         addCardToZone(game, card, zone, end, null);
     }
 
@@ -843,6 +887,7 @@ public class GameState {
      *                     so its id; null for a card coming into play in its own right, which is given a new one.
      */
     private void addCardToZone(LotroGame game, PhysicalCard card, Zone zone, boolean end, Integer cardIdInPlay) {
+        _queryEpoch[0]++;
         if (zone == Zone.DISCARD && game.getModifiersQuerying().hasFlagActive(game, ModifierFlag.REMOVE_CARDS_GOING_TO_DISCARD))
             zone = Zone.REMOVED;
 
@@ -912,6 +957,7 @@ public class GameState {
     }
 
     private void assignNewCardId(PhysicalCard card) {
+        _queryEpoch[0]++;
         _allCards.remove(card.getCardId());
         int newCardId = nextCardId();
         card.setCardId(newCardId);
@@ -919,11 +965,13 @@ public class GameState {
     }
 
     public void reassignCardId(PhysicalCard card, int newCardId) {
+        _queryEpoch[0]++;
         card.setCardId(newCardId);
         _allCards.put(newCardId, (PhysicalCardImpl)card);
     }
 
     private void removeAllTokens(PhysicalCard card) {
+        _queryEpoch[0]++;
         Map<Token, Integer> map = _cardTokens.get(card);
         if (map != null) {
             for (Map.Entry<Token, Integer> tokenIntegerEntry : map.entrySet())
@@ -945,6 +993,7 @@ public class GameState {
      * @param newCard the new card
      */
     public void replaceCharacterOnTable(LotroGame game,  PhysicalCard oldCard, PhysicalCard newCard) {
+        _queryEpoch[0]++;
         int oldCardId = oldCard.getCardId();
 
         //Skirmish assignments will get bulldozed when we remove the old card from its zone, so we back them up first,
@@ -1001,6 +1050,7 @@ public class GameState {
     }
 
     public void replaceInSkirmish(PhysicalCard card) {
+        _queryEpoch[0]++;
         var replaced = _skirmish.getFellowshipCharacter();
         _skirmish.setFellowshipCharacter(card);
         _skirmish.noteReplacement(replaced, card);
@@ -1011,6 +1061,7 @@ public class GameState {
     }
 
     public void breakSkirmishIntoSubSkirmishes(PhysicalCard fp, PhysicalCard firstMinion) {
+        _queryEpoch[0]++;
         var minions = new HashSet<>(_skirmish.getShadowCharacters());
         if(!minions.contains(firstMinion))
             return;
@@ -1044,6 +1095,7 @@ public class GameState {
     }
 
     public void replaceInSkirmishMinion(PhysicalCard card, PhysicalCard removedMinion) {
+        _queryEpoch[0]++;
         //The removed minion is pulled out of the current skirmish
         removeFromSkirmish(removedMinion);
         //If the replacing minion is in a pending assignment, then we remove them from it
@@ -1061,9 +1113,11 @@ public class GameState {
     }
 
     public void removeFromSkirmish(PhysicalCard card) {
+        _queryEpoch[0]++;
         removeFromSkirmish(card, true);
     }
     private void removeFromSkirmish(PhysicalCard card, boolean notify) {
+        _queryEpoch[0]++;
         if (_skirmish == null)
             return;
 
@@ -1099,6 +1153,7 @@ public class GameState {
     }
 
     public void removeFromAssignment(PhysicalCard card) {
+        _queryEpoch[0]++;
         if( _assignments.isEmpty())
             return;
 
@@ -1130,6 +1185,7 @@ public class GameState {
     }
 
     public void assignToSkirmishes(PhysicalCard fp, Set<PhysicalCard> minions) {
+        _queryEpoch[0]++;
         removeFromSkirmish(fp);
         for (PhysicalCard minion : minions) {
             removeFromSkirmish(minion);
@@ -1159,6 +1215,7 @@ public class GameState {
     }
 
     public void refreshAssignment(Assignment assignment) {
+        _queryEpoch[0]++;
         if(!(assignment instanceof NestedAssignment)) {
             removeAssignment(assignment);
         }
@@ -1166,6 +1223,7 @@ public class GameState {
     }
 
     public void removeAssignment(Assignment assignment) {
+        _queryEpoch[0]++;
         _assignments.remove(assignment);
         for (GameStateListener listener : getAllGameStateListeners()) {
             listener.removeAssignment(assignment.getFellowshipCharacter());
@@ -1174,6 +1232,7 @@ public class GameState {
 
     //This should only be used to communicate that a split-up subskirmish assignment is now active
     public void removeSubAssignment(Assignment assignment) {
+        _queryEpoch[0]++;
         //As the parent NestedListener is still in the assignment group, we won't remove it
         //from local tracking; instead just inform the client so they don't display the character wrong
         for (GameStateListener listener : getAllGameStateListeners()) {
@@ -1199,6 +1258,7 @@ public class GameState {
     }
 
     private Assignment replaceCardInAssignment(PhysicalCard oldCard, PhysicalCard newCard) {
+        _queryEpoch[0]++;
         for(var assignment : new ArrayList<>(_assignments)) {
             var newAssignment = assignment.replaceCharacter(oldCard, newCard);
             if(newAssignment != null) {
@@ -1235,16 +1295,21 @@ public class GameState {
     }
 
     public void startSkirmish(PhysicalCard fellowshipCharacter, Set<PhysicalCard> shadowCharacters) {
+        _queryEpoch[0]++;
         startSkirmish(new Skirmish(fellowshipCharacter, new HashSet<>(shadowCharacters)));
     }
 
     private void startSkirmish(Skirmish skirmish) {
+        _queryEpoch[0]++;
+        skirmish.shareQueryEpoch(_queryEpoch);
         _skirmish = skirmish;
         for (GameStateListener listener : getAllGameStateListeners())
             sendSkirmish(listener);
     }
 
     public void restartSkirmish(Skirmish skirmish) {
+        _queryEpoch[0]++;
+        skirmish.shareQueryEpoch(_queryEpoch);
         _skirmish = skirmish;
         for (GameStateListener listener : getAllGameStateListeners())
             sendSkirmish(listener);
@@ -1265,6 +1330,7 @@ public class GameState {
     }
 
     public void finishSkirmish() {
+        _queryEpoch[0]++;
         if (_skirmish != null) {
             _skirmish = null;
             for (GameStateListener listener : getAllGameStateListeners())
@@ -1273,6 +1339,7 @@ public class GameState {
     }
 
     public void shuffleCardsIntoDeck(Collection<? extends PhysicalCard> cards, String playerId) {
+        _queryEpoch[0]++;
         List<PhysicalCardImpl> zoneCards = _decks.get(playerId);
 
         for (PhysicalCard card : cards) {
@@ -1287,10 +1354,12 @@ public class GameState {
     }
 
     public void putCardOnBottomOfDeck(PhysicalCard card) {
+        _queryEpoch[0]++;
         addCardToZone(null, card, Zone.DECK, true);
     }
 
     public void putCardOnTopOfDeck(PhysicalCard card) {
+        _queryEpoch[0]++;
         addCardToZone(null, card, Zone.DECK, false);
     }
     public boolean iterateActiveCards(PhysicalCardVisitor visitor) {
@@ -1402,6 +1471,7 @@ public class GameState {
      * @return true if a Shadows site is found in the adventure deck, else false
      */
     public boolean usesUnorderedSites(String playerId) {
+        _queryEpoch[0]++;
         var deck = _adventureDecks.get(playerId);
         if (deck == null || deck.isEmpty())
             return false;
@@ -1429,16 +1499,19 @@ public class GameState {
     }
 
     public void setPlayerPosition(String playerId, int i) {
+        _queryEpoch[0]++;
         _playerPosition.put(playerId, i);
         for (GameStateListener listener : getAllGameStateListeners())
             listener.setPlayerPosition(playerId, i);
     }
 
     public void addThreats(String playerId, int count) {
+        _queryEpoch[0]++;
         _playerThreats.put(playerId, _playerThreats.get(playerId) + count);
     }
 
     public void removeThreats(String playerId, int count) {
+        _queryEpoch[0]++;
         final int oldThreats = _playerThreats.get(playerId);
         count = Math.min(count, oldThreats);
         _playerThreats.put(playerId, oldThreats - count);
@@ -1451,6 +1524,7 @@ public class GameState {
      * was at stops and that of the site now there starts, as on a move.  Control is not touched here.
      */
     public void exchangeSiteNumbers(LotroGame game, PhysicalCard site1, PhysicalCard site2) {
+        _queryEpoch[0]++;
         PhysicalCard currentSite = getCurrentSite();
         boolean currentSiteExchanged = currentSite == site1 || currentSite == site2;
         if (currentSiteExchanged)
@@ -1463,6 +1537,7 @@ public class GameState {
     }
 
     public void movePlayerToNextSite(LotroGame game) {
+        _queryEpoch[0]++;
         final String currentPlayerId = getCurrentPlayerId();
         final int oldPlayerPosition = getPlayerPosition(currentPlayerId);
         stopAffecting(getCurrentSite());
@@ -1488,6 +1563,7 @@ public class GameState {
 
     /** For the move itself (MovementGameProcess): see isFellowshipArriving. */
     public void setFellowshipArriving(boolean arriving) {
+        _queryEpoch[0]++;
         _fellowshipArriving = arriving;
     }
 
@@ -1530,7 +1606,7 @@ public class GameState {
     }
 
     public List<PhysicalCard> getAttachedCards(PhysicalCard card) {
-        List<PhysicalCard> result = new LinkedList<>();
+        List<PhysicalCard> result = new ArrayList<>();
         for (PhysicalCardImpl physicalCard : _inPlay) {
             if (physicalCard.getAttachedTo() != null && physicalCard.getAttachedTo() == card)
                 result.add(physicalCard);
@@ -1539,7 +1615,7 @@ public class GameState {
     }
 
     public List<PhysicalCard> getStackedCards(PhysicalCard card) {
-        List<PhysicalCard> result = new LinkedList<>();
+        List<PhysicalCard> result = new ArrayList<>();
         for (List<PhysicalCardImpl> physicalCardList : _stacked.values()) {
             for (PhysicalCardImpl physicalCard : physicalCardList) {
                 if (physicalCard.getStackedOn() == card)
@@ -1572,14 +1648,17 @@ public class GameState {
         for (Map.Entry<PhysicalCard, Integer> entry : wounds.entrySet())
             together.merge(entry.getKey(), Math.max(0, entry.getValue()), Integer::sum);
         _woundsToCome = together;
+        _queryEpoch[0]++;
         try {
             return question.get();
         } finally {
+            _queryEpoch[0]++;
             _woundsToCome = before;
         }
     }
 
     public void addBurdens(int burdens) {
+        _queryEpoch[0]++;
         addTokens(_ringBearers.get(getCurrentPlayerId()), Token.BURDEN, Math.max(0, burdens));
     }
 
@@ -1615,9 +1694,11 @@ public class GameState {
     public <T> T withThreatsToCome(int threats, java.util.function.Supplier<T> question) {
         final int before = _threatsToCome;
         _threatsToCome = before + Math.max(0, threats);
+        _queryEpoch[0]++;
         try {
             return question.get();
         } finally {
+            _queryEpoch[0]++;
             _threatsToCome = before;
         }
     }
@@ -1636,11 +1717,13 @@ public class GameState {
 
     /** Marks the cost of assigning this minion paid (Q-0283; isAssignmentPaidFor). */
     public void markAssignmentPaidFor(PhysicalCard minion) {
+        _queryEpoch[0]++;
         _assignmentsPaidFor.add(minion);
     }
 
     /** The mark of isAssignmentPaidFor is used: by the assignment it paid for, or as that assignment is not made. */
     public void useAssignmentPaidFor(PhysicalCard minion) {
+        _queryEpoch[0]++;
         _assignmentsPaidFor.remove(minion);
     }
 
@@ -1658,16 +1741,19 @@ public class GameState {
      * mark of a cost of assigning paid is gone: used by the assignment made, or lost with the one not made.
      */
     public void setFreePeoplesPlayerAssigning(boolean assigning) {
+        _queryEpoch[0]++;
         _freePeoplesPlayerAssigning = assigning;
         if (!assigning)
             _assignmentsPaidFor.clear();
     }
 
     public void removeBurdens(int burdens) {
+        _queryEpoch[0]++;
         removeTokens(_ringBearers.get(getCurrentPlayerId()), Token.BURDEN, Math.max(0, burdens));
     }
 
     public void addWound(PhysicalCard card) {
+        _queryEpoch[0]++;
         addTokens(card, Token.WOUND, 1);
     }
 
@@ -1677,6 +1763,7 @@ public class GameState {
      * be out of play by then (ResolveSkirmishEffect).  Called while the card is still in play with its text in force.
      */
     private void noteStrengthIfSkirmishing(PhysicalCard card) {
+        _queryEpoch[0]++;
         if (_skirmish == null || _lotroGame == null)
             return;
         if (_skirmish.getFellowshipCharacter() == card || _skirmish.getShadowCharacters().contains(card))
@@ -1684,10 +1771,12 @@ public class GameState {
     }
 
     public void removeWound(PhysicalCard card) {
+        _queryEpoch[0]++;
         removeTokens(card, Token.WOUND, 1);
     }
 
     public void hinder(Collection<PhysicalCard> cards) {
+        _queryEpoch[0]++;
         for(var card : cards)
             noteStrengthIfSkirmishing(card);
         for(var card : cards) {
@@ -1703,6 +1792,7 @@ public class GameState {
     }
 
     public void restore(LotroGame game, Collection<PhysicalCard> cards) {
+        _queryEpoch[0]++;
         for(var card : cards) {
             card.setFlipped(false);
             startAffecting(game, card);
@@ -1752,6 +1842,7 @@ public class GameState {
 
 
     public void addTokens(PhysicalCard card, Token token, int count) {
+        _queryEpoch[0]++;
         Map<Token, Integer> tokens = _cardTokens.get(card);
         if (tokens == null) {
             tokens = new HashMap<>();
@@ -1768,6 +1859,7 @@ public class GameState {
     }
 
     public void removeTokens(PhysicalCard card, Token token, int count) {
+        _queryEpoch[0]++;
         Map<Token, Integer> tokens = _cardTokens.get(card);
         if (tokens == null) {
             tokens = new HashMap<>();
@@ -1786,6 +1878,7 @@ public class GameState {
     }
 
     public void setTwilight(int twilight) {
+        _queryEpoch[0]++;
         _twilightPool = twilight;
         for (GameStateListener listener : getAllGameStateListeners())
             listener.setTwilight(_twilightPool);
@@ -1809,10 +1902,12 @@ public class GameState {
      * @param playerId The player to take every turn, or null to have turns pass around the table as usual.
      */
     public void setFixedFreePeoplePlayer(String playerId) {
+        _queryEpoch[0]++;
         _fixedFreePeoplePlayer = playerId;
     }
 
     public void startPlayerTurn(String playerId, boolean realTurn) {
+        _queryEpoch[0]++;
         _currentPlayerId = playerId;
         if (realTurn) {
             turnNumber++;
@@ -1842,10 +1937,12 @@ public class GameState {
     }
 
     public void setExtraSkirmishes(boolean extraSkirmishes) {
+        _queryEpoch[0]++;
         _extraSkirmishes = extraSkirmishes;
     }
 
     public void setRelentlessSkirmishes(boolean value) {
+        _queryEpoch[0]++;
         _relentlessSkirmishes = value;
     }
 
@@ -1854,6 +1951,7 @@ public class GameState {
     }
 
     public void setFierceSkirmishes(boolean value) {
+        _queryEpoch[0]++;
         _fierceSkirmishes = value;
     }
 
@@ -1913,6 +2011,7 @@ public class GameState {
     }
 
     public void startAffectingCardsForCurrentPlayer(LotroGame game) {
+        _queryEpoch[0]++;
         // Active non-sites are affecting
         for (PhysicalCardImpl physicalCard : _inPlay) {
             if (isCardInPlayActive(physicalCard) && physicalCard.getBlueprint().getCardType() != CardType.SITE
@@ -1941,15 +2040,18 @@ public class GameState {
     }
 
     private void startAffectingControlledSite(LotroGame game, PhysicalCard physicalCard) {
+        _queryEpoch[0]++;
         ((PhysicalCardImpl) physicalCard).startAffectingGameControlledSite(game);
     }
 
     public void reapplyAffectingForCard(LotroGame game, PhysicalCard card) {
+        _queryEpoch[0]++;
         ((PhysicalCardImpl) card).stopAffectingGame();
         ((PhysicalCardImpl) card).startAffectingGame(game);
     }
 
     public void stopAffectingCardsForCurrentPlayer() {
+        _queryEpoch[0]++;
         for (PhysicalCardImpl physicalCard : _inPlay) {
             if (isCardInPlayActive(physicalCard) && physicalCard.getBlueprint().getCardType() != CardType.SITE
                     && physicalCard.getBlueprint().getCardType() != CardType.METASITE
@@ -1974,33 +2076,40 @@ public class GameState {
     }
 
     private void stopAffectingControlledSite(PhysicalCard physicalCard) {
+        _queryEpoch[0]++;
         ((PhysicalCardImpl) physicalCard).stopAffectingGameControlledSite();
     }
 
     private void startAffecting(LotroGame game, PhysicalCard card) {
+        _queryEpoch[0]++;
         ((PhysicalCardImpl) card).startAffectingGame(game);
     }
 
     private void stopAffecting(PhysicalCard card) {
+        _queryEpoch[0]++;
         ((PhysicalCardImpl) card).stopAffectingGame();
     }
 
     private void startAffectingStacked(LotroGame game, PhysicalCard card) {
+        _queryEpoch[0]++;
         if (isCardAffectingGame(card))
             ((PhysicalCardImpl) card).startAffectingGameStacked(game);
     }
 
     private void stopAffectingStacked(PhysicalCard card) {
+        _queryEpoch[0]++;
         if (isCardAffectingGame(card))
             ((PhysicalCardImpl) card).stopAffectingGameStacked();
     }
 
     private void startAffectingInDiscard(LotroGame game, PhysicalCard card) {
+        _queryEpoch[0]++;
         if (isCardAffectingGame(card))
             ((PhysicalCardImpl) card).startAffectingGameInDiscard(game);
     }
 
     private void stopAffectingInDiscard(PhysicalCard card) {
+        _queryEpoch[0]++;
         if (isCardAffectingGame(card))
             ((PhysicalCardImpl) card).stopAffectingGameInDiscard();
     }
@@ -2016,6 +2125,7 @@ public class GameState {
     }
 
     public void setCurrentPhase(Phase phase) {
+        _queryEpoch[0]++;
         _currentPhase = phase;
         // A cost of assigning paid in one assignment phase pays for nothing in the next (Q-0283)
         _assignmentsPaidFor.clear();
@@ -2024,6 +2134,7 @@ public class GameState {
     }
 
     public Phase setFakePhase(Phase phase) {
+        _queryEpoch[0]++;
         var realPhase = _currentPhase;
         _currentPhase = phase;
         return realPhase;
@@ -2051,6 +2162,7 @@ public class GameState {
     }
 
     public void increaseMoveCount() {
+        _queryEpoch[0]++;
         _moveCount++;
     }
 
@@ -2059,14 +2171,17 @@ public class GameState {
     }
 
     public void addTwilight(int twilight) {
+        _queryEpoch[0]++;
         setTwilight(_twilightPool + Math.max(0, twilight));
     }
 
     public void removeTwilight(int twilight) {
+        _queryEpoch[0]++;
         setTwilight(_twilightPool - Math.min(Math.max(0, twilight), _twilightPool));
     }
 
     public PhysicalCard removeTopDeckCard(String player) {
+        _queryEpoch[0]++;
         List<PhysicalCardImpl> deck = _decks.get(player);
         if (deck.size() > 0) {
             final PhysicalCard topDeckCard = deck.get(0);
@@ -2078,6 +2193,7 @@ public class GameState {
     }
 
     public PhysicalCard removeBottomDeckCard(String player) {
+        _queryEpoch[0]++;
         List<PhysicalCardImpl> deck = _decks.get(player);
         if (deck.size() > 0) {
             final PhysicalCard topDeckCard = deck.get(deck.size() - 1);
@@ -2089,6 +2205,7 @@ public class GameState {
     }
 
     public void playerDrawsCard(String player) {
+        _queryEpoch[0]++;
         List<PhysicalCardImpl> deck = _decks.get(player);
         if (deck.size() > 0) {
             PhysicalCard card = deck.get(0);
@@ -2098,6 +2215,7 @@ public class GameState {
     }
 
     public void shuffleDeck(String player) {
+        _queryEpoch[0]++;
         List<PhysicalCardImpl> deck = _decks.get(player);
         _random.shuffleDeck(player, deck);
         _deckShuffles.merge(player, 1, Integer::sum);

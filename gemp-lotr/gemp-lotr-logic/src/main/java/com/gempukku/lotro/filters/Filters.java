@@ -17,15 +17,15 @@ import com.gempukku.lotro.logic.timing.RuleUtils;
 import java.util.*;
 
 public class Filters {
-    private static final Map<CardType, Filter> _typeFilterMap = new HashMap<>();
-    private static final Map<PossessionClass, Filter> _possessionClassFilterMap = new HashMap<>();
-    private static final Map<Signet, Filter> _signetFilterMap = new HashMap<>();
-    private static final Map<Race, Filter> _raceFilterMap = new HashMap<>();
-    private static final Map<Zone, Filter> _zoneFilterMap = new HashMap<>();
-    private static final Map<Side, Filter> _sideFilterMap = new HashMap<>();
-    private static final Map<Culture, Filter> _cultureFilterMap = new HashMap<>();
-    private static final Map<Keyword, Filter> _keywordFilterMap = new HashMap<>();
-    private static final Map<Timeword, Filter> _timewordFilterMap = new HashMap<>();
+    private static final Map<CardType, Filter> _typeFilterMap = new EnumMap<>(CardType.class);
+    private static final Map<PossessionClass, Filter> _possessionClassFilterMap = new EnumMap<>(PossessionClass.class);
+    private static final Map<Signet, Filter> _signetFilterMap = new EnumMap<>(Signet.class);
+    private static final Map<Race, Filter> _raceFilterMap = new EnumMap<>(Race.class);
+    private static final Map<Zone, Filter> _zoneFilterMap = new EnumMap<>(Zone.class);
+    private static final Map<Side, Filter> _sideFilterMap = new EnumMap<>(Side.class);
+    private static final Map<Culture, Filter> _cultureFilterMap = new EnumMap<>(Culture.class);
+    private static final Map<Keyword, Filter> _keywordFilterMap = new EnumMap<>(Keyword.class);
+    private static final Map<Timeword, Filter> _timewordFilterMap = new EnumMap<>(Timeword.class);
 
     public static final Filter unhindered = (game, physicalCard) ->  !game.getModifiersQuerying().hasKeyword(game, physicalCard, Keyword.HINDERED);
     public static final Filter hindered = Filters.keyword(Keyword.HINDERED);

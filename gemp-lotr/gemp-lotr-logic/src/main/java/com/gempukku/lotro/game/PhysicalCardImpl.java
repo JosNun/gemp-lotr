@@ -29,6 +29,19 @@ public class PhysicalCardImpl implements PhysicalCard {
 
     private WhileInZoneData _whileInZoneData;
 
+    // The game's count of changes (GameState), for a card that is in a game: what is set on a card directly is
+    // read by questions about the game too.
+    private long[] _queryEpoch;
+
+    public void shareQueryEpoch(long[] queryEpoch) {
+        _queryEpoch = queryEpoch;
+    }
+
+    private void touched() {
+        if (_queryEpoch != null)
+            _queryEpoch[0]++;
+    }
+
     private Integer _siteNumber;
 
     // Optional display name override (e.g., meta-site modifiers display the visual card's name)
@@ -43,6 +56,7 @@ public class PhysicalCardImpl implements PhysicalCard {
 
     @Override
     public void setCardId(int cardId) {
+        touched();
         _cardId = cardId;
     }
 
@@ -64,6 +78,7 @@ public class PhysicalCardImpl implements PhysicalCard {
     }
 
     public void setZone(Zone zone) {
+        touched();
         _zone = zone;
     }
 
@@ -74,6 +89,7 @@ public class PhysicalCardImpl implements PhysicalCard {
 
     @Override
     public void setFlipped(boolean flipped) {
+        touched();
         _flipped = flipped;
     }
 
@@ -84,6 +100,7 @@ public class PhysicalCardImpl implements PhysicalCard {
 
     @Override
     public void setPlayedFromZone(Zone zone) {
+        touched();
         _playedFromZone = zone;
     }
     @Override
@@ -97,6 +114,7 @@ public class PhysicalCardImpl implements PhysicalCard {
     }
 
     public void setCardController(String siteController) {
+        touched();
         _cardController = siteController;
     }
 
@@ -193,6 +211,7 @@ public class PhysicalCardImpl implements PhysicalCard {
     }
 
     public void attachTo(PhysicalCardImpl physicalCard) {
+        touched();
         _attachedTo = physicalCard;
     }
 
@@ -202,6 +221,7 @@ public class PhysicalCardImpl implements PhysicalCard {
     }
 
     public void stackOn(PhysicalCardImpl physicalCard) {
+        touched();
         _stackedOn = physicalCard;
     }
 
@@ -217,6 +237,7 @@ public class PhysicalCardImpl implements PhysicalCard {
 
     @Override
     public void setWhileInZoneData(WhileInZoneData whileInZoneData) {
+        touched();
         _whileInZoneData = whileInZoneData;
     }
 
@@ -227,11 +248,13 @@ public class PhysicalCardImpl implements PhysicalCard {
 
     @Override
     public void setSiteNumber(Integer number) {
+        touched();
         _siteNumber = number;
     }
 
     @Override
     public void copyCardStats(PhysicalCard other) {
+        touched();
         this._flipped = other.isFlipped();
         this._cardController = other.getCardController();
         this._siteNumber = other.getSiteNumber();

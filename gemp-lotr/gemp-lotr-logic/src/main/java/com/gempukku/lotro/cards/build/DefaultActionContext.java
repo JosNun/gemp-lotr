@@ -34,6 +34,8 @@ public class DefaultActionContext implements ActionContext {
 
     @Override
     public void setValueToMemory(String memory, String value) {
+        if (game != null)
+            game.getGameState().touched(); // a modifier made in this action may read what is remembered here
         if(memory != null) {
             memory = memory.toLowerCase();
         }
@@ -64,6 +66,8 @@ public class DefaultActionContext implements ActionContext {
 
     @Override
     public void setCardMemory(String memory, PhysicalCard card) {
+        if (game != null)
+            game.getGameState().touched(); // a modifier made in this action may read what is remembered here
         if(memory != null) {
             memory = memory.toLowerCase();
         }
@@ -74,6 +78,8 @@ public class DefaultActionContext implements ActionContext {
 
     @Override
     public void setCardMemory(String memory, Collection<? extends PhysicalCard> cards) {
+        if (game != null)
+            game.getGameState().touched(); // a modifier made in this action may read what is remembered here
         if(memory != null) {
             memory = memory.toLowerCase();
         }

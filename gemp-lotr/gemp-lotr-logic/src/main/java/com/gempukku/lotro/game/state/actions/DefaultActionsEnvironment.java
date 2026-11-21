@@ -51,6 +51,7 @@ public class DefaultActionsEnvironment implements ActionsEnvironment {
 
     @Override
     public void emitEffectResult(EffectResult effectResult) {
+        touched();
         // Every play is recorded with the site the fellowship is at, for PlayedCardThisTurn's atCurrentSite.
         if (effectResult instanceof PlayCardResult playResult)
             playResult.setPlayedAtSite(_lotroGame.getGameState().getCurrentSite());
@@ -62,19 +63,30 @@ public class DefaultActionsEnvironment implements ActionsEnvironment {
 
     @Override
     public void retractEffectResult(EffectResult effectResult) {
+        touched();
         turnEffectResults.remove(effectResult);
         phaseEffectResults.remove(effectResult);
     }
 
     @Override
     public void noteCardEnteringPlay(PhysicalCard card, Zone playedFrom) {
+        touched();
         if (playedFrom == Zone.HAND)
             _enteringPlayFromHand.add(card);
     }
 
     @Override
     public void noteCardEnteredPlay(PhysicalCard card) {
+        touched();
         _enteringPlayFromHand.remove(card);
+    }
+
+    // What is noted here is read by questions about the game (initiative counts the cards entering play from hand;
+    // a condition may ask what has happened this phase): a change here is a change to the game for ModifiersLogic's
+    // kept answers, as GameState's own are.
+    private void touched() {
+        if (_lotroGame != null && _lotroGame.getGameState() != null)
+            _lotroGame.getGameState().touched();
     }
 
     @Override
@@ -89,16 +101,20 @@ public class DefaultActionsEnvironment implements ActionsEnvironment {
 
     public Set<EffectResult> consumeEffectResults() {
         Set<EffectResult> result = _effectResults;
+        if (!result.isEmpty())
+            touched();
         _effectResults = new HashSet<>();
         return result;
     }
 
     @Override
     public void addAlwaysOnActionProxy(ActionProxy actionProxy) {
+        touched();
         _actionProxies.add(actionProxy);
     }
 
     public void signalStartOfPhase(Phase phase) {
+        touched();
         List<ActionProxy> list = _untilStartOfPhaseActionProxies.get(phase);
         if (list != null) {
             _actionProxies.removeAll(list);
@@ -107,6 +123,7 @@ public class DefaultActionsEnvironment implements ActionsEnvironment {
     }
 
     public void signalEndOfPhase(Phase phase) {
+        touched();
         List<ActionProxy> list = _untilEndOfPhaseActionProxies.get(phase);
         if (list != null) {
             _actionProxies.removeAll(list);
@@ -117,6 +134,7 @@ public class DefaultActionsEnvironment implements ActionsEnvironment {
     }
 
     public void signalEndOfTurn() {
+        touched();
         _actionProxies.removeAll(_untilEndOfTurnActionProxies);
         _untilEndOfTurnActionProxies.clear();
         _barredUntilEndOfPhase.clear();
@@ -136,6 +154,7 @@ public class DefaultActionsEnvironment implements ActionsEnvironment {
 
     @Override
     public void addUntilStartOfPhaseActionProxy(ActionProxy actionProxy, Phase phase) {
+        touched();
         _actionProxies.add(actionProxy);
         List<ActionProxy> list = _untilStartOfPhaseActionProxies.get(phase);
         if (list == null) {
@@ -147,6 +166,7 @@ public class DefaultActionsEnvironment implements ActionsEnvironment {
 
     @Override
     public void addUntilEndOfPhaseActionProxy(ActionProxy actionProxy, Phase phase) {
+        touched();
         _actionProxies.add(actionProxy);
         List<ActionProxy> list = _untilEndOfPhaseActionProxies.get(phase);
         if (list == null) {
@@ -158,6 +178,7 @@ public class DefaultActionsEnvironment implements ActionsEnvironment {
 
     @Override
     public void addUntilEndOfTurnActionProxy(ActionProxy actionProxy) {
+        touched();
         _actionProxies.add(actionProxy);
         _untilEndOfTurnActionProxies.add(actionProxy);
     }
@@ -298,6 +319,7 @@ public class DefaultActionsEnvironment implements ActionsEnvironment {
 
     @Override
     public void barUntilEndOfPhase(LoopTracker.Ability ability) {
+        touched();
         if (!_barredUntilEndOfPhase.contains(ability))
             _barredUntilEndOfPhase.add(ability);
     }

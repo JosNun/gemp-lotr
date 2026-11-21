@@ -24,7 +24,233 @@ public class ModifiersLogic implements ModifiersEnvironment, ModifiersQuerying {
     // afterwards keeps them (a bonus its own ability gave it before the Star-glass, 10_13).
     private final Set<Modifier> _modifiersOfEffects = Collections.newSetFromMap(new IdentityHashMap<>());
 
-    private final Set<Modifier> _skipSet = new HashSet<>();
+    // The modifiers left out of the questions asked while one of them is worked out: a handful at most, asked
+    // about for every modifier of every question -- an array compared by identity, where a HashSet's lookups and
+    // inserts were 4% of a bot game's CPU (JFR, 2026-11-20). No modifier overrides equals.
+    private final SkipSet _skipSet = new SkipSet();
+
+    /*
+     * Answers kept while the game stands still (2026-11-20).
+     *
+     * The game asks the same questions over and over with nothing changed between: in 792 bot games a character's
+     * vitality was asked 323 million times, 92% of them a question already answered since the last change; "is
+     * this card of that type" 5.8 billion times, 93%; whether a card has a keyword 726 million, 90%.  Each answer
+     * walks every modifier of its kind and works out its condition and its filter.
+     *
+     * So the answers to the commonest questions -- strength, vitality, resistance, text removed, has-keyword,
+     * keyword count, card type -- are kept by card, each stamped with the count of changes it was worked out at:
+     * GameState's (every method there that changes the board, the cards and skirmishes it made, what an action
+     * remembers, questions asked "as if") plus this class's own (modifiers added and removed, limits used, wounds
+     * and draws counted).  A stamp that is not the count now is no answer.
+     *
+     * An answer may depend on what was being worked out around it: a modifier whose own condition is being worked
+     * out is left out of the questions asked inside (the skip set).  So an answer is kept only if working it out
+     * met no modifier that was left out, and it is remembered which modifiers it did ask about (a 256-bit mask by
+     * identity hash); it is used again only where none of the modifiers now left out is among them -- then the
+     * working out would have gone exactly as it did.  A false match in the mask only costs working it out again.
+     *
+     * Nothing is kept while a modifier whose condition remembers (SelfSpottingCondition) is in the game: working
+     * that out is itself a change.
+     *
+     * -Dgemp.modifierMemo=false works everything out every time, as before.  -Dgemp.modifierMemo=verify works every
+     * kept answer out again as it is used and throws if they differ: a change to the game that the counts miss
+     * shows there, at the first stale answer.
+     */
+    private static final String MEMO_MODE = System.getProperty("gemp.modifierMemo", "true");
+    private static final boolean MEMO = !"false".equals(MEMO_MODE), VERIFY = "verify".equals(MEMO_MODE);
+    private static final int K_STRENGTH = 0, K_VITALITY = 1, K_RESISTANCE = 2, K_TEXT_REMOVED = 3, K_CARD_TYPE = 4,
+            K_HAS_KEYWORD = 5, K_KEYWORD_COUNT = 6;
+    private static final int SLOT_CARD_TYPE = 4, SLOT_HAS_KEYWORD = SLOT_CARD_TYPE + CardType.values().length,
+            SLOT_KEYWORD_COUNT = SLOT_HAS_KEYWORD + Keyword.values().length,
+            SLOTS = SLOT_KEYWORD_COUNT + Keyword.values().length;
+
+    private static final class Memo {
+        private long epoch = -1;
+        private int value;
+        private long met0, met1, met2, met3;
+    }
+
+    // This class's own count of changes, shared with the limit counters it hands out.
+    private final long[] _modifierEpoch = new long[1];
+    private int _selfSpotting;
+    // Not part of the game: left behind when a game is copied, and built again as questions are asked.
+    private transient Map<PhysicalCard, Memo[]> _memos;
+    private transient long _met0, _met1, _met2, _met3;
+    private transient long[] _frames;
+    private transient int _frameTop;
+    private transient boolean _verifying;
+
+    private void countSelfSpotting() {
+        int count = 0;
+        for (List<Modifier> list : _modifiers.values())
+            for (Modifier modifier : list)
+                if (modifier.getCondition() instanceof SelfSpottingCondition)
+                    count++;
+        _selfSpotting = count;
+    }
+
+    private static int maskBit(Modifier modifier) {
+        final int hash = System.identityHashCode(modifier);
+        return (hash ^ (hash >>> 8) ^ (hash >>> 16)) & 255;
+    }
+
+    /** Whether a modifier is left out just now; notes that the answer being worked out asked. */
+    private boolean skipped(Modifier modifier) {
+        final int bit = maskBit(modifier);
+        switch (bit >> 6) {
+            case 0 -> _met0 |= 1L << bit;
+            case 1 -> _met1 |= 1L << bit;
+            case 2 -> _met2 |= 1L << bit;
+            default -> _met3 |= 1L << bit;
+        }
+        return _skipSet.contains(modifier);
+    }
+
+    private Memo recall(LotroGame game, PhysicalCard card, int slot) {
+        if (_memos == null)
+            return null;
+        final Memo[] ofCard = _memos.get(card);
+        if (ofCard == null)
+            return null;
+        final Memo memo = ofCard[slot];
+        if (memo == null || memo.epoch != game.getGameState().getQueryEpoch() + _modifierEpoch[0])
+            return null;
+        for (int i = 0; i < _skipSet._size; i++) {
+            final int bit = maskBit(_skipSet._modifiers[i]);
+            final long word = switch (bit >> 6) {
+                case 0 -> memo.met0;
+                case 1 -> memo.met1;
+                case 2 -> memo.met2;
+                default -> memo.met3;
+            };
+            if ((word & (1L << bit)) != 0)
+                return null;
+        }
+        // what it asked about, the answer being worked out around it has now asked about too
+        _met0 |= memo.met0;
+        _met1 |= memo.met1;
+        _met2 |= memo.met2;
+        _met3 |= memo.met3;
+        return memo;
+    }
+
+    private int workOut(LotroGame game, PhysicalCard card, int kind, Object about) {
+        return switch (kind) {
+            case K_STRENGTH -> workOutGetStrength(game, card);
+            case K_VITALITY -> workOutGetVitality(game, card);
+            case K_RESISTANCE -> workOutGetResistance(game, card);
+            case K_TEXT_REMOVED -> workOutHasTextRemoved(game, card) ? 1 : 0;
+            case K_CARD_TYPE -> workOutIsCardType(game, card, (CardType) about) ? 1 : 0;
+            case K_HAS_KEYWORD -> workOutHasKeyword(game, card, (Keyword) about) ? 1 : 0;
+            default -> workOutGetKeywordCount(game, card, (Keyword) about);
+        };
+    }
+
+    private int ask(LotroGame game, PhysicalCard card, int slot, int kind, Object about) {
+        if (!MEMO || _verifying || _selfSpotting > 0 || card == null)
+            return workOut(game, card, kind, about);
+        final Memo memo = recall(game, card, slot);
+        if (memo != null) {
+            if (VERIFY) {
+                final int fresh;
+                _verifying = true;
+                try {
+                    fresh = workOut(game, card, kind, about);
+                } finally {
+                    _verifying = false;
+                }
+                if (fresh != memo.value)
+                    throw new IllegalStateException("A kept answer is stale: question " + kind
+                            + (about == null ? "" : " " + about) + " of " + card.getBlueprintId() + " (card "
+                            + card.getCardId() + ", " + card.getZone() + ") kept as " + memo.value + ", worked out as "
+                            + fresh + " in " + game.getGameState().getCurrentPhase());
+            }
+            return memo.value;
+        }
+        // a frame: what the answer around this one had asked about so far, the left-out modifiers met, the count
+        if (_frames == null)
+            _frames = new long[6 * 16];
+        else if (_frameTop + 6 > _frames.length)
+            _frames = Arrays.copyOf(_frames, _frames.length * 2);
+        final int frame = _frameTop;
+        final long epoch = game.getGameState().getQueryEpoch() + _modifierEpoch[0];
+        final long hits = _skipSet._hits;
+        _frames[frame] = _met0;
+        _frames[frame + 1] = _met1;
+        _frames[frame + 2] = _met2;
+        _frames[frame + 3] = _met3;
+        _frameTop = frame + 6;
+        _met0 = _met1 = _met2 = _met3 = 0;
+        try {
+            final int value = workOut(game, card, kind, about);
+            if (_skipSet._hits == hits && _selfSpotting == 0
+                    && epoch == game.getGameState().getQueryEpoch() + _modifierEpoch[0]) {
+                if (_memos == null)
+                    _memos = new IdentityHashMap<>();
+                Memo[] ofCard = _memos.get(card);
+                if (ofCard == null)
+                    _memos.put(card, ofCard = new Memo[SLOTS]);
+                Memo kept = ofCard[slot];
+                if (kept == null)
+                    ofCard[slot] = kept = new Memo();
+                kept.epoch = epoch;
+                kept.value = value;
+                kept.met0 = _met0;
+                kept.met1 = _met1;
+                kept.met2 = _met2;
+                kept.met3 = _met3;
+            }
+            return value;
+        } finally {
+            _met0 |= _frames[frame];
+            _met1 |= _frames[frame + 1];
+            _met2 |= _frames[frame + 2];
+            _met3 |= _frames[frame + 3];
+            _frameTop = frame;
+        }
+    }
+
+
+    private static final class SkipSet {
+        private Modifier[] _modifiers = new Modifier[8];
+        private int _size;
+
+        // How often a question met a modifier that was left out: an answer worked out without meeting one does not
+        // depend on what was being worked out around it.
+        private long _hits;
+
+        boolean contains(Modifier modifier) {
+            if (has(modifier)) {
+                _hits++;
+                return true;
+            }
+            return false;
+        }
+
+        private boolean has(Modifier modifier) {
+            for (int i = _size - 1; i >= 0; i--)
+                if (_modifiers[i] == modifier)
+                    return true;
+            return false;
+        }
+
+        void add(Modifier modifier) {
+            if (has(modifier))
+                return;
+            if (_size == _modifiers.length)
+                _modifiers = Arrays.copyOf(_modifiers, _size * 2);
+            _modifiers[_size++] = modifier;
+        }
+
+        void remove(Modifier modifier) {
+            for (int i = _size - 1; i >= 0; i--)
+                if (_modifiers[i] == modifier) {
+                    System.arraycopy(_modifiers, i + 1, _modifiers, i, _size - i - 1);
+                    _modifiers[--_size] = null;
+                    return;
+                }
+        }
+    }
     // The modifiers isInForce is working out, innermost last; the first _workingOutDepth entries are in use.
     private final List<WorkingOut> _workingOut = new ArrayList<>();
     private int _workingOutDepth = 0;
@@ -57,7 +283,7 @@ public class ModifiersLogic implements ModifiersEnvironment, ModifiersQuerying {
         }
         LimitCounter limitCounter = limitCounterMap.get(prefix + card.getCardId());
         if (limitCounter == null) {
-            limitCounter = new DefaultLimitCounter();
+            limitCounter = new DefaultLimitCounter(_modifierEpoch);
             limitCounterMap.put(prefix + card.getCardId(), limitCounter);
         }
         return limitCounter;
@@ -72,7 +298,7 @@ public class ModifiersLogic implements ModifiersEnvironment, ModifiersQuerying {
         }
         LimitCounter limitCounter = limitCounterMap.get(prefix + card.getCardId());
         if (limitCounter == null) {
-            limitCounter = new DefaultLimitCounter();
+            limitCounter = new DefaultLimitCounter(_modifierEpoch);
             limitCounterMap.put(prefix + card.getCardId(), limitCounter);
         }
         return limitCounter;
@@ -87,7 +313,7 @@ public class ModifiersLogic implements ModifiersEnvironment, ModifiersQuerying {
     public LimitCounter getUntilEndOfTurnLimitCounter(PhysicalCard card, String prefix) {
         LimitCounter limitCounter = _turnLimitCounters.get(prefix + card.getCardId());
         if (limitCounter == null) {
-            limitCounter = new DefaultLimitCounter();
+            limitCounter = new DefaultLimitCounter(_modifierEpoch);
             _turnLimitCounters.put(prefix + card.getCardId(), limitCounter);
         }
         return limitCounter;
@@ -102,7 +328,7 @@ public class ModifiersLogic implements ModifiersEnvironment, ModifiersQuerying {
     public LimitCounter getSiteLimitCounter(PhysicalCard card, String prefix) {
         LimitCounter limitCounter = _siteLimitCounters.get(prefix + card.getCardId());
         if (limitCounter == null) {
-            limitCounter = new DefaultLimitCounter();
+            limitCounter = new DefaultLimitCounter(_modifierEpoch);
             _siteLimitCounters.put(prefix + card.getCardId(), limitCounter);
         }
         return limitCounter;
@@ -113,11 +339,13 @@ public class ModifiersLogic implements ModifiersEnvironment, ModifiersQuerying {
      * An exertion on arriving, which comes after this, belongs to the site arrived at (F-0146).
      */
     public void signalFellowshipMoved() {
+        _modifierEpoch[0]++;
         _siteLimitCounters.clear();
     }
 
     @Override
     public void addedWound(PhysicalCard card) {
+        _modifierEpoch[0]++;
         final int cardId = card.getCardId();
         final Integer previousWounds = _woundsPerPhaseMap.get(cardId);
         if (previousWounds == null)
@@ -136,15 +364,19 @@ public class ModifiersLogic implements ModifiersEnvironment, ModifiersQuerying {
     }
 
     private void removeModifiers(List<Modifier> modifiers) {
+        _modifierEpoch[0]++;
         for (List<Modifier> list : _modifiers.values())
             list.removeAll(modifiers);
         modifiers.forEach(_modifiersOfEffects::remove);
+        countSelfSpotting();
     }
 
     private void removeModifier(Modifier modifier) {
+        _modifierEpoch[0]++;
         for (List<Modifier> list : _modifiers.values())
             list.remove(modifier);
         _modifiersOfEffects.remove(modifier);
+        countSelfSpotting();
     }
 
     @Override
@@ -154,8 +386,11 @@ public class ModifiersLogic implements ModifiersEnvironment, ModifiersQuerying {
     }
 
     private void addModifier(Modifier modifier) {
+        _modifierEpoch[0]++;
         ModifierEffect modifierEffect = modifier.getModifierEffect();
         getEffectModifiers(modifierEffect).add(modifier);
+        if (modifier.getCondition() instanceof SelfSpottingCondition)
+            _selfSpotting++;
     }
 
     private List<Modifier> getModifiers(LotroGame game, ModifierEffect modifierEffect) {
@@ -207,7 +442,7 @@ public class ModifiersLogic implements ModifiersEnvironment, ModifiersQuerying {
 
     private List<Modifier> getKeywordModifiersAffectingCard(LotroGame game, ModifierEffect modifierEffect, Keyword keyword, PhysicalCard card, boolean evenIfHindered) {
         List<Modifier> modifiers = _modifiers.get(modifierEffect);
-        if (modifiers == null)
+        if (modifiers == null || modifiers.isEmpty())
             return Collections.emptyList();
 
         //A hindered card has no text and nothing applies to it.
@@ -215,7 +450,7 @@ public class ModifiersLogic implements ModifiersEnvironment, ModifiersQuerying {
         if(!evenIfHindered && card != null && keyword != Keyword.HINDERED && game.getGameState().isHindered(card))
             return Collections.emptyList();
 
-        LinkedList<Modifier> liveModifiers = new LinkedList<>();
+        List<Modifier> liveModifiers = new ArrayList<>();
         for (Modifier modifier : modifiers) {
             boolean keywordMatches = false;
 
@@ -229,7 +464,7 @@ public class ModifiersLogic implements ModifiersEnvironment, ModifiersQuerying {
             }
 
             if (keyword == null || keywordMatches) {
-                if (!_skipSet.contains(modifier)) {
+                if (!skipped(modifier)) {
                     if (isInForce(game, modifierEffect, modifier, card))
                         liveModifiers.add(modifier);
                 } else if (isAssumedInForce(modifier, card)) {
@@ -388,7 +623,7 @@ public class ModifiersLogic implements ModifiersEnvironment, ModifiersQuerying {
         if (selfSpotting == null)
             return;
         for (Modifier modifier : selfSpotting) {
-            if (!_skipSet.contains(modifier)) {
+            if (!skipped(modifier)) {
                 _skipSet.add(modifier);
                 try {
                     modifier.getCondition().isFullfilled(game);
@@ -400,6 +635,7 @@ public class ModifiersLogic implements ModifiersEnvironment, ModifiersQuerying {
     }
 
     public void signalEndOfPhase(Phase phase) {
+        _modifierEpoch[0]++;
         List<Modifier> list = _untilEndOfPhaseModifiers.get(phase);
         if (list != null) {
             removeModifiers(list);
@@ -414,6 +650,7 @@ public class ModifiersLogic implements ModifiersEnvironment, ModifiersQuerying {
     }
 
     public void signalStartOfPhase(Phase phase) {
+        _modifierEpoch[0]++;
         List<Modifier> list = _untilStartOfPhaseModifiers.get(phase);
         if (list != null) {
             removeModifiers(list);
@@ -426,6 +663,7 @@ public class ModifiersLogic implements ModifiersEnvironment, ModifiersQuerying {
     }
 
     public void signalEndOfTurn() {
+        _modifierEpoch[0]++;
         removeModifiers(_untilEndOfTurnModifiers);
         _untilEndOfTurnModifiers.clear();
 
@@ -445,6 +683,7 @@ public class ModifiersLogic implements ModifiersEnvironment, ModifiersQuerying {
 
     @Override
     public void addUntilEndOfPhaseModifier(Modifier modifier, Phase phase) {
+        _modifierEpoch[0]++;
         addModifier(modifier);
         _modifiersOfEffects.add(modifier);
         List<Modifier> list = _untilEndOfPhaseModifiers.get(phase);
@@ -457,6 +696,7 @@ public class ModifiersLogic implements ModifiersEnvironment, ModifiersQuerying {
 
     @Override
     public void addUntilStartOfPhaseModifier(Modifier modifier, Phase phase) {
+        _modifierEpoch[0]++;
         addModifier(modifier);
         _modifiersOfEffects.add(modifier);
         List<Modifier> list = _untilStartOfPhaseModifiers.get(phase);
@@ -469,6 +709,7 @@ public class ModifiersLogic implements ModifiersEnvironment, ModifiersQuerying {
 
     @Override
     public void addUntilEndOfTurnModifier(Modifier modifier) {
+        _modifierEpoch[0]++;
         addModifier(modifier);
         _modifiersOfEffects.add(modifier);
         _untilEndOfTurnModifiers.add(modifier);
@@ -509,7 +750,7 @@ public class ModifiersLogic implements ModifiersEnvironment, ModifiersQuerying {
     }
 
     private boolean affectsCardWithSkipSet(LotroGame game, PhysicalCard physicalCard, Modifier modifier) {
-        if (!_skipSet.contains(modifier) && physicalCard != null) {
+        if (!skipped(modifier) && physicalCard != null) {
             _skipSet.add(modifier);
             boolean result = modifier.affectsCard(game, physicalCard);
             _skipSet.remove(modifier);
@@ -521,6 +762,10 @@ public class ModifiersLogic implements ModifiersEnvironment, ModifiersQuerying {
 
     @Override
     public boolean hasTextRemoved(LotroGame game, PhysicalCard card) {
+        return ask(game, card, K_TEXT_REMOVED, K_TEXT_REMOVED, null) != 0;
+    }
+
+    private boolean workOutHasTextRemoved(LotroGame game, PhysicalCard card) {
         for (Modifier modifier : getModifiersAffectingCard(game, ModifierEffect.TEXT_MODIFIER, card)) {
             if (modifier.hasRemovedText(game, card))
                 return true;
@@ -538,6 +783,10 @@ public class ModifiersLogic implements ModifiersEnvironment, ModifiersQuerying {
 
     @Override
     public boolean hasKeyword(LotroGame game, PhysicalCard physicalCard, Keyword keyword) {
+        return ask(game, physicalCard, SLOT_HAS_KEYWORD + keyword.ordinal(), K_HAS_KEYWORD, keyword) != 0;
+    }
+
+    private boolean workOutHasKeyword(LotroGame game, PhysicalCard physicalCard, Keyword keyword) {
         return hasKeywordAsGiven(game, physicalCard, keyword)
                 && getKeywordGainLimit(game, physicalCard, keyword) > 0;
     }
@@ -575,7 +824,7 @@ public class ModifiersLogic implements ModifiersEnvironment, ModifiersQuerying {
             if(keyword == Keyword.HINDERED || !hasKeyword(game, physicalCard, Keyword.HINDERED)) {
                 for (Modifier modifier : getKeywordModifiersAffectingCard(game, ModifierEffect.GIVE_KEYWORD_MODIFIER, keyword, physicalCard)) {
                     if (appliesKeywordModifier(game, physicalCard, modifier.getSource(), keyword)) {
-                        if (!_skipSet.contains(modifier)) {
+                        if (!skipped(modifier)) {
                             _skipSet.add(modifier);
                             try {
                                 if (modifier.hasKeyword(game, physicalCard, keyword))
@@ -609,6 +858,10 @@ public class ModifiersLogic implements ModifiersEnvironment, ModifiersQuerying {
 
     @Override
     public int getKeywordCount(LotroGame game, PhysicalCard physicalCard, Keyword keyword) {
+        return ask(game, physicalCard, SLOT_KEYWORD_COUNT + keyword.ordinal(), K_KEYWORD_COUNT, keyword);
+    }
+
+    private int workOutGetKeywordCount(LotroGame game, PhysicalCard physicalCard, Keyword keyword) {
         LoggingThreadLocal.logMethodStart(physicalCard, "getKeywordCount " + keyword.getHumanReadable());
         try {
             if (isCandidateForKeywordRemovalWithTextRemoval(game, physicalCard, keyword)
@@ -714,6 +967,10 @@ public class ModifiersLogic implements ModifiersEnvironment, ModifiersQuerying {
 
     @Override
     public int getStrength(LotroGame game, PhysicalCard physicalCard) {
+        return ask(game, physicalCard, K_STRENGTH, K_STRENGTH, null);
+    }
+
+    private int workOutGetStrength(LotroGame game, PhysicalCard physicalCard) {
         LoggingThreadLocal.logMethodStart(physicalCard, "getStrength");
         try {
             int result = physicalCard.getBlueprint().getStrength();
@@ -739,6 +996,10 @@ public class ModifiersLogic implements ModifiersEnvironment, ModifiersQuerying {
 
     @Override
     public int getVitality(LotroGame game, PhysicalCard physicalCard) {
+        return ask(game, physicalCard, K_VITALITY, K_VITALITY, null);
+    }
+
+    private int workOutGetVitality(LotroGame game, PhysicalCard physicalCard) {
         LoggingThreadLocal.logMethodStart(physicalCard, "getVitality");
         try {
             int result = physicalCard.getBlueprint().getVitality() - game.getGameState().getWounds(physicalCard);
@@ -753,6 +1014,10 @@ public class ModifiersLogic implements ModifiersEnvironment, ModifiersQuerying {
 
     @Override
     public int getResistance(LotroGame game, PhysicalCard physicalCard) {
+        return ask(game, physicalCard, K_RESISTANCE, K_RESISTANCE, null);
+    }
+
+    private int workOutGetResistance(LotroGame game, PhysicalCard physicalCard) {
         LoggingThreadLocal.logMethodStart(physicalCard, "getResistance");
         try {
             int result = physicalCard.getBlueprint().getResistance();
@@ -874,6 +1139,15 @@ public class ModifiersLogic implements ModifiersEnvironment, ModifiersQuerying {
 
     @Override
     public boolean isCardType(LotroGame game, PhysicalCard card, CardType cardType) {
+        // Asked by every filter that names a type, for every card it looks at: with nothing in the game that gives a
+        // card another type, the printed one is the answer.
+        final List<Modifier> additional = _modifiers.get(ModifierEffect.ADDITIONAL_CARD_TYPE);
+        if (additional == null || additional.isEmpty())
+            return card.getBlueprint().getCardType() == cardType;
+        return ask(game, card, SLOT_CARD_TYPE + cardType.ordinal(), K_CARD_TYPE, cardType) != 0;
+    }
+
+    private boolean workOutIsCardType(LotroGame game, PhysicalCard card, CardType cardType) {
         var types = getCardTypes(game, card);
         return types.contains(cardType);
     }
@@ -1394,6 +1668,7 @@ public class ModifiersLogic implements ModifiersEnvironment, ModifiersQuerying {
      */
     @Override
     public boolean canDrawCardAndIncrementForRuleOfFour(LotroGame game, String playerId) {
+        _modifierEpoch[0]++;
         if (game.getGameState().getCurrentPlayerId().equals(playerId)) {
             if (game.getGameState().getCurrentPhase() != Phase.FELLOWSHIP)
                 return true;

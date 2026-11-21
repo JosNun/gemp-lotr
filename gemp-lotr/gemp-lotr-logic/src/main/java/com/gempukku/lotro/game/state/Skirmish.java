@@ -16,6 +16,18 @@ public class Skirmish {
     private final Set<PhysicalCard> _pendingShadowCharacters;
     private boolean _cancelled;
 
+    // The game's count of changes (GameState): a skirmish is changed directly, and questions about the game read it.
+    private long[] _queryEpoch;
+
+    public void shareQueryEpoch(long[] queryEpoch) {
+        _queryEpoch = queryEpoch;
+    }
+
+    private void touched() {
+        if (_queryEpoch != null)
+            _queryEpoch[0]++;
+    }
+
     private Evaluator _fpStrengthOverrideEvaluator;
     private Evaluator _shadowStrengthOverrideEvaluator;
 
@@ -64,6 +76,7 @@ public class Skirmish {
      * came in, and no longer the one he replaced (F-0563).
      */
     public void noteReplacement(PhysicalCard replaced, PhysicalCard replacedBy) {
+        touched();
         if (replaced != null && _involvedFellowshipCharacter == replaced) {
             _involvedFellowshipCharacter = replacedBy;
         } else if (_involvedShadowCharacters.remove(replaced)) {
@@ -76,6 +89,7 @@ public class Skirmish {
     }
 
     public void setFpStrengthOverrideEvaluator(Evaluator fpStrengthOverrideEvaluator) {
+        touched();
         _fpStrengthOverrideEvaluator = fpStrengthOverrideEvaluator;
     }
 
@@ -84,6 +98,7 @@ public class Skirmish {
     }
 
     public void setShadowStrengthOverrideEvaluator(Evaluator shadowStrengthOverrideEvaluator) {
+        touched();
         _shadowStrengthOverrideEvaluator = shadowStrengthOverrideEvaluator;
     }
 
@@ -96,6 +111,7 @@ public class Skirmish {
     }
 
     public void setFellowshipCharacter(PhysicalCard fellowshipCharacter) {
+        touched();
         _fellowshipCharacter = fellowshipCharacter;
         // Nothing lies in the place of a character who stands there
         if (fellowshipCharacter != null)
@@ -111,10 +127,12 @@ public class Skirmish {
     }
 
     public void setCardLeftInFellowshipPlace(PhysicalCard card) {
+        touched();
         _leftInFellowshipPlace = card;
     }
 
     public void addRemovedFromSkirmish(PhysicalCard loser) {
+        touched();
         _removedFromSkirmish.add(loser);
     }
 
@@ -128,6 +146,7 @@ public class Skirmish {
      * skirmish.
      */
     public void noteStrengthWhenRemoved(PhysicalCard card, int strength) {
+        touched();
         _strengthWhenRemoved.putIfAbsent(card, strength);
     }
 
@@ -139,6 +158,7 @@ public class Skirmish {
     }
 
     public void cancel() {
+        touched();
         _cancelled = true;
     }
 
@@ -147,6 +167,7 @@ public class Skirmish {
     }
 
     public void replaceCharacterInSkirmish(PhysicalCard oldCard, PhysicalCard newCard) {
+        touched();
         noteReplacement(oldCard, newCard);
         if(_fellowshipCharacter == oldCard) {
             _fellowshipCharacter = newCard;
