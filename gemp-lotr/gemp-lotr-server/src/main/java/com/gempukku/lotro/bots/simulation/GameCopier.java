@@ -649,7 +649,10 @@ public final class GameCopier {
             List<Field> objects = new ArrayList<>(), primitives = new ArrayList<>();
             for (Class<?> k = c; k != null && k != Object.class; k = k.getSuperclass())
                 for (Field f : k.getDeclaredFields()) {
-                    if (Modifier.isStatic(f.getModifiers()))
+                    // transient in the engine's own classes: not part of the game (ModifiersLogic's kept answers),
+                    // left null or zero in the copy. (The JDK's collections keep their contents in transient fields.)
+                    if (Modifier.isStatic(f.getModifiers())
+                            || Modifier.isTransient(f.getModifiers()) && k.getName().startsWith("com.gempukku."))
                         continue;
                     (f.getType().isPrimitive() ? primitives : objects).add(f);
                 }

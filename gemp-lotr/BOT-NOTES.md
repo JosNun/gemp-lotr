@@ -2813,10 +2813,11 @@ the fights (cheap v upstream / strong v upstream / strong v cheap): home 77.8 / 
 66.3; Towers 94.8 / 97.5 / 69.1; King 92.6 / 95.8 / 72.5; Movie 88.7 / 92.8 / 64.8. Per card-action decision:
 upstream 0.21 ms, cheap 0.69, strong 26.64.
 
-**The rules engine's repeated questions: answers kept while the game stands still (2026-11-21).** Two branches,
-neither merged here yet: `engine-modifier-speed` (worktree `~/dev/gemp-lotr-engine-clean`, off upstream 9db7eeeb3,
-engine files only, one commit -- the one to offer upstream) and `engine-speed-test` (`~/dev/gemp-lotr-engine`, this
-branch plus the same change and the copier's rule that the engine's transient fields are not copied).
+**The rules engine's repeated questions: answers kept while the game stands still (2026-11-21).** The change is
+one commit on upstream 9db7eeeb3, branch `engine-modifier-speed` (worktree `~/dev/gemp-lotr-engine-clean`, engine
+files only -- the one to offer upstream), and this branch was rebased onto it the same day (the tip before:
+tag `bot-generalisation-pre-engine`); the copier's rule that the engine's transient fields are not copied is a
+commit here. `engine-speed-test` (`~/dev/gemp-lotr-engine`) is where it was built and timed.
 What was slow was not the conditions (95% of the "is this modifier in force" checks have none) but the repetition:
 in 792 games vitality was asked 323 million times, 92% already answered since the last change; card type 5.8
 billion, 93%; has-keyword 726 million, 90%. ModifiersLogic now keeps strength, vitality, resistance, text removed,
