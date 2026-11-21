@@ -2805,6 +2805,14 @@ or the candidate's -- the hand, the cards in play by name, what the play-out the
 refit route is closed at this kind of input; what is left is looking ahead (the search itself), or a model that reads
 the cards.
 
+**The wide pick model in play, and the share page with the strong bot as it stands (2026-11-20).** sp-m11w (sp-m10
+with the pick model fit on both, 49 numbers): 53.1 against sp-m3, test decks seed 1, **-1.9 +- 1.0** against sp-m10 on
+the same games. Not kept; the pick-teaching route is closed (above).
+Share page `labels/nn/share-1121/index.html`: sp-m10; the strong bot with picks and card plays played out through
+the fights (cheap v upstream / strong v upstream / strong v cheap): home 77.8 / 82.3 / --; Fellowship 82.0 / 85.2 /
+66.3; Towers 94.8 / 97.5 / 69.1; King 92.6 / 95.8 / 72.5; Movie 88.7 / 92.8 / 64.8. Per card-action decision:
+upstream 0.21 ms, cheap 0.69, strong 26.64.
+
 **Open, a separate item: the rules engine's modifier lookup (noted 2026-11-19, not started).** A quiet-machine
 profile of the strong bot (JFR, 792 games, test decks): rules engine 43% of CPU, trees 24%, game copies 11%, features
 9%. `ModifiersLogic.getKeywordModifiersAffectingCard` is on the stack for 30% of all CPU (`isInForce` 24%): every
