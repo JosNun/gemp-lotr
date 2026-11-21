@@ -2813,14 +2813,31 @@ the fights (cheap v upstream / strong v upstream / strong v cheap): home 77.8 / 
 66.3; Towers 94.8 / 97.5 / 69.1; King 92.6 / 95.8 / 72.5; Movie 88.7 / 92.8 / 64.8. Per card-action decision:
 upstream 0.21 ms, cheap 0.69, strong 26.64.
 
-**Open, a separate item: the rules engine's modifier lookup (noted 2026-11-19, not started).** A quiet-machine
-profile of the strong bot (JFR, 792 games, test decks): rules engine 43% of CPU, trees 24%, game copies 11%, features
-9%. `ModifiersLogic.getKeywordModifiersAffectingCard` is on the stack for 30% of all CPU (`isInForce` 24%): every
-question about a card works out every modifier's condition again, and a condition spots over the cards in play
-(`GameState.iterateActiveCards` 20%, `isCardInPlayActive` 6% self, `getAttachedCards` a scan of all in play). The
-effect probe -- each card-action option tried on a copy -- is 32% of the total, most of it this. It is upstream's
-rules code, changed recently (CR 4.2 loops), and decides real games: to be done as its own piece of work, guarded by
-the engine's tests and by seeded games replaying the same, and offered upstream rather than carried here.
+**The rules engine's repeated questions: answers kept while the game stands still (2026-11-21).** Two branches,
+neither merged here yet: `engine-modifier-speed` (worktree `~/dev/gemp-lotr-engine-clean`, off upstream 9db7eeeb3,
+engine files only, one commit -- the one to offer upstream) and `engine-speed-test` (`~/dev/gemp-lotr-engine`, this
+branch plus the same change and the copier's rule that the engine's transient fields are not copied).
+What was slow was not the conditions (95% of the "is this modifier in force" checks have none) but the repetition:
+in 792 games vitality was asked 323 million times, 92% already answered since the last change; card type 5.8
+billion, 93%; has-keyword 726 million, 90%. ModifiersLogic now keeps strength, vitality, resistance, text removed,
+has-keyword, keyword count and card type by card, stamped with a count of changes (GameState's mutators, cards and
+skirmishes changed directly, action memory, the actions environment, "as if" questions, its own modifiers and limit
+counters); an answer worked out with a modifier left out is not kept, and a kept one is used inside a working-out
+only if it never asked about a modifier now left out (a 256-bit mask). Off with `-Dgemp.modifierMemo=false`;
+`=verify` recomputes every kept answer and throws on a difference.
+Checked: the server tests in verify mode, 25,811, none failing (the first run found the one leak: initiative reads
+the cards entering play, held by the actions environment); verify on 3,168 cheap-bot games and 216 strong-bot games,
+no stale answer. Timed on the test decks, seed 1, 3,168 games, unchanged build against new, every game the same
+(the slow Expanded matchups the old build abandons at 15 minutes now finish):
+
+| bot | before | after |
+|---|---|---|
+| sp-m10 | 1.15 CPU-s a game | **1.07** (-7%) |
+| middle (assign, arbitrary, choice, movepick) | 2.42 | **1.95** (-19%) |
+| strong (everything, fight-long) | 8.76 | **6.29** (-28%) |
+
+Memory: about 0.1 MB a game in progress (jmap, 12 live games: 15,000 kept answers, 1.35 MB in all).
+A first attempt kept only a modifier's card-independent "holds" inside one question: 1%, dropped.
 
 ## How human is "agreement with people", and play by precedent (2026-10-31)
 

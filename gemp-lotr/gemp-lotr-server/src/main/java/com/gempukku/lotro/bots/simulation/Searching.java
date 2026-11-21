@@ -872,6 +872,8 @@ public final class Searching implements BotPlayer {
             values.forEach((c, v) -> searched.add(new double[]{"action".equals(kind) && c == n - 1 ? -1 : c, v}));
             rec.put("searched", searched);
             rec.put("rollouts", ROLLOUTS);
+            // which game: boards of one game are alike, and are held out together when a model is checked on them
+            rec.put("game", "g" + Integer.toHexString(System.identityHashCode(gs.getGame())) + "-" + ProcessHandle.current().pid());
             // what the bot would have answered without the search, and how sure the network was: what a gate on
             // where search pays is learned from (search's gain = its pick's value - the bot's own answer's)
             rec.put("own", own < 0 ? null : "action".equals(kind) && own == n - 1 ? -1 : own);
