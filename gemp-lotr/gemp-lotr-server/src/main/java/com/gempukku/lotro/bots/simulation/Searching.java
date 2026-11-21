@@ -790,6 +790,42 @@ public final class Searching implements BotPlayer {
             String pick = answers.get(best);
             if (!pick.equals(own))
                 changed.incrementAndGet();
+            if (SELF_CHECK && first < worlds.length && sums.size() > 1) {
+                // the same candidates in other worlds, scored the same way: does the search give the same answer twice?
+                long[] again = new SplittableRandom(com.gempukku.lotro.bots.BotRandom.current().nextLong()).longs(ROLLOUTS)
+                        .toArray();
+                int best2 = -1;
+                double bestScore2 = Double.NEGATIVE_INFINITY;
+                for (int c : sums.keySet()) {
+                    double q = 0, n = 0;
+                    for (long w : again) {
+                        Double v = playOut(gs, d, answers.get(c), w, turnLong, false, fights);
+                        if (v != null) {
+                            q += v;
+                            n++;
+                        }
+                    }
+                    if (n > 0 && lp[c] + (q / n) / LAMBDA > bestScore2) {
+                        bestScore2 = lp[c] + (q / n) / LAMBDA;
+                        best2 = c;
+                    }
+                }
+                if (best2 >= 0) {
+                    long[] c = SELF.computeIfAbsent("card action: " + context, k -> new long[6]);
+                    synchronized (c) {
+                        c[0]++;
+                        if (best2 == best)
+                            c[1]++;
+                        if (!pick.equals(own)) {
+                            c[2]++;
+                            if (best2 == best)
+                                c[3]++;
+                            else if (answers.get(best2).equals(own))
+                                c[4]++;
+                        }
+                    }
+                }
+            }
             if (BOARDS != null && values.size() > 1)
                 record(gs, d, kind, pick, values, answers.size(), ownIndex, Math.exp(lp[order[0]]));
             if (STEPS != null && values.size() > 1 && "action".equals(kind))

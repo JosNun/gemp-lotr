@@ -2813,6 +2813,31 @@ the fights (cheap v upstream / strong v upstream / strong v cheap): home 77.8 / 
 66.3; Towers 94.8 / 97.5 / 69.1; King 92.6 / 95.8 / 72.5; Movie 88.7 / 92.8 / 64.8. Per card-action decision:
 upstream 0.21 ms, cheap 0.69, strong 26.64.
 
+**A model that reads the cards does not learn the search's changes either (2026-11-21).** `scripts/cards-1121.sh`,
+`labels/nn/cards-1121/cards.log`, `nn/learn_changes.py`. 16,000 games of sp-m10 with its card plays searched
+(fight-long), both seats, training decks: 260,667 card plays searched through both rounds, each written as a board
+(`-Dsearch.boards`, now with the game named) -- every card in play and in hand, the piles, the candidates' values, the
+search's answer and the trees' own. Almost all are a choice of two. The card-reading network (board_net2, people-trained
+checkpoints) fitted to the search's answer on four fifths of the games, asked on the rest (51,241), among the
+candidates:
+
+| | the search kept the trees' answer (39,525) | changed it (11,716) |
+|---|---|---|
+| before the fit (distill3) | 85.6 | 24.6 |
+| after six passes | 88.2 | **46.3** |
+| board_net2-d256-e8, after six | 87.6 | **46.7** |
+| chance | 50.0 | 49.6 |
+
+It learns where the search is likely to differ (it names the other candidate 12% of the time where the search kept
+the trees' answer, 47% where it changed it) and not which way: a coin on the changes, as the trees' refits were on
+wound picks. And the labels are not noise: the card-play search asked twice in other worlds (`-Dsearch.selfCheck`,
+now for card actions too; 1,600 games) gives the same answer 24,756 times in 25,938 (95%), and where the first
+changed the trees' answer the second agrees 4,998 times in 5,830 (86%; skirmish 90%, shadow 80%, regroup 76%).
+So what the search changes is settled by the position and found by playing it forward; neither the trees on the
+board's numbers nor a transformer over its cards recovers it from 209,000 examples. Teaching the search's answers to
+a model that only looks is closed for card plays as for picks. What is left for a cheaper strong bot is a cheaper
+search: with the engine's kept answers the middle bot is 1.95 CPU-s a game for 61.4, the cheap bot 1.07 for 55.0.
+
 **The rules engine's repeated questions: answers kept while the game stands still (2026-11-21).** The change is
 one commit on upstream 9db7eeeb3, branch `engine-modifier-speed` (worktree `~/dev/gemp-lotr-engine-clean`, engine
 files only -- the one to offer upstream), and this branch was rebased onto it the same day (the tip before:
