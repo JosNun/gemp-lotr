@@ -3110,3 +3110,23 @@ would have loaded and been fed differently scaled inputs. **Dump a few vectors b
    generated per format.
 4. Better credit than "every decision in a won game was good": e.g. reward per turn
    from burdens/wounds/site reached, or comparing against the model's own estimate.
+
+**More engine speed, on the engine branch (2026-11-21 evening).** The user wants to ship a bot with no search (a
+play-out deals the opponent's hand from their exact remaining cards, which a person does not know), so the work
+went to the engine, on `engine-modifier-speed` (`4cb772720`), with this branch rebased on top again. A JFR profile
+of trees-only games put 40% in the trees and their inputs, ~36% in the engine, 9% in `Guarded`'s copies. Four
+changes, all read from the change count the kept answers already use: `Filters.name` cleaned its name for every
+card looked at (now once); the death, initiative and stats checks after every effect are skipped while the count
+stands; a card's "is it active" is kept on the card; a modifier's condition is kept by condition.
+`nn/engine-1120/e6.sh`, the same 3,168 seeded games, every game identical to the build before:
+
+| bot | before | after |
+|---|---|---|
+| trees alone (sp-m10) | 1.07 | **1.04** CPU-s a game |
+| middle | 1.95 | **1.84** |
+| strong | 6.29 | **5.83** |
+
+Verify mode: no stale answer in 792 trees games and 216 strong-bot games; upstream's 25,811 tests pass plain and
+in verify mode. **The profile overstated the gain**: it showed the targeted code at ~8% of a trees-only game and
+gone afterwards, and the game got 3% cheaper. JFR's shares say where to look, not what comes back. For the bot
+with no search the engine is now a small lever: the trees themselves are the largest part of its time.
