@@ -13,6 +13,13 @@ import java.util.Map;
 import java.util.Set;
 
 public interface ModifiersQuerying {
+    /**
+     * A number that is different whenever anything a question here could read has changed (the board's count of
+     * changes plus the modifiers'), or -1 where no such number can be trusted.  A rule that looked at the game at
+     * one count and found nothing to do has nothing to do while the count stays.
+     */
+    long getChangeCount(LotroGame game);
+
     LimitCounter getUntilEndOfPhaseLimitCounter(PhysicalCard card, Phase phase);
 
     LimitCounter getUntilEndOfPhaseLimitCounter(PhysicalCard card, String prefix, Phase phase);

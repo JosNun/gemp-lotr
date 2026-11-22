@@ -59,7 +59,7 @@ public class ModifiersLogic implements ModifiersEnvironment, ModifiersQuerying {
     private static final String MEMO_MODE = System.getProperty("gemp.modifierMemo", "true");
     private static final boolean MEMO = !"false".equals(MEMO_MODE), VERIFY = "verify".equals(MEMO_MODE);
     private static final int K_STRENGTH = 0, K_VITALITY = 1, K_RESISTANCE = 2, K_TEXT_REMOVED = 3, K_CARD_TYPE = 4,
-            K_HAS_KEYWORD = 5, K_KEYWORD_COUNT = 6;
+            K_HAS_KEYWORD = 5, K_KEYWORD_COUNT = 6, K_CONDITION = 7;
     private static final int SLOT_CARD_TYPE = 4, SLOT_HAS_KEYWORD = SLOT_CARD_TYPE + CardType.values().length,
             SLOT_KEYWORD_COUNT = SLOT_HAS_KEYWORD + Keyword.values().length,
             SLOTS = SLOT_KEYWORD_COUNT + Keyword.values().length;
@@ -75,10 +75,30 @@ public class ModifiersLogic implements ModifiersEnvironment, ModifiersQuerying {
     private int _selfSpotting;
     // Not part of the game: left behind when a game is copied, and built again as questions are asked.
     private transient Map<PhysicalCard, Memo[]> _memos;
+    // Whether a modifier's condition holds, by condition: asked once for every card a question is asked of, and
+    // most conditions look over the whole board ("while you can spot...").
+    private transient Map<Object, Memo> _conditionMemos;
     private transient long _met0, _met1, _met2, _met3;
     private transient long[] _frames;
     private transient int _frameTop;
     private transient boolean _verifying;
+
+    /** Whether answers are kept at all (-Dgemp.modifierMemo=false: nothing is). */
+    public static boolean keepsAnswers() {
+        return MEMO;
+    }
+
+    /** Whether kept answers are worked out again as they are used (-Dgemp.modifierMemo=verify). */
+    public static boolean verifiesKeptAnswers() {
+        return VERIFY;
+    }
+
+    @Override
+    public long getChangeCount(LotroGame game) {
+        if (!MEMO || _selfSpotting > 0)
+            return -1;
+        return game.getGameState().getQueryEpoch() + _modifierEpoch[0];
+    }
 
     private void countSelfSpotting() {
         int count = 0;
@@ -106,13 +126,18 @@ public class ModifiersLogic implements ModifiersEnvironment, ModifiersQuerying {
         return _skipSet.contains(modifier);
     }
 
-    private Memo recall(LotroGame game, PhysicalCard card, int slot) {
-        if (_memos == null)
-            return null;
-        final Memo[] ofCard = _memos.get(card);
-        if (ofCard == null)
-            return null;
-        final Memo memo = ofCard[slot];
+    private Memo recall(LotroGame game, PhysicalCard card, int slot, int kind, Object about) {
+        final Memo memo;
+        if (kind == K_CONDITION) {
+            memo = _conditionMemos == null ? null : _conditionMemos.get(about);
+        } else {
+            if (_memos == null)
+                return null;
+            final Memo[] ofCard = _memos.get(card);
+            if (ofCard == null)
+                return null;
+            memo = ofCard[slot];
+        }
         if (memo == null || memo.epoch != game.getGameState().getQueryEpoch() + _modifierEpoch[0])
             return null;
         for (int i = 0; i < _skipSet._size; i++) {
@@ -142,14 +167,15 @@ public class ModifiersLogic implements ModifiersEnvironment, ModifiersQuerying {
             case K_TEXT_REMOVED -> workOutHasTextRemoved(game, card) ? 1 : 0;
             case K_CARD_TYPE -> workOutIsCardType(game, card, (CardType) about) ? 1 : 0;
             case K_HAS_KEYWORD -> workOutHasKeyword(game, card, (Keyword) about) ? 1 : 0;
+            case K_CONDITION -> ((Condition) about).isFullfilled(game) ? 1 : 0;
             default -> workOutGetKeywordCount(game, card, (Keyword) about);
         };
     }
 
     private int ask(LotroGame game, PhysicalCard card, int slot, int kind, Object about) {
-        if (!MEMO || _verifying || _selfSpotting > 0 || card == null)
+        if (!MEMO || _verifying || _selfSpotting > 0 || card == null && kind != K_CONDITION)
             return workOut(game, card, kind, about);
-        final Memo memo = recall(game, card, slot);
+        final Memo memo = recall(game, card, slot, kind, about);
         if (memo != null) {
             if (VERIFY) {
                 final int fresh;
@@ -161,9 +187,9 @@ public class ModifiersLogic implements ModifiersEnvironment, ModifiersQuerying {
                 }
                 if (fresh != memo.value)
                     throw new IllegalStateException("A kept answer is stale: question " + kind
-                            + (about == null ? "" : " " + about) + " of " + card.getBlueprintId() + " (card "
-                            + card.getCardId() + ", " + card.getZone() + ") kept as " + memo.value + ", worked out as "
-                            + fresh + " in " + game.getGameState().getCurrentPhase());
+                            + (about == null ? "" : " " + about) + (card == null ? "" : " of " + card.getBlueprintId()
+                            + " (card " + card.getCardId() + ", " + card.getZone() + ")") + " kept as " + memo.value
+                            + ", worked out as " + fresh + " in " + game.getGameState().getCurrentPhase());
             }
             return memo.value;
         }
@@ -185,14 +211,24 @@ public class ModifiersLogic implements ModifiersEnvironment, ModifiersQuerying {
             final int value = workOut(game, card, kind, about);
             if (_skipSet._hits == hits && _selfSpotting == 0
                     && epoch == game.getGameState().getQueryEpoch() + _modifierEpoch[0]) {
-                if (_memos == null)
-                    _memos = new IdentityHashMap<>();
-                Memo[] ofCard = _memos.get(card);
-                if (ofCard == null)
-                    _memos.put(card, ofCard = new Memo[SLOTS]);
-                Memo kept = ofCard[slot];
-                if (kept == null)
-                    ofCard[slot] = kept = new Memo();
+                Memo kept;
+                if (kind == K_CONDITION) {
+                    // conditions come and go with their modifiers; the ones gone are dropped all at once
+                    if (_conditionMemos == null || _conditionMemos.size() > 4096)
+                        _conditionMemos = new IdentityHashMap<>();
+                    kept = _conditionMemos.get(about);
+                    if (kept == null)
+                        _conditionMemos.put(about, kept = new Memo());
+                } else {
+                    if (_memos == null)
+                        _memos = new IdentityHashMap<>();
+                    Memo[] ofCard = _memos.get(card);
+                    if (ofCard == null)
+                        _memos.put(card, ofCard = new Memo[SLOTS]);
+                    kept = ofCard[slot];
+                    if (kept == null)
+                        ofCard[slot] = kept = new Memo();
+                }
                 kept.epoch = epoch;
                 kept.value = value;
                 kept.met0 = _met0;
@@ -522,7 +558,7 @@ public class ModifiersLogic implements ModifiersEnvironment, ModifiersQuerying {
 
     private boolean worksOutInForce(LotroGame game, ModifierEffect modifierEffect, Modifier modifier, PhysicalCard card) {
         Condition condition = modifier.getCondition();
-        if (condition != null && !condition.isFullfilled(game))
+        if (condition != null && ask(game, null, 0, K_CONDITION, condition) == 0)
             return false;
         if (modifierEffect != ModifierEffect.TEXT_MODIFIER && modifier.getSource() != null
                 && !modifier.isNonCardTextModifier() && !_modifiersOfEffects.contains(modifier)

@@ -37,6 +37,24 @@ public class PhysicalCardImpl implements PhysicalCard {
         _queryEpoch = queryEpoch;
     }
 
+    // Whether this card is active (GameState.isCardInPlayActive), and the count of changes plus one that was
+    // worked out at; not part of the game.
+    private transient long _activeAt;
+    private transient boolean _active;
+
+    public boolean hasActiveKept(long count) {
+        return _activeAt == count + 1;
+    }
+
+    public boolean getActiveKept() {
+        return _active;
+    }
+
+    public void keepActive(long count, boolean active) {
+        _activeAt = count + 1;
+        _active = active;
+    }
+
     private void touched() {
         if (_queryEpoch != null)
             _queryEpoch[0]++;

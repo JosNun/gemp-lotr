@@ -7,10 +7,12 @@ import com.gempukku.lotro.game.PhysicalCard;
 import com.gempukku.lotro.game.state.LotroGame;
 import com.gempukku.lotro.game.state.Skirmish;
 import com.gempukku.lotro.logic.PlayerOrder;
+import com.gempukku.lotro.logic.modifiers.ModifiersLogic;
 
 import java.util.*;
 
 public class GameStats {
+    private long _updatedAt = -1;
     private Integer wearingRing;
 
     private Integer _fellowshipArchery;
@@ -45,6 +47,20 @@ public class GameStats {
      * @return If the stats have changed
      */
     public boolean updateGameStats(LotroGame game) {
+        // Asked after every effect.  Everything below is read from the board and the modifiers, so with their
+        // count of changes as it was at the last look, nothing here has changed.
+        final long count = game.getModifiersQuerying().getChangeCount(game);
+        final boolean settled = count != -1 && count == _updatedAt;
+        if (settled && !ModifiersLogic.verifiesKeptAnswers())
+            return false;
+        _updatedAt = count;
+        final boolean changed = workOutGameStats(game);
+        if (settled && changed)
+            throw new IllegalStateException("The game's stats changed with no change counted");
+        return changed;
+    }
+
+    private boolean workOutGameStats(LotroGame game) {
         boolean changed = false;
         PlayerOrder playerOrder = game.getGameState().getPlayerOrder();
 

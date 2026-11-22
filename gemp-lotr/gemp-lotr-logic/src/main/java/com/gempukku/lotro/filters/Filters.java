@@ -875,7 +875,15 @@ public class Filters {
     public static final Filter wounded = Filters.hasWounds(1);
 
     public static Filter name(final String name) {
-        return (game, physicalCard) -> name != null && physicalCard.getBlueprint().getSanitizedTitle() != null && physicalCard.getBlueprint().getSanitizedTitle().equals(Names.SanitizeName(name));
+        // Cleaned once, not once a card looked at: the cleaning is a Unicode normalisation and seven regular
+        // expressions, and was 4% of a game's time.
+        final String sanitized = name == null ? null : Names.SanitizeName(name);
+        return (game, physicalCard) -> {
+            if (sanitized == null)
+                return false;
+            String title = physicalCard.getBlueprint().getSanitizedTitle();
+            return title != null && title.equals(sanitized);
+        };
     }
 
     private static Filter type(final CardType cardType) {

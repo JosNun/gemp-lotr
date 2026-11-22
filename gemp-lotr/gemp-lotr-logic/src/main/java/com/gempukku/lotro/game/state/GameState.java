@@ -1966,6 +1966,27 @@ public class GameState {
     public boolean isCardInPlayActive(PhysicalCard card) { return isCardInPlayActive(card, false, false, false, false); }
     public boolean isCardInPlayActive(PhysicalCard card, boolean includeOutOfTurn, boolean includeAttachedToInactive,
             boolean includeStacked, boolean includeHindered) {
+        // The plain question is asked of every card in play by every filter that looks over the board (5% of a
+        // game's time on its own), and its answer is read from the board alone: kept on the card until the board's
+        // count of changes moves.
+        if (!includeOutOfTurn && !includeAttachedToInactive && !includeStacked && !includeHindered
+                && card instanceof PhysicalCardImpl impl && ModifiersLogic.keepsAnswers()) {
+            final long count = _queryEpoch[0];
+            if (impl.hasActiveKept(count)) {
+                if (ModifiersLogic.verifiesKeptAnswers() && impl.getActiveKept() != workOutCardInPlayActive(card, false, false, false, false))
+                    throw new IllegalStateException("A kept answer is stale: whether " + card.getBlueprintId()
+                            + " (card " + card.getCardId() + ", " + card.getZone() + ") is active");
+                return impl.getActiveKept();
+            }
+            final boolean active = workOutCardInPlayActive(card, false, false, false, false);
+            impl.keepActive(count, active);
+            return active;
+        }
+        return workOutCardInPlayActive(card, includeOutOfTurn, includeAttachedToInactive, includeStacked, includeHindered);
+    }
+
+    private boolean workOutCardInPlayActive(PhysicalCard card, boolean includeOutOfTurn, boolean includeAttachedToInactive,
+            boolean includeStacked, boolean includeHindered) {
         Side side = card.getBlueprint().getSide();
 
         //Hindered cards do not count as active for most purposes
